@@ -1,0 +1,95 @@
+[project]
+name = "pdm-conda"
+description = " A PDM plugin to install project dependencies woth Conda"
+requires-python = ">=3.10"
+authors = [
+    { name = "Marcos Pastorini" },
+]
+keywords = ["pdm", "plugin", "conda"]
+readme = "README.md"
+license = { file = "LICENSE" }
+dynamic = ["version"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3 :: Only",
+]
+dependencies = [
+]
+
+[build-system]
+requires = ["pdm-pep517"]
+build-backend = "pdm.pep517.api"
+
+[project.urls]
+Homepage = "https://github.com/macro128/pdm-conda"
+
+[project.entry-points.pdm]
+conda = "pdm_conda:main"
+
+[tool.pdm]
+version = { source = "file", path = "pdm_conda/__init__.py" }
+
+[tool.pdm.dev-dependencies]
+dev = [
+    "pdm>=2.3.4",
+    "pytest>=7.2.0",
+    "pytest-mock>=3.10.0",
+]
+
+[tool.mypy]
+python_version = "3.10"
+pretty = true
+
+[tool.isort]
+honor_noqa = true
+profile = "black"
+combine_star = true
+remove_redundant_aliases = true
+multi_line_output = 3
+
+[tool.flake8]
+inline-quotes = "double"
+max-line-length = 120
+extend-ignore = "E203"
+
+ignore = [
+    # Too broad except
+    "E722",
+    # Missing docstring in __init__
+    "D107",
+    # Found `__init__.py` module with logic
+    "WPS412", "WPS326",
+]
+
+per-file-ignores = [
+    # all init files
+    "__init__.py:",
+    # ignore not used imports
+    "F401",
+    # ignore import with wildcard
+    "F403",
+    # Found wrong metadata variable
+    "WPS410",
+    # all tests
+    "test_*.py,tests.py,tests_*.py,*/tests/*,conftest.py:",
+    # Use of assert detected
+    "S101",
+    # Found outer scope names shadowing
+    "WPS442",
+    # Found too many local variables
+    "WPS210",
+    # Found magic number
+    "WPS432",
+    # Missing parameter(s) in Docstring
+    "DAR101",
+    # Found too many arguments
+    "WPS211",
+]
+
+exclude = [
+    "./.git",
+    "./venv",
+    "migrations",
+    "./var",
+]
