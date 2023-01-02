@@ -1,0 +1,12 @@
+name: "pdm-conda"
+
+services:
+  pdm-conda:
+    build:
+      context: ../
+      dockerfile: ./deploy/Dockerfile
+      args:
+        src: ./pdm_conda
+    image: pdm-conda:latest
+    restart: always
+    platform: linux/amd64

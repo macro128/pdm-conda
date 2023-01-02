@@ -1,0 +1,10 @@
+services:
+  pdm-conda:
+    build:
+      args:
+        env: dev
+    image: pdm-conda:latest-dev
+    platform: linux/arm64
+    user: root
+    volumes:
+      - ../:/app/src/
