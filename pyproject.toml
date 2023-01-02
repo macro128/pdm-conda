@@ -51,15 +51,16 @@ multi_line_output = 3
 [tool.flake8]
 inline-quotes = "double"
 max-line-length = 120
-extend-ignore = "E203"
-
-ignore = [
+extend-ignore = [
+    # black
+    "E203", "W503",
     # Too broad except
     "E722",
     # Missing docstring in __init__
     "D107",
     # Found `__init__.py` module with logic
     "WPS412", "WPS326",
+
 ]
 
 per-file-ignores = [
