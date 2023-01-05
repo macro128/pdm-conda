@@ -30,6 +30,9 @@ conda = "pdm_conda:main"
 [tool.pdm]
 version = { source = "file", path = "pdm_conda/__init__.py" }
 
+[tool.pdm.scripts]
+test = "pytest tests/"
+
 [tool.pdm.dev-dependencies]
 dev = [
     "pdm>=2.3.4",
@@ -47,6 +50,9 @@ profile = "black"
 combine_star = true
 remove_redundant_aliases = true
 multi_line_output = 3
+
+[tool.black]
+line-length = 120
 
 [tool.flake8]
 inline-quotes = "double"
