@@ -10,6 +10,8 @@ def wrap_get_dependencies(func):
     @functools.wraps(func)
     def wrapper(self, candidate: Candidate):
         if isinstance(candidate, CondaCandidate):
+            if candidate.req.package is None:
+                raise ValueError("Uninitialized conda requirement")
             return (
                 candidate.req.package.dependencies,
                 PySpecSet(candidate.requires_python),

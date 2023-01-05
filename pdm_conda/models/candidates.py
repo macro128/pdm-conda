@@ -1,10 +1,37 @@
-import functools
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
+import importlib_metadata as im
 from pdm.models.candidates import Candidate, PreparedCandidate
-from pdm.models.requirements import Requirement
+from pdm.models.candidates import make_candidate as _make_candidate
+from pdm.models.environment import Environment
 from unearth import Link
+
+from pdm_conda.models.requirements import CondaRequirement, Requirement
+
+_patched = False
+
+
+class CondaPreparedCandidate(PreparedCandidate):
+    def __init__(self, candidate: Candidate, environment: Environment) -> None:
+        super().__init__(candidate, environment)
+        self.candidate = cast(CondaCandidate, self.candidate)  # type: ignore
+        self.req = cast(CondaRequirement, self.req)  # type: ignore
+
+    def get_dependencies_from_metadata(self) -> list[str]:
+        # if conda candidate return already obtained dependencies
+        if self.req.package is None:
+            raise ValueError("Uninitialized conda requirement")
+        return self.req.package._dependencies
+
+    def prepare_metadata(self) -> im.Distribution:
+        # if conda candidate get setup from package
+        if self.req.package is None:
+            raise ValueError("Uninitialized conda requirement")
+        return self.req.package.distribution
+
+    def should_cache(self) -> bool:
+        return False
 
 
 class CondaCandidate(Candidate):
@@ -17,62 +44,57 @@ class CondaCandidate(Candidate):
     ):
         super().__init__(req, name, version, link)
         # extract hash from link
-        if link:
-            k, v = list(link.hashes.items())[0]
-            self.hashes = {link: f"{k}:{v}"}
+        if link and link.hash is not None:
+            self.hashes = {link: link.hash}
+        self.req = cast(CondaRequirement, self.req)  # type: ignore
+        self._preferred = None
+        self._prepared: CondaPreparedCandidate | None = None
 
     def as_lockfile_entry(self, project_root: Path) -> dict[str, Any]:
         result = super().as_lockfile_entry(project_root)
         result["conda_managed"] = True
         if self.req.channel is not None:
             result["channel"] = self.req.channel
+        if self.link is None:
+            raise ValueError("Uninitialized conda requirement")
+        result["url"] = self.link.url
+        if self.link.comes_from is not None:
+            result["channel_url"] = self.link.comes_from
         return result
 
+    def prepare(self, environment: Environment) -> CondaPreparedCandidate:
+        """Prepare the candidate for installation."""
+        if self._prepared is None:
+            self._prepared = CondaPreparedCandidate(self, environment)
+        return self._prepared
 
-def wrap_get_dependencies_from_metadata(func):
-    @functools.wraps(func)
-    def wrapper(self):
-        # if conda candidate get already obtained dependencies
-        if isinstance(self.candidate, CondaCandidate):
-            return self.req.package.dependencies
-
-        return func(self)
-
-    return wrapper
-
-
-def wrap_prepare_metadata(func):
-    @functools.wraps(func)
-    def wrapper(self):
-        # if conda candidate get setup from package
-        if isinstance(self.candidate, CondaCandidate):
-            return self.candidate.req.package.distribution
-
-        return func(self)
-
-    return wrapper
+    @classmethod
+    def from_conda_requirement(cls, req: CondaRequirement) -> "CondaCandidate":
+        version: str | None
+        if req.package is not None:
+            version = req.package.version
+        else:
+            version = list(req.specifier)[0].version if req.specifier else None
+        return CondaCandidate(req, name=req.name, version=version, link=req.link)
 
 
-def wrap_should_cache(func):
-    @functools.wraps(func)
-    def wrapper(self):
-        # if conda candidate don't cache it
-        if isinstance(self.candidate, CondaCandidate):
-            return False
+def make_candidate(
+    req: Requirement,
+    name: str | None = None,
+    version: str | None = None,
+    link: Link | None = None,
+) -> Candidate:
+    """Construct a candidate and cache it in memory"""
+    # if conda requirement make conda candidate
+    if isinstance(req, CondaRequirement):
+        return CondaCandidate.from_conda_requirement(req)
+    return _make_candidate(req, name, version, link)
 
-        return func(self)
 
-    return wrapper
+if not _patched:
+    from pdm.models import repositories
+    from pdm.resolver import providers
 
-
-if not hasattr(PreparedCandidate, "_patched"):
-    setattr(PreparedCandidate, "_patched", True)
-    PreparedCandidate.get_dependencies_from_metadata = (
-        wrap_get_dependencies_from_metadata(
-            PreparedCandidate.get_dependencies_from_metadata,
-        )
-    )
-    PreparedCandidate.should_cache = wrap_should_cache(PreparedCandidate.should_cache)
-    PreparedCandidate.prepare_metadata = wrap_prepare_metadata(
-        PreparedCandidate.prepare_metadata,
-    )
+    setattr(providers, "make_candidate", make_candidate)
+    setattr(repositories, "make_candidate", make_candidate)
+    _patched = True
