@@ -45,7 +45,7 @@ class CondaProject(Project):
                 raise PdmUsageError(f"Non-exist group {group}")
 
         for line in deps:
-            req = parse_requirement(line, conda_managed=True)
+            req = parse_requirement(f"conda:{line}")
             req_id = req.identify()
             pypi_req = result.pop(req_id, None)
             # search for package with extras to remove it

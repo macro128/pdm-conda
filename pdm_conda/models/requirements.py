@@ -1,25 +1,29 @@
 import dataclasses
 import functools
+import re
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
+from pdm._types import RequirementDict
 from pdm.models.markers import get_marker
-from pdm.models.requirements import (
-    PackageRequirement,
-    Requirement,
-    T,
-    parse_requirement,
-)
+from pdm.models.requirements import NamedRequirement, PackageRequirement, Requirement, T
+from pdm.models.requirements import parse_requirement as _parse_requirement
 from pdm.models.setup import Setup
 from unearth import Link
+
+_conda_req_re = re.compile(
+    r"conda:((\w+::)?.+)$",
+)
+
+_patched = False
 
 
 @dataclass
 class CondaPackage:
     name: str
     version: str
-    url: Link
-    _dependencies: list[str] = field(repr=False)
+    link: Link
+    _dependencies: list[str] = field(repr=False, default_factory=lambda: [])
     dependencies: list["CondaRequirement"] = field(
         init=False,
         default_factory=lambda: [],
@@ -28,7 +32,10 @@ class CondaPackage:
     requires_python: str | None = None
 
     def __post_init__(self):
-        self.req = parse_requirement(self.name, conda_package=self)
+        self.req = cast(
+            CondaRequirement,
+            parse_requirement(self.name, conda_package=self),
+        )
 
     @property
     def distribution(self):
@@ -45,13 +52,14 @@ class CondaPackage:
     def load_dependencies(self, packages: dict[str, "CondaPackage"]):
         self.dependencies = []
         for dependency in self._dependencies:
-            name = dependency.split(" ", maxsplit=1)[0]
-            if name in packages:
-                self.dependencies.append(packages[name].req)
+            if (match := re.search(r"([a-zA-Z0-9_\-]+)", dependency)) is not None:
+                name = match.group(1)
+                if name in packages:
+                    self.dependencies.append(packages[name].req)
 
 
 @dataclasses.dataclass(eq=False)
-class CondaRequirement(Requirement):
+class CondaRequirement(NamedRequirement):
     url: str = ""
     link: Link | None = None
     channel: str | None = None
@@ -61,10 +69,18 @@ class CondaRequirement(Requirement):
     def project_name(self) -> str | None:
         return self.name
 
+    @property
+    def is_python_package(self) -> bool:
+        if self.package is None:
+            return False
+        return self.package.requires_python is not None
+
     @classmethod
     def create(cls: type[T], **kwargs: Any) -> T:
         if (link := kwargs.get("link", None)) is not None:
             kwargs["url"] = link.url
+        else:
+            kwargs["link"] = Link(kwargs["url"])
         kwargs.pop("conda_managed", None)
         return super().create(**kwargs)
 
@@ -72,53 +88,61 @@ class CondaRequirement(Requirement):
         channel = f"{self.channel}::" if self.channel else ""
         return f"{channel}{self.project_name}{self.specifier}{self._format_marker()}"
 
+    def as_named_requirement(self) -> NamedRequirement:
+        return NamedRequirement.create(
+            name=self.name,
+            marker=self.marker,
+            specifier=self.specifier,
+        )
+
 
 def wrap_from_req_dict(func):
     @functools.wraps(func)
-    def wrapper(name, req_dict):
+    def wrapper(name: str, req_dict: RequirementDict) -> Requirement:
         if isinstance(req_dict, dict) and req_dict.get("conda_managed", False):
             return CondaRequirement.create(name=name, **req_dict)
-
-        return func(name=name, req_dict=req_dict)
-
-    return wrapper
-
-
-def wrap_parse_requirement(func):
-    @functools.wraps(func)
-    def wrapper(
-        line: str,
-        editable: bool = False,
-        conda_managed: bool = False,
-        conda_package: CondaPackage | None = None,
-    ):
-        if conda_managed or conda_package is not None:
-            channel = None
-            if "::" in line:
-                channel, line = line.split("::", maxsplit=1)
-            if conda_package is not None:
-                return CondaRequirement.create(
-                    name=conda_package.name,
-                    version=f"=={conda_package.version}",
-                    link=conda_package.url,
-                    package=conda_package,
-                    channel=channel,
-                )
-            else:
-                package_req = PackageRequirement(line)  # type: ignore
-                return CondaRequirement.create(
-                    name=package_req.name,
-                    specifier=package_req.specifier,
-                    marker=get_marker(package_req.marker),
-                    channel=channel,
-                    url=package_req.url or "",
-                )
-        return func(line=line, editable=editable)
+        return func(name, req_dict)
 
     return wrapper
 
 
-if not hasattr(Requirement, "_patched"):
-    setattr(Requirement, "_patched", True)
-    Requirement.from_req_dict = wrap_from_req_dict(Requirement.from_req_dict)
-    parse_requirement = wrap_parse_requirement(parse_requirement)
+def parse_requirement(
+    line: str,
+    editable: bool = False,
+    conda_package: CondaPackage | None = None,
+) -> Requirement:
+    m = _conda_req_re.match(line)
+    if m is not None or conda_package is not None:
+        if m is not None:
+            line = m.group(1)
+        channel = None
+        if "::" in line:
+            channel, line = line.split("::", maxsplit=1)
+        if conda_package is not None:
+            kwargs = dict(
+                name=conda_package.name,
+                version=f"=={conda_package.version}",
+                link=conda_package.link,
+                package=conda_package,
+                channel=channel,
+            )
+        else:
+            package_req = PackageRequirement(line)  # type: ignore
+            kwargs = dict(
+                name=package_req.name,
+                specifier=package_req.specifier,
+                marker=get_marker(package_req.marker),
+                channel=channel,
+                url=package_req.url or "",
+            )
+        return CondaRequirement.create(**kwargs)
+
+    return _parse_requirement(line=line, editable=editable)
+
+
+if not _patched:
+    from pdm.cli import actions
+
+    setattr(Requirement, "from_req_dict", wrap_from_req_dict(Requirement.from_req_dict))
+    setattr(actions, "parse_requirement", parse_requirement)
+    _patched = True

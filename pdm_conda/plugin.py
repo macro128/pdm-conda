@@ -2,6 +2,7 @@ import json
 import re
 import subprocess
 from tempfile import NamedTemporaryFile, TemporaryDirectory
+from typing import cast
 
 from pdm.exceptions import RequirementError
 from pdm.project import Project
@@ -9,6 +10,7 @@ from unearth import Link
 
 from pdm_conda.models.config import PluginConfig
 from pdm_conda.models.requirements import CondaPackage, CondaRequirement, Requirement
+from pdm_conda.project import CondaProject
 
 
 def run_conda(cmd, **environment) -> dict:
@@ -83,6 +85,8 @@ def lock_conda_dependencies(
                 run_conda(config.command("remove") + ["--prefix", prefix, "--json"])
                 project.core.ui.echo(f"Removed temporary environment at {prefix}")
         update_requirements(requirements, conda_packages)
+        project = cast(CondaProject, project)
+        project.conda_packages.update(conda_packages)
 
 
 def conda_lock(
@@ -127,12 +131,15 @@ def conda_lock(
             for d in to_delete:
                 dependencies.remove(d)
             hashes = {h: package[h] for h in ["sha256", "md5"] if h in package}
+            url = package["url"]
+            for k, v in hashes.items():
+                url += f"#{k}={v}"
             name = package["name"]
             packages[name] = CondaPackage(
-                name=package["name"],
+                name=name,
                 version=package["version"],
-                url=Link(
-                    package["url"],
+                link=Link(
+                    url,
                     comes_from=package["channel"],
                     requires_python=requires_python,
                     hashes=hashes,
@@ -150,21 +157,31 @@ def conda_lock(
     return packages
 
 
-# def conda_install(project: Project, packages: dict[str, CondaPackage], config: PluginConfig | None = None,
-#                   verbose: bool = False):
-#     """
-#     Install resolved packages using conda
-#     :param project: PDM project
-#     :param packages: resolved packages
-#     :param config: plugin config
-#     :param verbose: show conda response if true
-#     """
-#     config = config or config.load_config(project)
-#
-#     response = run_conda(config.command() + ["--freeze-installed"], channels=config.channels,
-#                          dependencies=[p.url for p in packages.values()])
-#     if verbose:
-#         project.core.ui.echo(response)
+def conda_install(
+    project: Project,
+    packages: dict[str, CondaPackage],
+    config: PluginConfig | None = None,
+    verbose: bool = False,
+    dry_run: bool = False,
+):
+    """
+    Install resolved packages using conda
+    :param project: PDM project
+    :param packages: resolved packages
+    :param config: plugin config
+    :param verbose: show conda response if true
+    :param dry_run: don't install if dry run
+    """
+    config = config or PluginConfig.load_config(project)
+    command = config.command() + ["--freeze-installed"]
+    if dry_run:
+        command.append("--dry-run")
+    response = run_conda(
+        command,
+        dependencies=[p.link.url_without_fragment for p in packages.values()],
+    )
+    if verbose:
+        project.core.ui.echo(response)
 
 
 def update_requirements(
