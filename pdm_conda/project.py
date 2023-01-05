@@ -1,15 +1,26 @@
-import functools
+from pathlib import Path
 
+from pdm.core import Core
 from pdm.exceptions import PdmUsageError
 from pdm.project import Project
 
+from pdm_conda.models.requirements import CondaPackage, Requirement, parse_requirement
 
-def wrap_get_dependencies(func):
-    @functools.wraps(func)
-    def wrapper(self, group: str | None = None):
-        from pdm_conda.models.requirements import parse_requirement
 
-        result = func(self, group=group)
+class CondaProject(Project):
+    def __init__(
+        self,
+        core: Core,
+        root_path: str | Path | None,
+        is_global: bool = False,
+        global_config: str | Path | None = None,
+    ) -> None:
+        super().__init__(core, root_path, is_global, global_config)
+        self.conda_packages: dict[str, CondaPackage] = dict()
+
+    def get_dependencies(self, group: str | None = None) -> dict[str, Requirement]:
+        result = super().get_dependencies(group)
+
         settings = self.pyproject.settings.get("conda", {})
         group = group or "default"
         optional_dependencies = settings.get("optional-dependencies", {})
@@ -46,10 +57,3 @@ def wrap_get_dependencies(func):
             result[req.identify()] = req
 
         return result
-
-    return wrapper
-
-
-if not hasattr(Project, "_patched"):
-    setattr(Project, "_patched", True)
-    Project.get_dependencies = wrap_get_dependencies(Project.get_dependencies)
