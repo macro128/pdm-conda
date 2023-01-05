@@ -10,10 +10,7 @@ from pdm_conda.models.requirements import CondaPackage
 
 
 class CondaRepository(BaseRepository):
-    def get_dependencies(
-        self,
-        candidate: Candidate,
-    ) -> tuple[list[Requirement], PySpecSet, str]:
+    def get_dependencies(self, candidate: Candidate) -> tuple[list[Requirement], PySpecSet, str]:
         if isinstance(candidate, CondaCandidate):
             if candidate.req.package is None:
                 raise ValueError("Uninitialized conda requirement")
@@ -55,11 +52,7 @@ class LockedCondaRepository(CondaRepository, LockedRepository):
             can = CondaCandidate.from_conda_requirement(req)
             can_id = self._identify_candidate(can)
             self.packages[can_id] = can
-            self.candidate_info[can_id] = (
-                _p._dependencies,
-                _p.requires_python or "",
-                "",
-            )
+            self.candidate_info[can_id] = (_p._dependencies, _p.requires_python or "", "")
         for p in _conda_packages.values():
             p.load_dependencies(_conda_packages)
 
@@ -68,10 +61,7 @@ class LockedCondaRepository(CondaRepository, LockedRepository):
             return candidate.identify(), candidate.version, None, False
         return super()._identify_candidate(candidate)
 
-    def get_dependencies(
-        self,
-        candidate: Candidate,
-    ) -> tuple[list[Requirement], PySpecSet, str]:
+    def get_dependencies(self, candidate: Candidate) -> tuple[list[Requirement], PySpecSet, str]:
         if isinstance(candidate, CondaCandidate):
             can_id = self._identify_candidate(candidate)
             if (package := self.packages.get(can_id, None)) is not None:
