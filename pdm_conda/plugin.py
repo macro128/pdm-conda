@@ -28,12 +28,7 @@ def run_conda(cmd, **environment) -> dict:
         if environment:
             f.seek(0)
             cmd = cmd + ["-f", f.name]
-        process = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            encoding="utf-8",
-        )
+        process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
         if "--json" in cmd:
             try:
                 response = json.loads(process.stdout)
@@ -55,16 +50,12 @@ def run_conda(cmd, **environment) -> dict:
     return response
 
 
-def lock_conda_dependencies(
-    project: Project, requirements: list[Requirement], **kwargs
-):
+def lock_conda_dependencies(project: Project, requirements: list[Requirement], **kwargs):
     """
     Extract conda marked dependencies from requirements, install them if not dry_run and add conda resolved versions
     """
     config = PluginConfig.load_config(project)
-    _requirements = [
-        r.as_line() for r in requirements if isinstance(r, CondaRequirement)
-    ]
+    _requirements = [r.as_line() for r in requirements if isinstance(r, CondaRequirement)]
     if _requirements:
         with TemporaryDirectory() as d:
             prefix = f"{d}/env"
@@ -75,12 +66,7 @@ def lock_conda_dependencies(
             )
             project.core.ui.echo(f"Created temporary environment at {prefix}")
             try:
-                conda_packages = conda_lock(
-                    project,
-                    _requirements,
-                    prefix,
-                    config,
-                )
+                conda_packages = conda_lock(project, _requirements, prefix, config)
             finally:
                 run_conda(config.command("remove") + ["--prefix", prefix, "--json"])
                 project.core.ui.echo(f"Removed temporary environment at {prefix}")
@@ -112,8 +98,7 @@ def conda_lock(
 
     core.ui.echo("Using conda to get: " + " ".join(requirements))
     response = run_conda(
-        config.command()
-        + ["--force-reinstall", "--json", "--dry-run", "--prefix", prefix],
+        config.command() + ["--force-reinstall", "--json", "--dry-run", "--prefix", prefix],
         channels=config.channels,
         dependencies=requirements,
     )
@@ -138,12 +123,7 @@ def conda_lock(
             packages[name] = CondaPackage(
                 name=name,
                 version=package["version"],
-                link=Link(
-                    url,
-                    comes_from=package["channel"],
-                    requires_python=requires_python,
-                    hashes=hashes,
-                ),
+                link=Link(url, comes_from=package["channel"], requires_python=requires_python, hashes=hashes),
                 _dependencies=dependencies,
                 requires_python=requires_python,
             )
@@ -176,18 +156,12 @@ def conda_install(
     command = config.command() + ["--freeze-installed"]
     if dry_run:
         command.append("--dry-run")
-    response = run_conda(
-        command,
-        dependencies=[p.link.url_without_fragment for p in packages.values()],
-    )
+    response = run_conda(command, dependencies=[p.link.url_without_fragment for p in packages.values()])
     if verbose:
         project.core.ui.echo(response)
 
 
-def update_requirements(
-    requirements: list[Requirement],
-    conda_packages: dict[str, CondaPackage],
-):
+def update_requirements(requirements: list[Requirement], conda_packages: dict[str, CondaPackage]):
     """
     Update requirements list with conda_packages
     :param requirements: requirements list
@@ -200,6 +174,4 @@ def update_requirements(
         if requirement.name in conda_packages:
             requirements[i] = conda_packages[requirement.name].req
             dependencies.add(requirements[i])
-    requirements.extend(
-        [p.req for p in conda_packages.values() if p.req not in dependencies],
-    )
+    requirements.extend([p.req for p in conda_packages.values() if p.req not in dependencies])
