@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 
 from pdm.exceptions import ProjectError
-from pdm.project import Project
+from pdm.project import ConfigItem, Project
 
 
 @dataclass
@@ -13,8 +13,6 @@ class PluginConfig:
     dev_dependencies: dict[str, list] = field(default_factory=lambda: dict())
 
     def __post_init__(self):
-        if not self.channels:
-            self.channels = ["defaults"]
         if self.runner not in ["conda", "micromamba", "mamba"]:
             raise ProjectError(f"Invalid Conda runner: {self.runner}")
 
@@ -32,3 +30,20 @@ class PluginConfig:
         if cmd in ("install", "create"):
             _command.append("--strict-channel-priority")
         return _command
+
+    @classmethod
+    def configs(cls):
+        _configs = [
+            ("runner", ConfigItem("Conda runner executable", "conda")),
+            ("channels", ConfigItem("Conda channels to use", ["defaults"])),
+            ("dependencies", ConfigItem("Dependencies to install with Conda", [])),
+            (
+                "optional-dependencies",
+                ConfigItem("Optional dependencies to install with Conda", []),
+            ),
+            (
+                "dev-dependencies",
+                ConfigItem("Development dependencies to install with Conda", []),
+            ),
+        ]
+        return [(f"conda.{name}", config) for name, config in _configs]
