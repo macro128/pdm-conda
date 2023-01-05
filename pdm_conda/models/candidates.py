@@ -35,13 +35,7 @@ class CondaPreparedCandidate(PreparedCandidate):
 
 
 class CondaCandidate(Candidate):
-    def __init__(
-        self,
-        req: Requirement,
-        name: str | None = None,
-        version: str | None = None,
-        link: Link | None = None,
-    ):
+    def __init__(self, req: Requirement, name: str | None = None, version: str | None = None, link: Link | None = None):
         super().__init__(req, name, version, link)
         # extract hash from link
         if link and link.hash is not None:

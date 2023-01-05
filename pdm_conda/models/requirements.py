@@ -11,9 +11,7 @@ from pdm.models.requirements import parse_requirement as _parse_requirement
 from pdm.models.setup import Setup
 from unearth import Link
 
-_conda_req_re = re.compile(
-    r"conda:((\w+::)?.+)$",
-)
+_conda_req_re = re.compile(r"conda:((\w+::)?.+)$")
 
 _patched = False
 
@@ -24,18 +22,12 @@ class CondaPackage:
     version: str
     link: Link
     _dependencies: list[str] = field(repr=False, default_factory=lambda: [])
-    dependencies: list["CondaRequirement"] = field(
-        init=False,
-        default_factory=lambda: [],
-    )
+    dependencies: list["CondaRequirement"] = field(init=False, default_factory=lambda: [])
     req: "CondaRequirement" = field(init=False, repr=False)
     requires_python: str | None = None
 
     def __post_init__(self):
-        self.req = cast(
-            CondaRequirement,
-            parse_requirement(self.name, conda_package=self),
-        )
+        self.req = cast(CondaRequirement, parse_requirement(self.name, conda_package=self))
 
     @property
     def distribution(self):
@@ -43,9 +35,7 @@ class CondaPackage:
             name=self.name,
             summary="",
             version=self.version,
-            install_requires=[d.as_line() for d in self.dependencies]
-            if self.dependencies
-            else self._dependencies,
+            install_requires=[d.as_line() for d in self.dependencies] if self.dependencies else self._dependencies,
             python_requires=self.requires_python,
         ).as_dist()
 
@@ -89,11 +79,7 @@ class CondaRequirement(NamedRequirement):
         return f"{channel}{self.project_name}{self.specifier}{self._format_marker()}"
 
     def as_named_requirement(self) -> NamedRequirement:
-        return NamedRequirement.create(
-            name=self.name,
-            marker=self.marker,
-            specifier=self.specifier,
-        )
+        return NamedRequirement.create(name=self.name, marker=self.marker, specifier=self.specifier)
 
 
 def wrap_from_req_dict(func):
@@ -106,11 +92,7 @@ def wrap_from_req_dict(func):
     return wrapper
 
 
-def parse_requirement(
-    line: str,
-    editable: bool = False,
-    conda_package: CondaPackage | None = None,
-) -> Requirement:
+def parse_requirement(line: str, editable: bool = False, conda_package: CondaPackage | None = None) -> Requirement:
     m = _conda_req_re.match(line)
     if m is not None or conda_package is not None:
         if m is not None:

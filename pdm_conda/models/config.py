@@ -18,10 +18,7 @@ class PluginConfig:
 
     @classmethod
     def load_config(cls, project: Project, **kwargs) -> "PluginConfig":
-        config = {
-            k.replace("-", "_"): v
-            for k, v in project.pyproject.settings.get("conda", {}).items()
-        }
+        config = {k.replace("-", "_"): v for k, v in project.pyproject.settings.get("conda", {}).items()}
         return PluginConfig(**(config | kwargs))
 
     def command(self, cmd=None):
@@ -37,13 +34,7 @@ class PluginConfig:
             ("runner", ConfigItem("Conda runner executable", "conda")),
             ("channels", ConfigItem("Conda channels to use", ["defaults"])),
             ("dependencies", ConfigItem("Dependencies to install with Conda", [])),
-            (
-                "optional-dependencies",
-                ConfigItem("Optional dependencies to install with Conda", []),
-            ),
-            (
-                "dev-dependencies",
-                ConfigItem("Development dependencies to install with Conda", []),
-            ),
+            ("optional-dependencies", ConfigItem("Optional dependencies to install with Conda", [])),
+            ("dev-dependencies", ConfigItem("Development dependencies to install with Conda", [])),
         ]
         return [(f"conda.{name}", config) for name, config in _configs]
