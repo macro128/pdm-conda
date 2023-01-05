@@ -1,6 +1,6 @@
 [project]
 name = "pdm-conda"
-description = " A PDM plugin to install project dependencies woth Conda"
+description = " A PDM plugin to install project dependencies with Conda"
 requires-python = ">=3.10"
 authors = [
     { name = "Marcos Pastorini" },
