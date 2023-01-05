@@ -17,11 +17,11 @@ ARG pyproject=pyproject.toml
 ARG lockfile=pdm.lock
 # install dependencies
 COPY ${pyproject} pyproject.toml
-COPY ${lockfile}* pdm.lock
+COPY --chown=$MAMBA_USER ${lockfile}* pdm.lock
 
 ARG env="prod"
 ARG dependencies=""
-RUN python pdm_install.py -G ${dependencies} - --${env} --no-lock --no-editable --no-self -v
+RUN python pdm_install.py -G ${dependencies} - --${env} --no-editable --no-self -v
 
 # prod stage
 FROM mambaorg/micromamba:jammy AS prod
