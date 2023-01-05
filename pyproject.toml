@@ -31,13 +31,14 @@ conda = "pdm_conda:main"
 version = { source = "file", path = "pdm_conda/__init__.py" }
 
 [tool.pdm.scripts]
-test = "pytest tests/"
+test = "pytest --cov=pdm_conda/ tests/"
 
 [tool.pdm.dev-dependencies]
 dev = [
     "pdm>=2.3.4",
     "pytest>=7.2.0",
     "pytest-mock>=3.10.0",
+    "pytest-cov>=4.0.0",
 ]
 
 [tool.mypy]
