@@ -13,6 +13,8 @@ class PluginConfig:
     dev_dependencies: dict[str, list] = field(default_factory=lambda: dict())
 
     def __post_init__(self):
+        if not self.channels:
+            self.channels = ["defaults"]
         if self.runner not in ["conda", "micromamba", "mamba"]:
             raise ProjectError(f"Invalid Conda runner: {self.runner}")
 
