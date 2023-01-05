@@ -15,6 +15,7 @@ classifiers = [
     "Programming Language :: Python :: 3 :: Only",
 ]
 dependencies = [
+    "pdm~=2.3",
 ]
 
 [build-system]
@@ -35,7 +36,6 @@ test = "pytest --cov=pdm_conda/ tests/"
 
 [tool.pdm.dev-dependencies]
 dev = [
-    "pdm>=2.3.4",
     "pytest>=7.2.0",
     "pytest-mock>=3.10.0",
     "pytest-cov>=4.0.0",
