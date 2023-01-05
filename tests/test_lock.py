@@ -1,43 +1,19 @@
 import pytest
 
-CONDA_INFO = [
-    {
-        "name": "pdm",
-        "depends": [],
-        "version": "1.0.0",
-        "url": "https://channel.com/package",
-        "channel": "https://channel.com",
-        "sha256": "this-is-a-hash",
-    },
-]
-
-
-@pytest.fixture
-def mock_conda(mocker, conda_response: dict):
-    install_response = {
-        "actions": {
-            "LINK": [conda_response],
-        },
-    }
-
-    def _mock(cmd, **kwargs):
-        if cmd[1] == "install":
-            return install_response
-        else:
-            return {"message": "ok"}
-
-    yield mocker.patch("pdm_conda.plugin.run_conda", side_effect=_mock)
+from tests.conftest import CONDA_INFO
 
 
 class TestLock:
     conda_runner = "micromamba"
 
     @pytest.mark.parametrize("conda_response", CONDA_INFO)
-    def test_lock(self, core, project, mock_conda):
+    @pytest.mark.parametrize("group", ["default", "dev", None])
+    def test_lock(self, core, project, mock_conda, conda_response, group, refresh=False):
         """
         Test lock command work as expected
         """
         from pdm_conda.models.requirements import CondaRequirement
+        from pdm_conda.project import CondaProject
 
         project.pyproject._data.update(
             {
@@ -51,13 +27,15 @@ class TestLock:
                 },
             },
         )
-        requirements = [
-            r.as_line()
-            for r in project.get_dependencies().values()
-            if isinstance(r, CondaRequirement)
-        ]
+        requirements = [r.as_line() for r in project.get_dependencies().values() if isinstance(r, CondaRequirement)]
+        cmd = ["lock", "-v"]
+        if refresh:
+            cmd.append("--refresh")
+        core.main(cmd, obj=project)
 
-        core.main(["lock"], obj=project)
+        assert isinstance(project, CondaProject)
+        assert "pdm" in project.conda_packages
+
         assert mock_conda.call_count == 3
         cmd_order = ["create", "install", "remove"]
 
@@ -71,12 +49,19 @@ class TestLock:
                 assert kwargs["dependencies"] == requirements
 
         assert not cmd_order
-        lock = project.lockfile
+        lockfile = project.lockfile
+        packages = lockfile["package"]
+        assert len(packages) == len(project.conda_packages)
+        for p in packages:
+            name = p["name"]
+            assert name in project.conda_packages
+            p_info = project.conda_packages[name]
+            if p_info.requires_python:
+                assert p["requires_python"] == p_info.requires_python
+            assert p["url"] == p_info.link.url
 
-        assert lock
-
-    # @pytest.mark.parametrize("conda_response", CONDA_INFO)
-    # def test_lock_refresh(self, core, project, mock_conda):
-    #     self.test_lock(core, project, mock_conda)
-    #
-    #     core.main(["lock", "--refresh"], obj=project)
+    @pytest.mark.parametrize("conda_response", CONDA_INFO)
+    @pytest.mark.parametrize("group", ["default", "dev", None])
+    def test_lock_refresh(self, core, project, mock_conda, conda_response, group):
+        self.test_lock(core, project, mock_conda, conda_response, group)
+        self.test_lock(core, project, mock_conda, conda_response, group, refresh=True)
