@@ -2,6 +2,6 @@
 
 A PDM plugin to install project dependencies with Conda.
 
-This plugin is highly experimental so use it at your own risk, right now following commands work:
+The following commands were tested and work:
 
-* `pdm lock`, `--refresh` flag broken.
+* `pdm lock`
