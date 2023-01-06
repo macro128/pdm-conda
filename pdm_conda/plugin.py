@@ -137,12 +137,21 @@ def conda_lock(
     return packages
 
 
+def _conda_install(project: Project, command: list[str], packages: str | list[str], verbose: bool = False):
+    if isinstance(packages, str):
+        packages = [packages]
+    response = run_conda(command, dependencies=packages)
+    if verbose:
+        project.core.ui.echo(response)
+
+
 def conda_install(
     project: Project,
-    packages: dict[str, CondaPackage],
+    packages: str | list[str],
     config: PluginConfig | None = None,
     verbose: bool = False,
     dry_run: bool = False,
+    no_deps: bool = False,
 ):
     """
     Install resolved packages using conda
@@ -151,14 +160,46 @@ def conda_install(
     :param config: plugin config
     :param verbose: show conda response if true
     :param dry_run: don't install if dry run
+    :param no_deps: don't install dependencies if true
     """
+
     config = config or PluginConfig.load_config(project)
-    command = config.command() + ["--freeze-installed"]
+    command = config.command()
+    if no_deps:
+        command.append("--no-deps")
+    command.append("--freeze-installed")
     if dry_run:
         command.append("--dry-run")
-    response = run_conda(command, dependencies=[p.link.url_without_fragment for p in packages.values()])
-    if verbose:
-        project.core.ui.echo(response)
+
+    _conda_install(project, command, packages, verbose)
+
+
+def conda_uninstall(
+    project: Project,
+    packages: str | list[str],
+    config: PluginConfig | None = None,
+    verbose: bool = False,
+    dry_run: bool = False,
+    no_deps: bool = False,
+):
+    """
+    Uninstall resolved packages using conda
+    :param project: PDM project
+    :param packages: resolved packages
+    :param config: plugin config
+    :param verbose: show conda response if true
+    :param dry_run: don't uninstall if dry run
+    :param no_deps: don't uninstall dependencies if true
+    """
+
+    config = config or PluginConfig.load_config(project)
+    command = config.command("remove")
+    if no_deps:
+        command.append("--no-prune")
+    if dry_run:
+        command.append("--dry-run")
+
+    _conda_install(project, command, packages, verbose)
 
 
 def update_requirements(requirements: list[Requirement], conda_packages: dict[str, CondaPackage]):
