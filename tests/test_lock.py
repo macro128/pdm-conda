@@ -15,13 +15,14 @@ class TestLock:
         from pdm_conda.models.requirements import CondaRequirement
         from pdm_conda.project import CondaProject
 
+        package = conda_response[0]["name"]
         project.pyproject._data.update(
             {
                 "tool": {
                     "pdm": {
                         "conda": {
                             "runner": self.conda_runner,
-                            "dependencies": ["pdm"],
+                            "dependencies": [package],
                         },
                     },
                 },
@@ -34,7 +35,7 @@ class TestLock:
         core.main(cmd, obj=project)
 
         assert isinstance(project, CondaProject)
-        assert "pdm" in project.conda_packages
+        assert package in project.conda_packages
 
         assert mock_conda.call_count == 3
         cmd_order = ["create", "install", "remove"]

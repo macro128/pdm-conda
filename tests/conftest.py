@@ -53,18 +53,18 @@ def mock_conda(mocker, conda_response: dict | list):
 CONDA_INFO = [
     [
         {
-            "name": "pdm",
-            "depends": ["python >=3.7", "another-pdm ==1.0.0"],
+            "name": "dep",
+            "depends": ["python >=3.7", "another-dep ==1.0.0"],
             "version": "1.0.0",
-            "url": "https://channel.com/package",
+            "url": "https://channel.com/dep",
             "channel": "https://channel.com",
             "sha256": "this-is-a-hash",
         },
         {
-            "name": "another-pdm",
+            "name": "another-dep",
             "depends": [],
             "version": "1.0.0",
-            "url": "https://channel.com/package",
+            "url": "https://channel.com/another-dep",
             "channel": "https://channel.com",
             "sha256": "this-is-a-hash",
         },
