@@ -32,7 +32,7 @@ class CondaPackage:
     @property
     def distribution(self):
         return Setup(
-            name=self.name,
+            name=f"conda:{self.name}",
             summary="",
             version=self.version,
             install_requires=[d.as_line() for d in self.dependencies] if self.dependencies else self._dependencies,

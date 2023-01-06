@@ -58,7 +58,7 @@ class LockedCondaRepository(CondaRepository, LockedRepository):
 
     def _identify_candidate(self, candidate: Candidate) -> tuple:
         if isinstance(candidate, CondaCandidate):
-            return candidate.identify(), candidate.version, None, False
+            return candidate.identify(), None, None, False
         return super()._identify_candidate(candidate)
 
     def get_dependencies(self, candidate: Candidate) -> tuple[list[Requirement], PySpecSet, str]:
