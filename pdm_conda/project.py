@@ -6,6 +6,7 @@ from pdm.exceptions import PdmUsageError, ProjectError
 from pdm.project import Project
 from tomlkit.items import Array
 
+from pdm_conda.installers.manager import CondaInstallManager
 from pdm_conda.models.repositories import (
     LockedCondaRepository,
     LockedRepository,
@@ -30,6 +31,7 @@ class CondaProject(Project):
     ) -> None:
         super().__init__(core, root_path, is_global, global_config)
         self.core.repository_class = PyPICondaRepository
+        self.core.install_manager_class = CondaInstallManager
         self.conda_packages: dict[str, CondaPackage] = dict()
         self.locked_repository_class = LockedCondaRepository
 
