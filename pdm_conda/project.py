@@ -14,6 +14,7 @@ from pdm_conda.models.repositories import (
 from pdm_conda.models.requirements import (
     CondaPackage,
     CondaRequirement,
+    NamedRequirement,
     Requirement,
     parse_requirement,
 )
@@ -70,6 +71,15 @@ class CondaProject(Project):
                 req.specifier = pypi_req.specifier
             result[req.identify()] = req
 
+        if self.pyproject.settings.get("conda", {}).get("as_default_manager", False):
+            _result = {}
+            for k, v in result.items():
+                if "[" in k:
+                    k = k.split("[")[0]
+                if isinstance(v, NamedRequirement):
+                    v = parse_requirement(f"conda:{v.as_line()}")
+                _result[k] = v
+            result = _result
         return result
 
     @property
