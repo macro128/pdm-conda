@@ -64,6 +64,11 @@ class CondaCandidate(Candidate):
 
     @classmethod
     def from_conda_requirement(cls, req: CondaRequirement) -> "CondaCandidate":
+        """
+        Create conda candidate from conda requirement.
+        :param req: conda requirement
+        :return: conda candidate
+        """
         version: str | None
         if req.package is not None:
             version = req.package.version
