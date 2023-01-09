@@ -17,7 +17,12 @@ def core() -> Core:
 
 
 @pytest.fixture
-def project(core) -> Project:
+def distributions(mocker):
+    mocker.patch("pdm.models.working_set.distributions", return_value=[])
+
+
+@pytest.fixture
+def project(core, distributions) -> Project:
     with TemporaryDirectory() as tmp_dir:
         _project = core.create_project(tmp_dir)
         do_init(
@@ -44,6 +49,8 @@ def mock_conda(mocker, conda_response: dict | list):
     def _mock(cmd, **kwargs):
         if cmd[1] == "install":
             return install_response
+        elif cmd[1] == "list":
+            return conda_response
         else:
             return {"message": "ok"}
 

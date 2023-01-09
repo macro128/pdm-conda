@@ -5,11 +5,14 @@ from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import cast
 
 from pdm.exceptions import RequirementError
+from pdm.models.setup import Setup
 from pdm.project import Project
+from pdm.utils import normalize_name
 from unearth import Link
 
 from pdm_conda.models.config import PluginConfig
 from pdm_conda.models.requirements import CondaPackage, CondaRequirement, Requirement
+from pdm_conda.models.setup import CondaSetupDistribution
 from pdm_conda.project import CondaProject
 
 
@@ -21,11 +24,12 @@ def run_conda(cmd, **environment) -> dict:
     :return: conda command response
     """
     with NamedTemporaryFile(mode="w+", suffix=".yml") as f:
-        for k in environment:
-            f.write(f"{k}:\n")
-            for v in environment[k]:
-                f.write(f"  - {v}\n")
         if environment:
+            for name, options in environment.items():
+                if options:
+                    f.write(f"{name}:\n")
+                    for v in options:
+                        f.write(f"  - {v}\n")
             f.seek(0)
             cmd = cmd + ["-f", f.name]
         process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
@@ -48,6 +52,22 @@ def run_conda(cmd, **environment) -> dict:
                 msg += process.stderr
             raise RequirementError(msg)
     return response
+
+
+def update_requirements(requirements: list[Requirement], conda_packages: dict[str, CondaPackage]):
+    """
+    Update requirements list with conda_packages
+    :param requirements: requirements list
+    :param conda_packages: conda packages
+    """
+    dependencies = set()
+    for package in conda_packages.values():
+        dependencies.update(package.dependencies)
+    for i, requirement in enumerate(requirements):
+        if requirement.name in conda_packages:
+            requirements[i] = conda_packages[requirement.name].req
+            dependencies.add(requirements[i])
+    requirements.extend([p.req for p in conda_packages.values() if p.req not in dependencies])
 
 
 def lock_conda_dependencies(project: Project, requirements: list[Requirement], **kwargs):
@@ -202,17 +222,18 @@ def conda_uninstall(
     _conda_install(project, command, packages, verbose)
 
 
-def update_requirements(requirements: list[Requirement], conda_packages: dict[str, CondaPackage]):
-    """
-    Update requirements list with conda_packages
-    :param requirements: requirements list
-    :param conda_packages: conda packages
-    """
-    dependencies = set()
-    for package in conda_packages.values():
-        dependencies.update(package.dependencies)
-    for i, requirement in enumerate(requirements):
-        if requirement.name in conda_packages:
-            requirements[i] = conda_packages[requirement.name].req
-            dependencies.add(requirements[i])
-    requirements.extend([p.req for p in conda_packages.values() if p.req not in dependencies])
+def conda_list(project: Project):
+    config = PluginConfig.load_config(project)
+    packages = run_conda(config.command("list") + ["--json"])
+    distributions = dict()
+    for package in packages:
+        name = package["name"]
+        distributions[normalize_name(name)] = CondaSetupDistribution(
+            Setup(
+                name=f"conda:{name}",
+                summary="",
+                version=package["version"],
+            ),
+        )
+
+    return distributions
