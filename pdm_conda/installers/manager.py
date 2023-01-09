@@ -1,5 +1,6 @@
+from importlib.metadata import Distribution
+
 from installer.exceptions import InstallerError
-from pdm.compat import Distribution
 from pdm.exceptions import RequirementError, UninstallError
 from pdm.installers import InstallManager
 

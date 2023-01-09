@@ -1,7 +1,7 @@
+from importlib.metadata import Distribution
 from pathlib import Path
 from typing import Any, cast
 
-import importlib_metadata as im
 from pdm.models.candidates import Candidate, PreparedCandidate
 from pdm.models.candidates import make_candidate as _make_candidate
 from pdm.models.environment import Environment
@@ -24,7 +24,7 @@ class CondaPreparedCandidate(PreparedCandidate):
             raise ValueError("Uninitialized conda requirement")
         return self.req.package._dependencies
 
-    def prepare_metadata(self) -> im.Distribution:
+    def prepare_metadata(self) -> Distribution:
         # if conda candidate get setup from package
         if self.req.package is None:
             raise ValueError("Uninitialized conda requirement")
