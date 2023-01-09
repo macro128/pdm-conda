@@ -157,10 +157,18 @@ def conda_lock(
     return packages
 
 
-def _conda_install(project: Project, command: list[str], packages: str | list[str], verbose: bool = False):
+def _conda_install(
+    project: Project,
+    command: list[str],
+    packages: str | list[str] | None = None,
+    verbose: bool = False,
+):
     if isinstance(packages, str):
         packages = [packages]
-    response = run_conda(command, dependencies=packages)
+    kwargs = dict()
+    if packages:
+        kwargs["dependencies"] = packages
+    response = run_conda(command, **kwargs)
     if verbose:
         project.core.ui.echo(response)
 
@@ -218,8 +226,12 @@ def conda_uninstall(
         command.append("--no-prune")
     if dry_run:
         command.append("--dry-run")
+    if isinstance(packages, str):
+        packages = [packages]
+    command.extend(packages)
+    command.append("--json")
 
-    _conda_install(project, command, packages, verbose)
+    _conda_install(project, command, verbose=verbose)
 
 
 def conda_list(project: Project):
