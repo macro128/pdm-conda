@@ -6,12 +6,12 @@ from pdm.project import ConfigItem, Project
 
 @dataclass
 class PluginConfig:
-    channels: list[str] = field(default_factory=lambda: [])
+    channels: list[str] = field(default_factory=list)
     runner: str = "conda"
     as_default_manager: bool = False
-    dependencies: list[str] = field(default_factory=lambda: [], repr=False)
-    optional_dependencies: dict[str, list] = field(default_factory=lambda: dict())
-    dev_dependencies: dict[str, list] = field(default_factory=lambda: dict())
+    dependencies: list[str] = field(default_factory=list, repr=False)
+    optional_dependencies: dict[str, list] = field(default_factory=dict)
+    dev_dependencies: dict[str, list] = field(default_factory=dict)
 
     def __post_init__(self):
         if not self.channels:

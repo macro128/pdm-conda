@@ -21,8 +21,8 @@ class CondaPackage:
     name: str
     version: str
     link: Link
-    _dependencies: list[str] = field(repr=False, default_factory=lambda: [])
-    dependencies: list["CondaRequirement"] = field(init=False, default_factory=lambda: [])
+    _dependencies: list[str] = field(repr=False, default_factory=list)
+    dependencies: list["CondaRequirement"] = field(init=False, default_factory=list)
     req: "CondaRequirement" = field(init=False, repr=False)
     requires_python: str | None = None
 
@@ -124,7 +124,9 @@ def parse_requirement(line: str, editable: bool = False, conda_package: CondaPac
 
 if not _patched:
     from pdm.cli import actions
+    from pdm.models import requirements
 
     setattr(Requirement, "from_req_dict", wrap_from_req_dict(Requirement.from_req_dict))
     setattr(actions, "parse_requirement", parse_requirement)
+    setattr(requirements, "parse_requirement", parse_requirement)
     _patched = True
