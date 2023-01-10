@@ -3,10 +3,12 @@ from typing import cast
 
 from pdm.core import Core
 from pdm.exceptions import PdmUsageError, ProjectError
+from pdm.models.requirements import strip_extras
 from pdm.project import Project
 from tomlkit.items import Array
 
 from pdm_conda.installers.manager import CondaInstallManager
+from pdm_conda.installers.synchronizers import CondaSynchronizer
 from pdm_conda.models.repositories import (
     LockedCondaRepository,
     LockedRepository,
@@ -34,6 +36,7 @@ class CondaProject(Project):
         self.core.install_manager_class = CondaInstallManager
         self.conda_packages: dict[str, CondaPackage] = dict()
         self.locked_repository_class = LockedCondaRepository
+        self.core.synchronizer_class = CondaSynchronizer
 
     def get_dependencies(self, group: str | None = None) -> dict[str, Requirement]:
         result = super().get_dependencies(group)
@@ -76,8 +79,7 @@ class CondaProject(Project):
         if self.pyproject.settings.get("conda", {}).get("as_default_manager", False):
             _result = {}
             for k, v in result.items():
-                if "[" in k:
-                    k = k.split("[")[0]
+                k, _ = strip_extras(k)
                 if isinstance(v, NamedRequirement):
                     v = parse_requirement(f"conda:{v.as_line()}")
                 _result[k] = v
