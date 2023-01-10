@@ -67,7 +67,6 @@ extend-ignore = [
     "D107",
     # Found `__init__.py` module with logic
     "WPS412", "WPS326",
-
 ]
 
 per-file-ignores = [
