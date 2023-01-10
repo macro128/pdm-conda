@@ -37,7 +37,7 @@ def project(core, distributions) -> Project:
 
 
 @pytest.fixture
-def mock_conda(mocker, conda_response: dict | list):
+def mock_conda(mocker, conda_response: dict | list, empty_conda_list):
     if isinstance(conda_response, dict):
         conda_response = [conda_response]
     install_response = {
@@ -50,6 +50,8 @@ def mock_conda(mocker, conda_response: dict | list):
         if cmd[1] == "install":
             return install_response
         elif cmd[1] == "list":
+            if empty_conda_list:
+                return []
             return conda_response
         else:
             return {"message": "ok"}
@@ -57,21 +59,49 @@ def mock_conda(mocker, conda_response: dict | list):
     yield mocker.patch("pdm_conda.plugin.run_conda", side_effect=_mock)
 
 
+PYTHON_REQUIREMENTS = [
+    {
+        "name": "lib2",
+        "depends": [],
+        "version": "1.0.0",
+        "url": "https://channel.com/dep",
+        "channel": "https://channel.com",
+        "sha256": "this-is-a-hash",
+    },
+    {
+        "name": "lib",
+        "depends": ["lib2 ==1.0.0"],
+        "version": "1.0.0",
+        "url": "https://channel.com/dep",
+        "channel": "https://channel.com",
+        "sha256": "this-is-a-hash",
+    },
+    {
+        "name": "python",
+        "depends": ["lib ==1.0.0"],
+        "version": "3.10.9",
+        "url": "https://channel.com/dep",
+        "channel": "https://channel.com",
+        "sha256": "this-is-a-hash",
+    },
+]
+
 CONDA_INFO = [
     [
-        {
-            "name": "dep",
-            "depends": ["python >=3.7", "another-dep ==1.0.0"],
-            "version": "1.0.0",
-            "url": "https://channel.com/dep",
-            "channel": "https://channel.com",
-            "sha256": "this-is-a-hash",
-        },
+        *PYTHON_REQUIREMENTS,
         {
             "name": "another-dep",
             "depends": [],
             "version": "1.0.0",
             "url": "https://channel.com/another-dep",
+            "channel": "https://channel.com",
+            "sha256": "this-is-a-hash",
+        },
+        {
+            "name": "dep",
+            "depends": ["python >=3.7", "another-dep ==1.0.0"],
+            "version": "1.0.0",
+            "url": "https://channel.com/dep",
             "channel": "https://channel.com",
             "sha256": "this-is-a-hash",
         },

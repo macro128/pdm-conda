@@ -10,6 +10,7 @@ class TestList:
     conda_runner = "micromamba"
 
     @pytest.mark.parametrize("conda_response", CONDA_INFO)
+    @pytest.mark.parametrize("empty_conda_list", [False])
     def test_list(self, core, project, mock_conda, conda_response):
         """
         Test `list` command work as expected
@@ -34,6 +35,8 @@ class TestList:
 
             o = output.getvalue()
             for p in conda_response:
-                assert f"conda:{p['name']}" in o
+                if (name := p["name"]) != "python":
+                    assert name in o
+            assert "python" not in o
 
         assert mock_conda.call_count == 1
