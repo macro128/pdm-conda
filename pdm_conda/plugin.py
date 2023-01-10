@@ -5,6 +5,7 @@ from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import cast
 
 from pdm.exceptions import RequirementError
+from pdm.models.requirements import strip_extras
 from pdm.models.setup import Setup
 from pdm.project import Project
 from unearth import Link
@@ -58,19 +59,41 @@ def run_conda(cmd, **environment) -> dict:
     return response
 
 
+def update_dependencies(package: CondaPackage | None, dependencies: set):
+    if package is None or not package.dependencies:
+        return
+    for dep in package.dependencies:
+        dependencies.add(dep)
+        update_dependencies(dep.package, dependencies)
+
+
 def update_requirements(requirements: list[Requirement], conda_packages: dict[str, CondaPackage]):
     """
     Update requirements list with conda_packages
     :param requirements: requirements list
     :param conda_packages: conda packages
     """
-    dependencies = set()
+    dependencies: set[Requirement] = set()
     for package in conda_packages.values():
-        dependencies.update(package.dependencies)
+        update_dependencies(package, dependencies)
+    repeated_packages: dict[str, int] = dict()
     for i, requirement in enumerate(requirements):
-        if requirement.name in conda_packages:
-            requirements[i] = conda_packages[requirement.name].req
-            dependencies.add(requirements[i])
+        name, _ = strip_extras(requirement.name)
+        if name in conda_packages:
+            req = conda_packages[name].req
+            requirements[i] = req
+            dependencies.add(req)
+        repeated_packages[name] = repeated_packages.get(name, 0) + 1
+    if (package := conda_packages.get("python", None)) is not None:  # type: ignore
+        dependencies.add(package.req)
+    # remove repeated requirements
+    to_remove = []
+    for r in requirements:
+        if repeated_packages.get(r.name, 1) > 1:
+            to_remove.append(r)
+            repeated_packages.pop(r.name)
+    for r in to_remove:
+        requirements.remove(r)
     requirements.extend([p.req for p in conda_packages.values() if p.req not in dependencies])
 
 
@@ -81,13 +104,10 @@ def lock_conda_dependencies(project: Project, requirements: list[Requirement], *
     config = PluginConfig.load_config(project)
     _requirements = [r.as_line() for r in requirements if isinstance(r, CondaRequirement)]
     if _requirements:
+        _requirements.insert(0, f"python=={project.python.version}")
         with TemporaryDirectory() as d:
             prefix = f"{d}/env"
-            run_conda(
-                config.command("create") + ["--prefix", prefix, "--json"],
-                channels=[c.split("/")[0] for c in config.channels],
-                dependencies=[f"python=={project.python.version}"],
-            )
+            run_conda(config.command("create") + ["--prefix", prefix, "--json"])
             project.core.ui.echo(f"Created temporary environment at {prefix}")
             try:
                 conda_packages = conda_lock(project, _requirements, prefix, config)
@@ -120,7 +140,7 @@ def conda_lock(
     if not requirements:
         return packages
 
-    core.ui.echo("Using conda to get: " + " ".join(requirements))
+    core.ui.echo("Using conda to get: " + " ".join([r for r in requirements if not r.startswith("python==")]))
     response = run_conda(
         config.command() + ["--force-reinstall", "--json", "--dry-run", "--prefix", prefix],
         channels=config.channels,
@@ -172,7 +192,7 @@ def _conda_install(
     kwargs = dict()
     if packages:
         kwargs["dependencies"] = packages
-    response = run_conda(command, **kwargs)
+    response = run_conda(command + ["--json"], **kwargs)
     if verbose:
         project.core.ui.echo(response)
 
@@ -199,7 +219,6 @@ def conda_install(
     command = config.command()
     if no_deps:
         command.append("--no-deps")
-    command.append("--freeze-installed")
     if dry_run:
         command.append("--dry-run")
 
