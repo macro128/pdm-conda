@@ -33,6 +33,11 @@ if __name__ == "__main__":
         description="Execute PDM install with some arguments overrides.",
     )
     parser.add_argument(
+        "pdm_executable",
+        nargs="?",
+        help="args to pass to pdm install",
+    )
+    parser.add_argument(
         "-G",
         "--groups",
         nargs="*",
@@ -42,6 +47,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-",
         dest="args",
+        default=[],
         nargs=argparse.REMAINDER,
         help="args to pass to pdm install",
     )
@@ -50,6 +56,16 @@ if __name__ == "__main__":
     groups = list(itertools.chain.from_iterable(g.split(",") for g in args.groups))
     groups = [f"-G {g.strip()}" for g in groups if g.strip()]
 
-    args = args.args + groups
+    cmd_args = args.args + groups
+    extra_args = []
+    if "--prod" in cmd_args:
+        extra_args.extend(["--no-editable", "--no-lock", "--check"])
+    elif "--dev" in cmd_args:
+        extra_args.append("--verbose")
+    for arg in extra_args:
+        if arg not in cmd_args:
+            cmd_args.append(arg)
+
+    executable = args.pdm_executable or get_pdm_executable()
     # replace current process with pdm install
-    os.execl(get_pdm_executable(), "pdm", "install", *args)
+    os.execl(executable, "pdm", "install", *cmd_args)
