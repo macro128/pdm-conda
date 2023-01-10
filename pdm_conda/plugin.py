@@ -7,13 +7,13 @@ from typing import cast
 from pdm.exceptions import RequirementError
 from pdm.models.setup import Setup
 from pdm.project import Project
-from pdm.utils import normalize_name
 from unearth import Link
 
 from pdm_conda.models.config import PluginConfig
 from pdm_conda.models.requirements import CondaPackage, CondaRequirement, Requirement
 from pdm_conda.models.setup import CondaSetupDistribution
 from pdm_conda.project import CondaProject
+from pdm_conda.utils import normalize_name
 
 
 def run_conda(cmd, **environment) -> dict:
@@ -44,12 +44,16 @@ def run_conda(cmd, **environment) -> dict:
             process.check_returncode()
         except subprocess.CalledProcessError:
             msg = "Error locking dependencies\n"
-            if err := response.get("solver_problems", []):
-                msg += "\n".join(err)
-            elif err := response.get("message", []):
-                msg += err
+            if isinstance(response, dict):
+                if response.get("success", False):
+                    pass
+                if err := response.get("solver_problems", []):
+                    msg += "\n".join(err)
+                elif err := response.get("message", []):
+                    msg += err
             else:
                 msg += process.stderr
+            msg += str(environment)
             raise RequirementError(msg)
     return response
 
@@ -144,7 +148,7 @@ def conda_lock(
                 name=name,
                 version=package["version"],
                 link=Link(url, comes_from=package["channel"], requires_python=requires_python, hashes=hashes),
-                _dependencies=dependencies,
+                full_dependencies=dependencies,
                 requires_python=requires_python,
             )
     else:
@@ -235,17 +239,19 @@ def conda_uninstall(
 
 
 def conda_list(project: Project):
+    project = cast(CondaProject, project)
     config = PluginConfig.load_config(project)
     packages = run_conda(config.command("list") + ["--json"])
     distributions = dict()
     for package in packages:
         name = package["name"]
-        distributions[normalize_name(name)] = CondaSetupDistribution(
-            Setup(
-                name=f"conda:{name}",
-                summary="",
-                version=package["version"],
-            ),
-        )
+        if name != "python":
+            distributions[normalize_name(name)] = CondaSetupDistribution(
+                Setup(
+                    name=name,
+                    summary="",
+                    version=package["version"],
+                ),
+            )
 
     return distributions

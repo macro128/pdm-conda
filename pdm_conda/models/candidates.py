@@ -20,13 +20,13 @@ class CondaPreparedCandidate(PreparedCandidate):
 
     def get_dependencies_from_metadata(self) -> list[str]:
         # if conda candidate return already obtained dependencies
-        if self.req.package is None:
+        if not isinstance(self.req, CondaRequirement) or self.req.package is None:
             raise ValueError("Uninitialized conda requirement")
-        return self.req.package._dependencies
+        return self.req.package.full_dependencies
 
     def prepare_metadata(self) -> Distribution:
         # if conda candidate get setup from package
-        if self.req.package is None:
+        if not isinstance(self.req, CondaRequirement) or self.req.package is None:
             raise ValueError("Uninitialized conda requirement")
         return self.req.package.distribution
 

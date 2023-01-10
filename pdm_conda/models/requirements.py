@@ -11,6 +11,8 @@ from pdm.models.requirements import parse_requirement as _parse_requirement
 from pdm.models.setup import Setup
 from unearth import Link
 
+from pdm_conda.models.setup import CondaSetupDistribution
+
 _conda_req_re = re.compile(r"conda:((\w+::)?.+)$")
 
 _patched = False
@@ -21,7 +23,7 @@ class CondaPackage:
     name: str
     version: str
     link: Link
-    _dependencies: list[str] = field(repr=False, default_factory=list)
+    full_dependencies: list[str] = field(repr=False, default_factory=list)
     dependencies: list["CondaRequirement"] = field(init=False, default_factory=list)
     req: "CondaRequirement" = field(init=False, repr=False)
     requires_python: str | None = None
@@ -31,17 +33,21 @@ class CondaPackage:
 
     @property
     def distribution(self):
-        return Setup(
-            name=f"conda:{self.name}",
-            summary="",
-            version=self.version,
-            install_requires=[d.as_line() for d in self.dependencies] if self.dependencies else self._dependencies,
-            python_requires=self.requires_python,
-        ).as_dist()
+        return CondaSetupDistribution(
+            Setup(
+                name=self.name,
+                summary="",
+                version=self.version,
+                install_requires=[d.as_line() for d in self.dependencies]
+                if self.dependencies
+                else self.full_dependencies,
+                python_requires=self.requires_python,
+            ),
+        )
 
     def load_dependencies(self, packages: dict[str, "CondaPackage"]):
         self.dependencies = []
-        for dependency in self._dependencies:
+        for dependency in self.full_dependencies:
             if (match := re.search(r"([a-zA-Z0-9_\-]+)", dependency)) is not None:
                 name = match.group(1)
                 if name in packages:
@@ -103,7 +109,7 @@ def parse_requirement(line: str, editable: bool = False, conda_package: CondaPac
         if conda_package is not None:
             kwargs = dict(
                 name=conda_package.name,
-                version=f"=={conda_package.version}",
+                version=f"=={conda_package.version.removesuffix('g')}",
                 link=conda_package.link,
                 package=conda_package,
                 channel=channel,
