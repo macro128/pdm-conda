@@ -36,3 +36,20 @@ This plugin modifies PDM commands so after adding configuration to the pyproject
 The following commands were tested and work:
 
 * `pdm lock`
+
+## Development
+
+For development `docker-compose` files exist in `deploy` directory, helper script `deploy/docker-compose.sh` can be used
+for executing docker.
+
+For running dev environment:
+
+```bash
+bash deploy/docker-compose.sh -d up
+```
+
+And for productive environment:
+
+```bash
+bash deploy/docker-compose.sh up
+```
