@@ -107,9 +107,12 @@ def parse_requirement(line: str, editable: bool = False, conda_package: CondaPac
         if "::" in line:
             channel, line = line.split("::", maxsplit=1)
         if conda_package is not None:
+            version = conda_package.version.removesuffix("g").strip()
+            if not re.match(r"[<>=].*", version) and version:
+                version = f"=={version}"
             kwargs = dict(
                 name=conda_package.name,
-                version=f"=={conda_package.version.removesuffix('g')}",
+                version=version,
                 link=conda_package.link,
                 package=conda_package,
                 channel=channel,
