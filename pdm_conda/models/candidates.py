@@ -40,9 +40,18 @@ class CondaCandidate(Candidate):
         # extract hash from link
         if link and link.hash is not None:
             self.hashes = {link: link.hash}
-        self.req = cast(CondaRequirement, self.req)  # type: ignore
+        self._req = cast(CondaRequirement, req)  # type: ignore
         self._preferred = None
         self._prepared: CondaPreparedCandidate | None = None
+
+    @property
+    def req(self):
+        return self._req
+
+    @req.setter
+    def req(self, value):
+        if isinstance(value, CondaRequirement):
+            self._req = value
 
     def as_lockfile_entry(self, project_root: Path) -> dict[str, Any]:
         result = super().as_lockfile_entry(project_root)
