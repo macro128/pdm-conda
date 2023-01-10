@@ -257,20 +257,21 @@ def conda_uninstall(
     _conda_install(project, command, verbose=verbose)
 
 
-def conda_list(project: Project):
+def conda_list(project: Project) -> dict[str, CondaSetupDistribution]:
     project = cast(CondaProject, project)
     config = PluginConfig.load_config(project)
-    packages = run_conda(config.command("list") + ["--json"])
     distributions = dict()
-    for package in packages:
-        name = package["name"]
-        if name != "python":
-            distributions[normalize_name(name)] = CondaSetupDistribution(
-                Setup(
-                    name=name,
-                    summary="",
-                    version=package["version"],
-                ),
-            )
+    if config.is_initialized:
+        packages = run_conda(config.command("list") + ["--json"])
+        for package in packages:
+            name = package["name"]
+            if name != "python":
+                distributions[normalize_name(name)] = CondaSetupDistribution(
+                    Setup(
+                        name=name,
+                        summary="",
+                        version=package["version"],
+                    ),
+                )
 
     return distributions

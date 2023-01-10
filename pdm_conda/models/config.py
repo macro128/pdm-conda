@@ -19,6 +19,10 @@ class PluginConfig:
         if self.runner not in ["conda", "micromamba", "mamba"]:
             raise ProjectError(f"Invalid Conda runner: {self.runner}")
 
+    @property
+    def is_initialized(self):
+        return self.as_default_manager or self.dependencies or self.optional_dependencies or self.dev_dependencies
+
     @classmethod
     def load_config(cls, project: Project, **kwargs) -> "PluginConfig":
         """
