@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.2.0]
+
+### Added
+
+* `pdm list` support.
+* `pdm install` support.
+* `pdm add` support.
+* `pdm remove` support.
+* New class `CondaSynchronizer` to avoid deleting python installation dependencies.
+* New class `CondaSetupDistribution` to manage conda package distribution.
+* New class `CondaInstallManager` to install/uninstall packages using Conda.
+* Config `conda.as_default_manager` to install all posible requirements with Conda.
+* `normalize_name` don't overwrite _ in names
+
+### Changed
+
+* Deactivate parallel uninstall.
+* `req` property in `CondaCandidate` only changes if new value's type is `CondaRequirement`
+
 ## [0.1.0] - 05/01/2023
 
 ### Added
