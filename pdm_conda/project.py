@@ -3,7 +3,6 @@ from typing import cast
 
 from pdm.core import Core
 from pdm.exceptions import PdmUsageError, ProjectError
-from pdm.models.requirements import strip_extras
 from pdm.project import Project
 from tomlkit.items import Array
 
@@ -15,7 +14,6 @@ from pdm_conda.models.repositories import (
     PyPICondaRepository,
 )
 from pdm_conda.models.requirements import (
-    CondaPackage,
     CondaRequirement,
     NamedRequirement,
     Requirement,
@@ -34,9 +32,9 @@ class CondaProject(Project):
         super().__init__(core, root_path, is_global, global_config)
         self.core.repository_class = PyPICondaRepository
         self.core.install_manager_class = CondaInstallManager
-        self.conda_packages: dict[str, CondaPackage] = dict()
         self.locked_repository_class = LockedCondaRepository
         self.core.synchronizer_class = CondaSynchronizer
+        self.virtual_packages: set[str] = set()
 
     def get_dependencies(self, group: str | None = None) -> dict[str, Requirement]:
         result = super().get_dependencies(group)
@@ -66,24 +64,21 @@ class CondaProject(Project):
 
         for line in deps:
             req = parse_requirement(f"conda:{line}")
-            req_id = req.identify()
-            pypi_req = result.pop(req_id, None)
             # search for package with extras to remove it
-            if pypi_req is None:
-                _req_id = next((k for k in result if k.startswith(f"{req_id}[")), None)
-                pypi_req = result.pop(_req_id, None)
-            if pypi_req is not None and not req.specifier:
-                req.specifier = pypi_req.specifier
+            pypi_req = next((v for v in result.values() if v.name == req.name), None)
+            if pypi_req is not None:
+                result.pop(pypi_req.identify())
+                if not req.specifier:
+                    req.specifier = pypi_req.specifier
             result[req.identify()] = req
 
         if self.pyproject.settings.get("conda", {}).get("as_default_manager", False):
-            _result = {}
-            for k, v in result.items():
-                k, _ = strip_extras(k)
-                if isinstance(v, NamedRequirement):
-                    v = parse_requirement(f"conda:{v.as_line()}")
-                _result[k] = v
-            result = _result
+            for k in list(result):
+                req = result[k]
+                if isinstance(req, NamedRequirement):
+                    result.pop(k)
+                    req.extras = None
+                    result[k] = parse_requirement(f"conda:{req.as_line()}")
         return result
 
     @property
