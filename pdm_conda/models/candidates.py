@@ -1,15 +1,19 @@
+import re
 from importlib.metadata import Distribution
 from pathlib import Path
 from typing import Any, cast
 
 from pdm.models.candidates import Candidate, PreparedCandidate
-from pdm.models.candidates import make_candidate as _make_candidate
 from pdm.models.environment import Environment
+from pdm.models.setup import Setup
 from unearth import Link
 
-from pdm_conda.models.requirements import CondaRequirement, Requirement
-
-_patched = False
+from pdm_conda.models.requirements import (
+    CondaRequirement,
+    Requirement,
+    parse_requirement,
+)
+from pdm_conda.models.setup import CondaSetupDistribution
 
 
 class CondaPreparedCandidate(PreparedCandidate):
@@ -20,22 +24,23 @@ class CondaPreparedCandidate(PreparedCandidate):
 
     def get_dependencies_from_metadata(self) -> list[str]:
         # if conda candidate return already obtained dependencies
-        if not isinstance(self.req, CondaRequirement) or self.req.package is None:
-            raise ValueError("Uninitialized conda requirement")
-        return self.req.package.full_dependencies
+        return [d.as_line() for d in self.candidate.dependencies]
 
     def prepare_metadata(self) -> Distribution:
         # if conda candidate get setup from package
-        if not isinstance(self.req, CondaRequirement) or self.req.package is None:
-            raise ValueError("Uninitialized conda requirement")
-        return self.req.package.distribution
-
-    def should_cache(self) -> bool:
-        return False
+        return self.candidate.distribution
 
 
 class CondaCandidate(Candidate):
-    def __init__(self, req: Requirement, name: str | None = None, version: str | None = None, link: Link | None = None):
+    def __init__(
+        self,
+        req: Requirement,
+        name: str | None = None,
+        version: str | None = None,
+        link: Link | None = None,
+        dependencies: list[str] | None = None,
+        build_string: str | None = None,
+    ):
         super().__init__(req, name, version, link)
         # extract hash from link
         if link and link.hash is not None:
@@ -43,6 +48,8 @@ class CondaCandidate(Candidate):
         self._req = cast(CondaRequirement, req)  # type: ignore
         self._preferred = None
         self._prepared: CondaPreparedCandidate | None = None
+        self.dependencies = [parse_requirement(f"conda:{r}") for r in (dependencies or [])]
+        self.build_string = build_string
 
     @property
     def req(self):
@@ -52,6 +59,18 @@ class CondaCandidate(Candidate):
     def req(self, value):
         if isinstance(value, CondaRequirement):
             self._req = value
+
+    @property
+    def distribution(self):
+        return CondaSetupDistribution(
+            Setup(
+                name=self.name,
+                summary="",
+                version=self.version,
+                install_requires=[d.as_line() for d in self.dependencies],
+                python_requires=self.requires_python,
+            ),
+        )
 
     def as_lockfile_entry(self, project_root: Path) -> dict[str, Any]:
         result = super().as_lockfile_entry(project_root)
@@ -72,37 +91,54 @@ class CondaCandidate(Candidate):
         return self._prepared
 
     @classmethod
-    def from_conda_requirement(cls, req: CondaRequirement) -> "CondaCandidate":
+    def from_lock_package(cls, package: dict) -> "CondaCandidate":
         """
-        Create conda candidate from conda requirement.
-        :param req: conda requirement
+        Create conda candidate from lockfile package.
+        :param package: lockfile package
         :return: conda candidate
         """
-        version: str | None
-        if req.package is not None:
-            version = req.package.version
-        else:
-            version = list(req.specifier)[0].version if req.specifier else None
-        return CondaCandidate(req, name=req.name, version=version, link=req.link)
+        requires_python = package.get("requires_python", "")
+        dependencies = package.get("dependencies", [])
+        if requires_python:
+            dependencies.append(f"python {requires_python}")
+        return CondaCandidate.from_conda_package(
+            package
+            | {
+                "channel": package.get("channel_url", None),
+                "depends": dependencies,
+                "build_string": None,
+            },
+        )
 
-
-def make_candidate(
-    req: Requirement,
-    name: str | None = None,
-    version: str | None = None,
-    link: Link | None = None,
-) -> Candidate:
-    """Construct a candidate and cache it in memory"""
-    # if conda requirement make conda candidate
-    if isinstance(req, CondaRequirement):
-        return CondaCandidate.from_conda_requirement(req)
-    return _make_candidate(req, name, version, link)
-
-
-if not _patched:
-    from pdm.models import repositories
-    from pdm.resolver import providers
-
-    setattr(providers, "make_candidate", make_candidate)
-    setattr(repositories, "make_candidate", make_candidate)
-    _patched = True
+    @classmethod
+    def from_conda_package(cls, package: dict) -> "CondaCandidate":
+        """
+        Create conda candidate from conda package.
+        :param package: conda package
+        :return: conda candidate
+        """
+        dependencies: list = package["depends"] or []
+        requires_python = None
+        to_delete = []
+        for d in dependencies:
+            if d.startswith("__"):
+                to_delete.append(d)
+            elif match := re.match(r"python( .+|$)", d):
+                to_delete.append(d)
+                if requires_python is None:
+                    requires_python = match.group(1).strip() or None
+        for d in to_delete:
+            dependencies.remove(d)
+        hashes = {h: package[h] for h in ["sha256", "md5"] if h in package}
+        url = package["url"]
+        for k, v in hashes.items():
+            url += f"#{k}={v}"
+        name, version = package["name"], package["version"]
+        return CondaCandidate(
+            req=parse_requirement(f"conda:{name} {version}"),
+            name=name,
+            version=version,
+            link=Link(url, comes_from=package["channel"], requires_python=requires_python, hashes=hashes),
+            dependencies=dependencies,
+            build_string=package["build_string"],
+        )
