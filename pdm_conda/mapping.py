@@ -13,21 +13,21 @@ def process_mapping(yaml_path: Path, dict_path: Path):
     :param yaml_path: yaml path
     :param dict_path: json path
     """
-    mappings = dict()
-    conda_key = "conda_name:"
-    pypi_key = "pypi_name:"
-    with yaml_path.open() as f:
+
+    def find_key(key, f):
         while line := f.readline():
             line = line.strip()
-            if line.startswith(conda_key):
-                conda_name = line.split(conda_key)[-1].strip()
-                pypi_name = None
-                while line := f.readline():
-                    if line.startswith(pypi_key):
-                        pypi_name = line.split(pypi_key)[-1].strip()
-                        break
-                if pypi_name:
-                    mappings[conda_name] = pypi_name
+            if line.startswith(key):
+                return line.split(key)[-1].strip()
+        return None
+
+    mappings = dict()
+    with yaml_path.open() as f:
+        while (conda_name := find_key("conda_name:", f)) is not None:
+            pypi_name = find_key("pypi_name:", f)
+            if pypi_name:
+                mappings[conda_name] = pypi_name
+
     with dict_path.open("w") as f:
         json.dump(mappings, f)
 
@@ -45,10 +45,7 @@ def download_mapping(download_dir: Path, update_interval: timedelta | None = Non
     yaml_path = download_dir / "pypi_mapping.yaml"
     dict_path = yaml_path.with_suffix(".json")
 
-    if (
-        not yaml_path.exists()
-        or datetime.fromtimestamp(yaml_path.stat().st_mtime) + update_interval > datetime.utcnow()
-    ):
+    if not yaml_path.exists() or datetime.fromtimestamp(yaml_path.stat().st_mtime) + update_interval < datetime.now():
         response = requests.get(MAPPINGS_URL, stream=True)
         with yaml_path.open("wb") as f:
             for chunk in response.iter_content(chunk_size=128):
