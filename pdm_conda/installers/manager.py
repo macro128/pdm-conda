@@ -18,9 +18,7 @@ class CondaInstallManager(InstallManager):
             try:
                 from pdm_conda.plugin import conda_install
 
-                if candidate.req.package is None:
-                    raise ValueError("Uninitialized conda requirement")
-                conda_install(self.environment.project, candidate.req.package.link.url, no_deps=True)
+                conda_install(self.environment.project, candidate.link.url, no_deps=True)
             except (RequirementError, ValueError) as e:
                 raise InstallerError(e) from e
         else:
