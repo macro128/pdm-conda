@@ -2,12 +2,14 @@ from pathlib import Path
 from typing import cast
 
 from pdm.core import Core
-from pdm.exceptions import PdmUsageError, ProjectError
+from pdm.exceptions import ProjectError
 from pdm.project import Project
 from tomlkit.items import Array
 
 from pdm_conda.installers.manager import CondaInstallManager
 from pdm_conda.installers.synchronizers import CondaSynchronizer
+from pdm_conda.mapping import download_mapping
+from pdm_conda.models.config import PluginConfig
 from pdm_conda.models.repositories import (
     LockedCondaRepository,
     LockedRepository,
@@ -35,6 +37,46 @@ class CondaProject(Project):
         self.locked_repository_class = LockedCondaRepository
         self.core.synchronizer_class = CondaSynchronizer
         self.virtual_packages: set[str] = set()
+        self._conda_mapping: dict[str, str] = dict()
+
+    @property
+    def conda_mapping(self):
+        if not self._conda_mapping:
+            config = PluginConfig.load_config(self)
+            if config.is_initialized:
+                self._conda_mapping = download_mapping(config.mappings_download_dir)
+        return self._conda_mapping
+
+    def conda_to_pypi(self, requirement: str) -> tuple[str, str, str]:
+        """
+        Map conda requirement to PyPI version
+        :param requirement: conda requirement
+        :return: PyPI requirement, PyPI requirement name and Conda requirement name
+        """
+        name = requirement
+        for s in (">", "<", "=", "!", "~", " "):
+            name = name.split(s, maxsplit=1)[0]
+        name = name.strip()
+        conda_name = self.conda_mapping.get(name, name)
+        requirement = requirement.replace(name, conda_name)
+        return requirement, name, conda_name
+
+    def get_conda_pyproject_dependencies(self, group: str, dev: bool = False) -> list[str]:
+        """
+        Get the conda dependencies array in the pyproject.toml
+        """
+        settings = self.pyproject.settings.setdefault("conda", dict())
+        if group == "default":
+            deps = settings.setdefault("dependencies", [])
+        else:
+            name = "optional" if not dev else "dev"
+            deps = settings.setdefault(f"{name}-dependencies", dict()).setdefault(group, [])
+
+        PluginConfig.load_config(self)
+        for i, dep in enumerate(deps):
+            deps[i] = self.conda_to_pypi(dep)[0]
+
+        return deps
 
     def get_dependencies(self, group: str | None = None) -> dict[str, Requirement]:
         result = super().get_dependencies(group)
@@ -43,24 +85,16 @@ class CondaProject(Project):
         group = group or "default"
         optional_dependencies = settings.get("optional-dependencies", {})
         dev_dependencies = settings.get("dev-dependencies", {})
-        deps = []
 
-        if group == "default":
-            deps = settings.get("dependencies", [])
-        else:
-            if group in optional_dependencies and group in dev_dependencies:
-                self.core.ui.echo(
-                    f"The {group} group exists in both [optional-dependencies] "
-                    "and [dev-dependencies], the former is taken.",
-                    err=True,
-                    style="warning",
-                )
-            if group in optional_dependencies:
-                deps = optional_dependencies[group]
-            elif group in dev_dependencies:
-                deps = dev_dependencies[group]
-            elif not result:
-                raise PdmUsageError(f"Non-exist group {group}")
+        dev = group not in optional_dependencies
+        if group in optional_dependencies and group in dev_dependencies:
+            self.core.ui.echo(
+                f"The {group} group exists in both [optional-dependencies] "
+                "and [dev-dependencies], the former is taken.",
+                err=True,
+                style="warning",
+            )
+        deps = self.get_conda_pyproject_dependencies(group, dev)
 
         for line in deps:
             req = parse_requirement(f"conda:{line}")
@@ -89,16 +123,6 @@ class CondaProject(Project):
             lockfile = {}
 
         return self.locked_repository_class(lockfile, self.sources, self.environment)
-
-    def get_conda_pyproject_dependencies(self, group: str, dev: bool = False) -> list[str]:
-        """
-        Get the conda dependencies array in the pyproject.toml
-        """
-        settings = self.pyproject.settings.setdefault("conda", dict())
-        if group == "default":
-            return settings.setdefault("dependencies", [])
-        name = "optional" if not dev else "dev"
-        return settings.setdefault(f"{name}-dependencies", dict()).setdefault(group, [])
 
     def add_dependencies(
         self,
