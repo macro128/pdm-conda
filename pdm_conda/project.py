@@ -112,8 +112,8 @@ class CondaProject(Project):
             deps = self.get_conda_pyproject_dependencies(to_group, dev)
             cast(Array, deps).multiline(True)
             for _, dep in conda_requirements.items():
-                matched_index = next((i for i, r in enumerate(deps) if dep.matches(r)), None)
-                req = dep.as_line()
+                matched_index = next((i for i, r in enumerate(deps) if dep.matches(f"conda:{r}")), None)
+                req = dep.as_line(with_channel=True)
                 if matched_index is None:
                     deps.append(req)
                 else:
