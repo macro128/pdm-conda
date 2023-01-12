@@ -12,6 +12,7 @@ class PluginConfig:
     dependencies: list[str] = field(default_factory=list, repr=False)
     optional_dependencies: dict[str, list] = field(default_factory=dict)
     dev_dependencies: dict[str, list] = field(default_factory=dict)
+    _initialized: bool = field(repr=False, default=False)
 
     def __post_init__(self):
         if not self.channels:
@@ -21,7 +22,7 @@ class PluginConfig:
 
     @property
     def is_initialized(self):
-        return self.as_default_manager or self.dependencies or self.optional_dependencies or self.dev_dependencies
+        return self._initialized
 
     @classmethod
     def load_config(cls, project: Project, **kwargs) -> "PluginConfig":
@@ -32,6 +33,7 @@ class PluginConfig:
         :return: plugin configs
         """
         config = {k.replace("-", "_"): v for k, v in project.pyproject.settings.get("conda", {}).items()}
+        kwargs["_initialized"] = "conda" in project.pyproject.settings
         return PluginConfig(**(config | kwargs))
 
     def command(self, cmd="install"):
@@ -41,7 +43,7 @@ class PluginConfig:
         :return: args list
         """
         _command = [self.runner, cmd, "-y"]
-        if cmd in ("install", "create"):
+        if cmd in ("install", "create", "search"):
             _command.append("--strict-channel-priority")
         return _command
 
