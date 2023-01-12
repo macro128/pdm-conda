@@ -11,7 +11,6 @@ def main(core: Core):
     from pdm_conda.models.config import PluginConfig
     from pdm_conda.plugin import lock_conda_dependencies
     from pdm_conda.project import CondaProject
-    from pdm_conda.resolver import providers
 
     core.project_class = CondaProject
 
