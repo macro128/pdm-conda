@@ -35,8 +35,6 @@ class TestList:
 
             o = output.getvalue()
             for p in conda_response:
-                if (name := p["name"]) != "python":
-                    assert name in o
-            assert "python" not in o
+                assert p["name"] in o
 
         assert mock_conda.call_count == 1

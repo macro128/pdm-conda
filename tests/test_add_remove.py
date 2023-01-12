@@ -32,8 +32,8 @@ class TestAddRemove:
             },
         )
         command = ["add", "-v", "--no-self", "--no-sync"]
-        for p in packages:
-            command.extend(["--conda", p])
+        for package in packages:
+            command.extend(["--conda", package])
         if channel:
             command += ["--channel", channel]
         if runner:
@@ -52,14 +52,18 @@ class TestAddRemove:
         assert channels.issubset(conf.channels)
         assert conf.runner == runner
 
-        assert mock_conda.call_count == 3
+        num_search = 1  # add conda info
+        packages_names = {p.split("::")[-1] for p in packages}
+        for c in conda_response:
+            if c["name"] in packages_names:
+                num_search += 1 + len(c["depends"])
+        assert mock_conda.call_count == num_search
 
         project = cast(CondaProject, project)
         dependencies = project.get_conda_pyproject_dependencies("default")
-        for p in packages:
-            assert any(True for d in dependencies if p in d)
-            if channel and "::" not in p:
-                assert any(True for d in dependencies if f"{channel}::" in d)
+        for package in packages:
+            _package = package.split("::")[-1]
+            assert any(True for d in dependencies if _package in d)
 
     @pytest.mark.parametrize("conda_response", CONDA_INFO)
     @pytest.mark.parametrize("empty_conda_list", [False])
@@ -68,15 +72,23 @@ class TestAddRemove:
         self.test_add(core, project, mock_conda, conda_response, packages, None, None)
         mock_conda.reset_mock()
         core.main(["remove", "--no-self"] + packages, obj=project)
-        cmd_order = ["list"] + ["remove"] * (len(conda_response) - len(PYTHON_REQUIREMENTS))
+        conda_calls = len(conda_response) - len(PYTHON_REQUIREMENTS)
+        cmd_order = []
+        if conda_calls:
+            cmd_order = ["list"] + ["search"] * len(PYTHON_REQUIREMENTS) + ["remove"] * conda_calls
         assert mock_conda.call_count == len(cmd_order)
         packages = [p["name"] for p in conda_response]
+        python_packages = [f"{p['name']}=={p['version']}" for p in PYTHON_REQUIREMENTS]
         for (cmd,), kwargs in mock_conda.call_args_list:
             assert cmd[0] == self.conda_runner
             cmd_subcommand = cmd[1]
             assert cmd_subcommand == cmd_order.pop(0)
-            if cmd_subcommand == "remove":
-                assert any(True for c in cmd if c in packages)
-                assert "-f" not in cmd
+            if cmd_subcommand in ("remove", "search"):
+                name = next(filter(lambda x: not x.startswith("-"), cmd[2:]))
+                if cmd_subcommand == "remove":
+                    assert name in packages
+                    assert "-f" not in cmd
+                elif cmd_subcommand == "search":
+                    assert name in python_packages
 
         assert not cmd_order

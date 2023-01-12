@@ -14,8 +14,6 @@ class TestInstall:
         """
         Test `install` command work as expected
         """
-        from pdm_conda.models.requirements import CondaRequirement
-
         project.pyproject._data.update(
             {
                 "tool": {
@@ -28,34 +26,29 @@ class TestInstall:
                 },
             },
         )
-        requirements = [r.as_line() for r in project.get_dependencies().values() if isinstance(r, CondaRequirement)] + [
-            f"python=={project.python.version}",
-        ]
-        requirements = set(requirements)
         command = ["install", "-v", "--no-self"]
         if dry_run:
             command.append("--dry-run")
         core.main(command, obj=project)
 
-        conda_calls = 0 if dry_run else (len(conda_response) - len(PYTHON_REQUIREMENTS))
-        cmd_order = ["create", "install", "remove", "list"] + ["install"] * conda_calls
+        conda_calls = len(conda_response) - len(PYTHON_REQUIREMENTS)
+        cmd_order = ["info"] + ["search"] * conda_calls + ["list"] + ["install"] * (0 if dry_run else conda_calls)
         assert mock_conda.call_count == len(cmd_order)
 
         urls = [format_url(p) for p in conda_response if p not in PYTHON_REQUIREMENTS]
-        install_dep = False
         for (cmd,), kwargs in mock_conda.call_args_list:
             assert cmd[0] == self.conda_runner
             cmd_subcommand = cmd[1]
             assert cmd_subcommand == cmd_order.pop(0)
             if cmd_subcommand == "install":
-                if not install_dep:
-                    assert set(kwargs["dependencies"]) == requirements
-                    if not dry_run:
-                        install_dep = True
-                else:
-                    deps = kwargs["dependencies"]
-                    assert len(deps) == 1
-                    urls.remove(deps[0])
+                # if not install_dep:
+                #     assert set(kwargs["dependencies"]) == requirements
+                #     if not dry_run:
+                #         install_dep = True
+                # else:
+                deps = kwargs["dependencies"]
+                assert len(deps) == 1
+                urls.remove(deps[0])
 
         if not dry_run:
             assert not urls

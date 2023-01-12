@@ -47,12 +47,26 @@ def mock_conda(mocker, conda_response: dict | list, empty_conda_list):
     }
 
     def _mock(cmd, **kwargs):
-        if cmd[1] == "install":
+        subcommand = cmd[1]
+        if subcommand == "install":
             return install_response
-        elif cmd[1] == "list":
+        elif subcommand == "list":
             if empty_conda_list:
                 return []
             return conda_response
+        elif subcommand == "info":
+            return {
+                "virtual packages": [
+                    "__unix=0=0",
+                    "__linux=5.10.109=0",
+                    "__glibc=2.35=0",
+                    "__archspec=1=aarch64",
+                ],
+            }
+        elif subcommand == "search":
+            name = next(filter(lambda x: not x.startswith("-"), cmd[2:]))
+            name = name.split(">")[0].split("<")[0].split("=")[0].split("~")[0]
+            return {"result": {"pkgs": [p for p in conda_response if p["name"] == name]}}
         else:
             return {"message": "ok"}
 
@@ -64,25 +78,28 @@ PYTHON_REQUIREMENTS = [
         "name": "lib2",
         "depends": [],
         "version": "1.0.0",
-        "url": "https://channel.com/dep",
+        "url": "https://channel.com/lib2",
         "channel": "https://channel.com",
         "sha256": "this-is-a-hash",
+        "build_string": "lib2",
     },
     {
         "name": "lib",
         "depends": ["lib2 ==1.0.0"],
         "version": "1.0.0",
-        "url": "https://channel.com/dep",
+        "url": "https://channel.com/lib",
         "channel": "https://channel.com",
         "sha256": "this-is-a-hash",
+        "build_string": "lib",
     },
     {
         "name": "python",
         "depends": ["lib ==1.0.0"],
         "version": "3.10.9",
-        "url": "https://channel.com/dep",
+        "url": "https://channel.com/python",
         "channel": "https://channel.com",
         "sha256": "this-is-a-hash",
+        "build_string": "python",
     },
 ]
 
@@ -96,6 +113,7 @@ CONDA_INFO = [
             "url": "https://channel.com/another-dep",
             "channel": "https://channel.com",
             "sha256": "this-is-a-hash",
+            "build_string": "another-dep",
         },
         {
             "name": "dep",
@@ -104,6 +122,7 @@ CONDA_INFO = [
             "url": "https://channel.com/dep",
             "channel": "https://channel.com",
             "sha256": "this-is-a-hash",
+            "build_string": "dep",
         },
     ],
 ]

@@ -39,7 +39,9 @@ class TestProject:
             requirements[r.identify()] = r
         for d in conda_dependencies:
             r = parse_requirement(f"conda:{d}")
-            if "[" not in d:
+            if "::" in d:
+                assert d.endswith(r.as_line())
+            elif "[" not in d:
                 assert r.as_line() == d
             else:
                 assert d.startswith(r.as_line())
@@ -47,8 +49,11 @@ class TestProject:
             assert not r.extras
             if "::" in d:
                 assert r.channel == d.split("::")[0]
-            if (old_dep := requirements.get(r.identify(), None)) is not None and old_dep.specifier is not None:
-                r.specifier = old_dep.specifier
+            pypi_req = next((v for v in requirements.values() if v.name == r.name), None)
+            if pypi_req is not None:
+                requirements.pop(pypi_req.identify())
+                if not r.specifier:
+                    r.specifier = pypi_req.specifier
             requirements[r.identify()] = r
         return requirements
 
@@ -103,20 +108,7 @@ class TestProject:
     @pytest.mark.parametrize(**GROUPS)
     @pytest.mark.parametrize("python_packages", [True, False])
     def test_add_dependencies(self, project, dependencies, conda_dependencies, group, python_packages):
-        from unearth import Link
-
-        from pdm_conda.models.requirements import CondaPackage, CondaRequirement
-
         requirements = self._parse_requirements(dependencies, conda_dependencies)
-        if python_packages:
-            for req in requirements.values():
-                if isinstance(req, CondaRequirement):
-                    req.package = CondaPackage(
-                        name=req.name,
-                        version="",
-                        link=Link(""),
-                        requires_python="==3.7",
-                    )
 
         group_name = group if group == "default" else "dev"
         dev = group == "dev"
@@ -134,8 +126,10 @@ class TestProject:
                 for r in _dependencies:
                     if d.split("::")[-1] in r:
                         asserted += 1
+                        break
                 for r in _conda_dependencies:
                     if d in r:
                         asserted += 1
+                        break
             assert asserted == len(conda_dependencies) * 2
         assert all("[" not in k for k in project.get_dependencies(group_name))
