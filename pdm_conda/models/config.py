@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from pdm.exceptions import ProjectError
 from pdm.project import ConfigItem, Project
@@ -6,6 +7,7 @@ from pdm.project import ConfigItem, Project
 
 @dataclass
 class PluginConfig:
+    mappings_download_dir: Path
     channels: list[str] = field(default_factory=list)
     runner: str = "conda"
     as_default_manager: bool = False
@@ -33,6 +35,8 @@ class PluginConfig:
         :return: plugin configs
         """
         config = {k.replace("-", "_"): v for k, v in project.pyproject.settings.get("conda", {}).items()}
+        mapping_config = config.pop("pypi_mapping", dict())
+        config["mappings_download_dir"] = Path(mapping_config.get("download-dir", None) or Path.home() / ".pdm-conda/")
         kwargs["_initialized"] = "conda" in project.pyproject.settings
         return PluginConfig(**(config | kwargs))
 
@@ -54,7 +58,8 @@ class PluginConfig:
             ("channels", ConfigItem("Conda channels to use", ["defaults"])),
             ("as_default_manager", ConfigItem("Use Conda to install all possible requirements", False)),
             ("dependencies", ConfigItem("Dependencies to install with Conda", [])),
-            ("optional-dependencies", ConfigItem("Optional dependencies to install with Conda", [])),
-            ("dev-dependencies", ConfigItem("Development dependencies to install with Conda", [])),
+            ("optional-dependencies", ConfigItem("Optional dependencies to install with Conda", dict())),
+            ("dev-dependencies", ConfigItem("Development dependencies to install with Conda", dict())),
+            ("pypi-mapping.download-dir", ConfigItem("PyPI-Conda mapping download directory", "")),
         ]
         return [(f"conda.{name}", config) for name, config in _configs]
