@@ -2,6 +2,7 @@
 from tempfile import TemporaryDirectory
 
 import pytest
+import responses
 from pdm.cli.actions import do_init
 from pdm.core import Core
 from pdm.project import Project
@@ -71,6 +72,17 @@ def mock_conda(mocker, conda_response: dict | list, empty_conda_list):
             return {"message": "ok"}
 
     yield mocker.patch("pdm_conda.plugin.run_conda", side_effect=_mock)
+
+
+@pytest.fixture
+def mocked_responses():
+    with responses.RequestsMock() as rsps:
+        yield rsps
+
+
+@pytest.fixture
+def mock_conda_mapping(project, conda_mapping, mocked_responses):
+    project._conda_mapping = conda_mapping
 
 
 PYTHON_REQUIREMENTS = [
