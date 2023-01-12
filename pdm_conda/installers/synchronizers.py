@@ -1,18 +1,25 @@
-from typing import Collection, cast
+from typing import Collection
 
 from pdm.installers import Synchronizer
 from pdm.models.candidates import Candidate
 from pdm.models.environment import Environment
 
+from pdm_conda.plugin import conda_search
 from pdm_conda.utils import normalize_name
 
 
-def _update_dependencies(package, dependencies):
-    for dep in package.dependencies:
-        dependencies.add(normalize_name(dep.name))
-        _update_dependencies(dep.package, dependencies)
-    for dep in package.full_dependencies:
-        dependencies.add(normalize_name(dep.split(" ")[0]))
+def _update_dependencies(name, packages, project, dependencies):
+    if name in dependencies or name not in packages:
+        return
+    dependencies.add(name)
+    dist = packages[name]
+    candidates = conda_search(f"{dist.name}=={dist.version}", project, channel=dist.extras.get("channel", None))
+    build_string = dist.extras["build_string"]
+    candidate = next(c for c in candidates if c.build_string == build_string)
+    for dep in candidate.dependencies:
+        normalized_name = normalize_name(dep.name)
+        _update_dependencies(normalized_name, packages, project, dependencies)
+        dependencies.add(normalized_name)
 
 
 class CondaSynchronizer(Synchronizer):
@@ -44,17 +51,12 @@ class CondaSynchronizer(Synchronizer):
         self.parallel = bool(self.parallel)  # type: ignore
 
     def compare_with_working_set(self) -> tuple[list[str], list[str], list[str]]:
-        from pdm_conda.project import CondaProject
-
         to_add, to_update, to_remove = super().compare_with_working_set()
 
         # get python dependencies and avoid removing them
-        project = cast(CondaProject, self.environment.project)
-        python_package = project.conda_packages.get("python", None)
-        if python_package is not None:
-            python_dependencies: set[str] = set()
-            _update_dependencies(python_package, python_dependencies)
-            to_remove = [p for p in to_remove if p not in python_dependencies]
+        python_dependencies: set[str] = set()
+        _update_dependencies("python", self.working_set, self.environment.project, python_dependencies)
+        to_remove = [p for p in to_remove if p not in python_dependencies]
         # deactivate parallel execution if uninstall
         if to_remove or to_update:
             if self.parallel:
