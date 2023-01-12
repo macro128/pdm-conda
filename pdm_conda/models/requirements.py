@@ -63,6 +63,7 @@ def parse_requirement(line: str, editable: bool = False) -> Requirement:
         channel = None
         if "::" in line:
             channel, line = line.split("::", maxsplit=1)
+        line = re.sub(r"(>=?[\w.]+)\*", r"\g<1>0", line)
         if " " in line:
             name, version = line.split(" ", maxsplit=1)
             marker = ""

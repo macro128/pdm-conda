@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1] - 11/01/2023
+
+### Fixed
+
+* Change conda requirement specifier `>=x.*` for `>=x.0` to avoid parse errors.
+
+
 ## [0.3.0] - 11/01/2023
 
 ### Added

@@ -1,3 +1,5 @@
+import re
+
 import pytest
 
 DEPENDENCIES = dict(
@@ -10,6 +12,7 @@ DEPENDENCIES = dict(
         (["pytest>=3.1"], ["pytest==52"]),
         ([], ["conda-channel::pytest"]),
         (["pytest"], []),
+        ([], ["pytest>=1.*"]),
     ],
     ids=[
         "different pkgs",
@@ -19,6 +22,7 @@ DEPENDENCIES = dict(
         "conda version override",
         "conda channel",
         "only pypi",
+        "star greater specifier",
     ],
 )
 GROUPS = dict(argnames="group", argvalues=["default", "dev", "optional"])
@@ -42,7 +46,7 @@ class TestProject:
             if "::" in d:
                 assert d.endswith(r.as_line())
             elif "[" not in d:
-                assert r.as_line() == d
+                assert r.as_line() == re.sub(r"(>=?[\w.]+)\*", r"\g<1>0", d)
             else:
                 assert d.startswith(r.as_line())
             assert isinstance(r, CondaRequirement)
