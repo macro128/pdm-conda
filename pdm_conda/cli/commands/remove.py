@@ -5,7 +5,6 @@ from pdm.cli.commands.remove import Command as BaseCommand
 from pdm.project import Project
 
 from pdm_conda.models.requirements import parse_requirement
-from pdm_conda.project import CondaProject
 
 
 class Command(BaseCommand):
@@ -13,6 +12,8 @@ class Command(BaseCommand):
     name = "remove"
 
     def handle(self, project: Project, options: argparse.Namespace) -> None:
+        from pdm_conda.project import CondaProject
+
         if options.group is None:
             options.group = "dev" if options.dev else "default"
 
