@@ -53,12 +53,14 @@ class CondaProject(Project):
         :param requirement: conda requirement
         :return: PyPI requirement, PyPI requirement name and Conda requirement name
         """
+        requirement = requirement.strip()
         name = requirement
         for s in (">", "<", "=", "!", "~", " "):
             name = name.split(s, maxsplit=1)[0]
         name = name.strip()
-        conda_name = self.conda_mapping.get(name, name)
-        requirement = requirement.replace(name, conda_name)
+        _name = name.split("[")[0].split("::")[-1]
+        conda_name = self.conda_mapping.get(_name, name)
+        requirement = f"{conda_name}{requirement[len(name):]}"
         return requirement, name, conda_name
 
     def get_conda_pyproject_dependencies(self, group: str, dev: bool = False) -> list[str]:
@@ -72,7 +74,6 @@ class CondaProject(Project):
             name = "optional" if not dev else "dev"
             deps = settings.setdefault(f"{name}-dependencies", dict()).setdefault(group, [])
 
-        PluginConfig.load_config(self)
         for i, dep in enumerate(deps):
             deps[i] = self.conda_to_pypi(dep)[0]
 
