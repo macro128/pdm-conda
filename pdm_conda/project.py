@@ -3,18 +3,15 @@ from typing import cast
 
 from pdm.core import Core
 from pdm.exceptions import ProjectError
+from pdm.models.environment import Environment
+from pdm.models.repositories import LockedRepository
+from pdm.models.specifiers import PySpecSet
 from pdm.project import Project
+from pdm.utils import get_venv_like_prefix
 from tomlkit.items import Array
 
-from pdm_conda.installers.manager import CondaInstallManager
-from pdm_conda.installers.synchronizers import CondaSynchronizer
 from pdm_conda.mapping import download_mapping
 from pdm_conda.models.config import PluginConfig
-from pdm_conda.models.repositories import (
-    LockedCondaRepository,
-    LockedRepository,
-    PyPICondaRepository,
-)
 from pdm_conda.models.requirements import (
     CondaRequirement,
     NamedRequirement,
@@ -31,11 +28,20 @@ class CondaProject(Project):
         is_global: bool = False,
         global_config: str | Path | None = None,
     ) -> None:
+        from pdm_conda.installers.manager import CondaInstallManager
+        from pdm_conda.installers.synchronizers import CondaSynchronizer
+        from pdm_conda.models.environment import CondaEnvironment
+        from pdm_conda.models.repositories import (
+            LockedCondaRepository,
+            PyPICondaRepository,
+        )
+
         super().__init__(core, root_path, is_global, global_config)
         self.core.repository_class = PyPICondaRepository
         self.core.install_manager_class = CondaInstallManager
-        self.locked_repository_class = LockedCondaRepository
         self.core.synchronizer_class = CondaSynchronizer
+        self.locked_repository_class = LockedCondaRepository
+        self.environment_class = CondaEnvironment
         self.virtual_packages: set[str] = set()
         self._conda_mapping: dict[str, str] = dict()
         self._pypi_mapping: dict[str, str] = dict()
@@ -174,3 +180,17 @@ class CondaProject(Project):
             n: r.as_named_requirement() for n, r in conda_requirements.items() if r.is_python_package
         }
         super().add_dependencies(requirements, to_group, dev, show_message)
+
+    def get_environment(self) -> Environment:
+        if not self.config["python.use_venv"]:
+            raise ProjectError("python.use_venv is required to use Conda.")
+        if get_venv_like_prefix(self.python.executable) is None:
+            raise ProjectError("Conda environment not detected.")
+
+        env = self.environment_class(self)
+        if self.is_global:
+            # Rewrite global project's python requires to be
+            # compatible with the exact version
+            env.python_requires = PySpecSet(f"=={self.python.version}")
+
+        return env

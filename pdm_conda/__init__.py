@@ -7,7 +7,6 @@ def main(core: Core):
     from pdm_conda import utils
     from pdm_conda.cli.commands.add import Command as AddCommand
     from pdm_conda.cli.commands.remove import Command as RemoveCommand
-    from pdm_conda.models import environment
     from pdm_conda.models.config import PluginConfig
     from pdm_conda.plugin import lock_conda_dependencies
     from pdm_conda.project import CondaProject

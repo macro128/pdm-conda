@@ -1,22 +1,23 @@
-import functools
+from typing import cast
 
-from pdm.models.environment import Environment
+from pdm.models.environment import Environment, GlobalEnvironment
+from pdm.models.working_set import WorkingSet
+from pdm.project import Project
 
 from pdm_conda.plugin import conda_list
+from pdm_conda.project import CondaProject
 
-_patched = False
 
+class CondaEnvironment(Environment):
+    def __init__(self, project: Project) -> None:
+        super().__init__(project)
+        self.project = cast(CondaProject, project)
 
-def wrap_get_working_set(func):
-    @functools.wraps(func)
-    def wrapper(self: Environment):
-        working_set = func(self)
+    def get_working_set(self) -> WorkingSet:
+        working_set = super().get_working_set()
         working_set._dist_map.update(conda_list(self.project))
         return working_set
 
-    return wrapper
 
-
-if not _patched:
-    setattr(Environment, "get_working_set", wrap_get_working_set(Environment.get_working_set))
-    _patched = True
+class CondaGlobalEnvironment(GlobalEnvironment, CondaEnvironment):
+    pass
