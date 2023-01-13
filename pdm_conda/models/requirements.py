@@ -17,14 +17,11 @@ _patched = False
 @dataclasses.dataclass(eq=False)
 class CondaRequirement(NamedRequirement):
     channel: str | None = None
+    is_python_package: bool = True
 
     @property
     def project_name(self) -> str | None:
         return self.name
-
-    @property
-    def is_python_package(self) -> bool:
-        return not self.requires_python
 
     @classmethod
     def create(cls: type[T], **kwargs: Any) -> T:
@@ -85,13 +82,12 @@ def parse_requirement(line: str, editable: bool = False) -> Requirement:
             line = line[1:]
 
         package_req = PackageRequirement(line)  # type: ignore
-        kwargs = dict(
+        return CondaRequirement.create(
             name=prefix + package_req.name,
             specifier=package_req.specifier,
             marker=get_marker(package_req.marker),
             channel=channel,
         )
-        return CondaRequirement.create(**kwargs)
 
     return _parse_requirement(line=line, editable=editable)
 
