@@ -2,9 +2,9 @@ import argparse
 from typing import cast
 
 from pdm.cli.commands.remove import Command as BaseCommand
-from pdm.project import Project
 
 from pdm_conda.models.requirements import parse_requirement
+from pdm_conda.project import CondaProject, Project
 
 
 class Command(BaseCommand):
@@ -12,8 +12,6 @@ class Command(BaseCommand):
     name = "remove"
 
     def handle(self, project: Project, options: argparse.Namespace) -> None:
-        from pdm_conda.project import CondaProject
-
         if options.group is None:
             options.group = "dev" if options.dev else "default"
 
@@ -23,10 +21,12 @@ class Command(BaseCommand):
         # add conda dependencies to common dependencies if going to remove it
         for i in range(len(options.packages)):
             # parse it as conda, if found add it to dependencies
-            conda_package = f"conda:{options.packages[i]}"
+            conda_package = f"conda:{project.conda_to_pypi(options.packages[i])[0]}"
             package = parse_requirement(conda_package)
             idx = None
             for dep_idx, dep in enumerate(conda_dependencies):
+                if "::" in dep:
+                    dep = dep.split("::")[-1]
                 if package.name in dep:
                     if package.name not in dependencies:
                         options.packages[i] = conda_package
