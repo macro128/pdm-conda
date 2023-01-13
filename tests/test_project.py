@@ -41,12 +41,10 @@ class TestProject:
         dependencies,
         conda_dependencies,
         conda_mapping,
-        conda_only=None,
         as_default_manager=False,
     ):
         from pdm_conda.models.requirements import CondaRequirement, parse_requirement
 
-        conda_only = conda_only or set()
         requirements = dict()
         for d in dependencies:
             if as_default_manager:
@@ -64,8 +62,6 @@ class TestProject:
             name = name.strip()
             d = conda_mapping.get(name.split("[")[0].split("::")[-1], name) + d[len(name) :]
             r = parse_requirement(f"conda:{d}")
-            if name in conda_only:
-                r.is_python_package = False
             if "::" in d:
                 assert d.endswith(r.as_line())
             elif "[" not in d:
@@ -81,6 +77,8 @@ class TestProject:
                 requirements.pop(pypi_req.identify())
                 if not r.specifier:
                     r.specifier = pypi_req.specifier
+            else:
+                r.is_python_package = False
             requirements[r.identify()] = r
         return requirements
 
@@ -186,7 +184,6 @@ class TestProject:
     @pytest.mark.parametrize(**DEPENDENCIES)
     @pytest.mark.parametrize(**GROUPS)
     @pytest.mark.parametrize(**CONDA_MAPPING)
-    @pytest.mark.parametrize("conda_only", [[], ["pytest-cov"]])
     def test_add_dependencies(
         self,
         project,
@@ -195,9 +192,8 @@ class TestProject:
         group,
         conda_mapping,
         mock_conda_mapping,
-        conda_only,
     ):
-        requirements = self._parse_requirements(dependencies, conda_dependencies, conda_mapping, conda_only)
+        requirements = self._parse_requirements(dependencies, conda_dependencies, conda_mapping)
 
         group_name = group if group == "default" else "dev"
         dev = group == "dev"

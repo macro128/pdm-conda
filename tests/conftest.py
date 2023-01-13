@@ -1,4 +1,5 @@
 """Configuration for the pytest test suite."""
+from copy import deepcopy
 from tempfile import TemporaryDirectory
 
 import pytest
@@ -34,6 +35,7 @@ def project(core, distributions) -> Project:
             author="test",
             email="test@test.com",
         )
+        _project.global_config["check_update"] = False
         yield _project
 
 
@@ -50,11 +52,11 @@ def mock_conda(mocker, conda_response: dict | list, empty_conda_list):
     def _mock(cmd, **kwargs):
         subcommand = cmd[1]
         if subcommand == "install":
-            return install_response
+            return deepcopy(install_response)
         elif subcommand == "list":
             if empty_conda_list:
                 return []
-            return conda_response
+            return deepcopy(conda_response)
         elif subcommand == "info":
             return {
                 "virtual packages": [
@@ -67,7 +69,7 @@ def mock_conda(mocker, conda_response: dict | list, empty_conda_list):
         elif subcommand == "search":
             name = next(filter(lambda x: not x.startswith("-"), cmd[2:]))
             name = name.split(">")[0].split("<")[0].split("=")[0].split("~")[0]
-            return {"result": {"pkgs": [p for p in conda_response if p["name"] == name]}}
+            return {"result": {"pkgs": [deepcopy(p) for p in conda_response if p["name"] == name]}}
         else:
             return {"message": "ok"}
 
@@ -81,8 +83,8 @@ def mocked_responses():
 
 
 @pytest.fixture
-def mock_conda_mapping(project, conda_mapping, mocked_responses):
-    project._conda_mapping = conda_mapping
+def mock_conda_mapping(project, mocked_responses, conda_mapping):
+    project._conda_mapping = conda_mapping or {None: None}
 
 
 PYTHON_REQUIREMENTS = [
@@ -138,3 +140,5 @@ CONDA_INFO = [
         },
     ],
 ]
+
+CONDA_MAPPING = [{p["name"]: f"{p['name']}-pip" for p in CONDA_INFO[0] if p not in PYTHON_REQUIREMENTS}]
