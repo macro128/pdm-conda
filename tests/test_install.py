@@ -1,6 +1,6 @@
 import pytest
 
-from tests.conftest import CONDA_INFO, PYTHON_REQUIREMENTS
+from tests.conftest import CONDA_INFO, CONDA_MAPPING, PYTHON_REQUIREMENTS
 from tests.utils import format_url
 
 
@@ -10,17 +10,32 @@ class TestInstall:
     @pytest.mark.parametrize("conda_response", CONDA_INFO)
     @pytest.mark.parametrize("empty_conda_list", [True])
     @pytest.mark.parametrize("dry_run", [True, False])
-    def test_install(self, core, project, mock_conda, conda_response, dry_run):
+    @pytest.mark.parametrize("pypi_init", [True, False])
+    @pytest.mark.parametrize("conda_mapping", CONDA_MAPPING)
+    def test_install(
+        self,
+        core,
+        project,
+        mock_conda,
+        conda_response,
+        dry_run,
+        mock_conda_mapping,
+        conda_mapping,
+        pypi_init,
+    ):
         """
         Test `install` command work as expected
         """
+        dependency = conda_response[-1]["name"]
+        if pypi_init:
+            dependency = conda_mapping[dependency]
         project.pyproject._data.update(
             {
                 "tool": {
                     "pdm": {
                         "conda": {
                             "runner": self.conda_runner,
-                            "dependencies": [conda_response[-1]["name"]],
+                            "dependencies": [dependency],
                         },
                     },
                 },

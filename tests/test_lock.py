@@ -1,6 +1,6 @@
 import pytest
 
-from tests.conftest import CONDA_INFO, PYTHON_REQUIREMENTS
+from tests.conftest import CONDA_INFO, CONDA_MAPPING, PYTHON_REQUIREMENTS
 
 
 class TestLock:
@@ -10,7 +10,19 @@ class TestLock:
     @pytest.mark.parametrize("empty_conda_list", [False])
     @pytest.mark.parametrize("group", ["default", "dev", None])
     @pytest.mark.parametrize("add_conflict", [True, False])
-    def test_lock(self, core, project, mock_conda, conda_response, group, add_conflict, refresh=False):
+    @pytest.mark.parametrize("conda_mapping", CONDA_MAPPING)
+    def test_lock(
+        self,
+        core,
+        project,
+        mock_conda,
+        conda_response,
+        group,
+        add_conflict,
+        mock_conda_mapping,
+        conda_mapping,
+        refresh=False,
+    ):
         """
         Test lock command work as expected
         """
@@ -19,6 +31,7 @@ class TestLock:
         python_requirements = {c["name"] for c in PYTHON_REQUIREMENTS}
         conda_response = [c for c in conda_response if c["name"] not in python_requirements]
         package = conda_response[1]["name"]
+        package = conda_mapping.get(package, package)
         project.pyproject._data.update(
             {
                 "tool": {
@@ -32,13 +45,19 @@ class TestLock:
             },
         )
         if add_conflict:
+            package = conda_response[0]["name"]
+            package = conda_mapping.get(package, package)
             project.pyproject._data.update(
                 {
-                    "project": {"dependencies": [conda_response[0]["name"]], "requires-python": ">=3.10"},
+                    "project": {"dependencies": [package], "requires-python": ">=3.10"},
                 },
             )
 
-        requirements = [r.as_line() for r in project.get_dependencies().values() if isinstance(r, CondaRequirement)]
+        requirements = [
+            project.pypi_to_conda(r.as_line())
+            for r in project.get_dependencies().values()
+            if isinstance(r, CondaRequirement)
+        ]
         cmd = ["lock", "-v"]
         if refresh:
             cmd.append("--refresh")
@@ -53,7 +72,8 @@ class TestLock:
         cmd_order.append("info")
         for c in conda_response:
             for d in c["depends"]:
-                packages_to_search.add(d.replace(" ", ""))
+                if not d.startswith("python "):
+                    packages_to_search.add(d.replace(" ", ""))
         cmd_order.extend(["search"] * len(packages_to_search))
 
         assert mock_conda.call_count == len(cmd_order)
@@ -74,12 +94,23 @@ class TestLock:
         lockfile = project.lockfile
         packages = lockfile["package"]
         for p in packages:
-            name = p["name"]
+            name = project.pypi_to_conda(p["name"])
             assert name in packages_to_search
 
     @pytest.mark.parametrize("conda_response", CONDA_INFO)
     @pytest.mark.parametrize("empty_conda_list", [False])
     @pytest.mark.parametrize("group", ["default", "dev", None])
-    def test_lock_refresh(self, core, project, mock_conda, conda_response, group):
-        self.test_lock(core, project, mock_conda, conda_response, group, False)
-        self.test_lock(core, project, mock_conda, conda_response, group, False, refresh=True)
+    @pytest.mark.parametrize("conda_mapping", CONDA_MAPPING)
+    def test_lock_refresh(self, core, project, mock_conda, conda_response, group, mock_conda_mapping, conda_mapping):
+        self.test_lock(core, project, mock_conda, conda_response, group, False, mock_conda_mapping, conda_mapping)
+        self.test_lock(
+            core,
+            project,
+            mock_conda,
+            conda_response,
+            group,
+            False,
+            mock_conda_mapping,
+            conda_mapping,
+            refresh=True,
+        )
