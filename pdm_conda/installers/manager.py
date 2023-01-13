@@ -1,14 +1,20 @@
 from importlib.metadata import Distribution
+from typing import cast
 
 from installer.exceptions import InstallerError
 from pdm.exceptions import RequirementError, UninstallError
 from pdm.installers import InstallManager
 
 from pdm_conda.models.candidates import Candidate, CondaCandidate
+from pdm_conda.models.environment import CondaEnvironment, Environment
 from pdm_conda.models.setup import CondaSetupDistribution
 
 
 class CondaInstallManager(InstallManager):
+    def __init__(self, environment: Environment, *, use_install_cache: bool = False) -> None:
+        super().__init__(environment, use_install_cache=use_install_cache)
+        self.environment = cast(CondaEnvironment, environment)
+
     def install(self, candidate: Candidate) -> None:
         """
         Install candidate, use conda if conda package else default installer
@@ -33,7 +39,7 @@ class CondaInstallManager(InstallManager):
             try:
                 from pdm_conda.plugin import conda_uninstall
 
-                conda_uninstall(self.environment.project, dist.name, no_deps=True)
+                conda_uninstall(self.environment.project, dist.conda_name, no_deps=True)
             except RequirementError as e:
                 raise UninstallError(e) from e
         else:
