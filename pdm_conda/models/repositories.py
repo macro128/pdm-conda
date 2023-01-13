@@ -1,14 +1,21 @@
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Mapping, cast
 
+from pdm._types import Source
 from pdm.models.repositories import BaseRepository, LockedRepository, PyPIRepository
 from pdm.models.requirements import Requirement
 from pdm.models.specifiers import PySpecSet
 
 from pdm_conda.models.candidates import Candidate, CondaCandidate
+from pdm_conda.models.environment import CondaEnvironment, Environment
 from pdm_conda.models.requirements import CondaRequirement
+from pdm_conda.plugin import conda_search
 
 
 class CondaRepository(BaseRepository):
+    def __init__(self, sources: list[Source], environment: Environment, ignore_compatibility: bool = True) -> None:
+        super().__init__(sources, environment, ignore_compatibility)
+        self.environment = cast(CondaEnvironment, environment)
+
     def get_dependencies(self, candidate: Candidate) -> tuple[list[Requirement], PySpecSet, str]:
         if isinstance(candidate, CondaCandidate):
             return (
@@ -22,8 +29,6 @@ class CondaRepository(BaseRepository):
 class PyPICondaRepository(CondaRepository, PyPIRepository):
     def _find_candidates(self, requirement: Requirement) -> Iterable[Candidate]:
         if isinstance(requirement, CondaRequirement):
-            from pdm_conda.plugin import conda_search
-
             return conda_search(requirement, self.environment.project)
         return super()._find_candidates(requirement)
 
