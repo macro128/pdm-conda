@@ -14,6 +14,7 @@ from pdm_conda.models.requirements import (
     parse_requirement,
 )
 from pdm_conda.models.setup import CondaSetupDistribution
+from pdm_conda.project import CondaProject
 
 
 class CondaPreparedCandidate(PreparedCandidate):
@@ -36,6 +37,7 @@ class CondaCandidate(Candidate):
         self,
         req: Requirement,
         name: str | None = None,
+        conda_name: str | None = None,
         version: str | None = None,
         link: Link | None = None,
         dependencies: list[str] | None = None,
@@ -50,6 +52,9 @@ class CondaCandidate(Candidate):
         self._prepared: CondaPreparedCandidate | None = None
         self.dependencies = [parse_requirement(f"conda:{r}") for r in (dependencies or [])]
         self.build_string = build_string
+        if conda_name is None:
+            conda_name = name
+        self.conda_name = conda_name
 
     @property
     def req(self):
@@ -70,13 +75,13 @@ class CondaCandidate(Candidate):
                 install_requires=[d.as_line() for d in self.dependencies],
                 python_requires=self.requires_python,
             ),
+            conda_name=self.conda_name,
         )
 
     def as_lockfile_entry(self, project_root: Path) -> dict[str, Any]:
         result = super().as_lockfile_entry(project_root)
         result["conda_managed"] = True
-        if self.req.channel is not None:
-            result["channel"] = self.req.channel
+        result["conda_name"] = self.conda_name
         if self.link is None:
             raise ValueError("Uninitialized conda requirement")
         result["url"] = self.link.url
@@ -111,10 +116,11 @@ class CondaCandidate(Candidate):
         )
 
     @classmethod
-    def from_conda_package(cls, package: dict) -> "CondaCandidate":
+    def from_conda_package(cls, package: dict, project: CondaProject | None = None) -> "CondaCandidate":
         """
         Create conda candidate from conda package.
         :param package: conda package
+        :param project: conda project
         :return: conda candidate
         """
         dependencies: list = package["depends"] or []
@@ -134,11 +140,22 @@ class CondaCandidate(Candidate):
         for k, v in hashes.items():
             url += f"#{k}={v}"
         name, version = package["name"], package["version"]
+        if project is not None:
+            package["conda_name"] = name
+            package["name"], name, _ = project.conda_to_pypi(name)
+            for i, d in enumerate(dependencies):
+                dependencies[i] = project.conda_to_pypi(d)[0]
         return CondaCandidate(
             req=parse_requirement(f"conda:{name} {version}"),
             name=name,
+            conda_name=package["conda_name"],
             version=version,
-            link=Link(url, comes_from=package["channel"], requires_python=requires_python, hashes=hashes),
+            link=Link(
+                url,
+                comes_from=package["channel"],
+                requires_python=requires_python,
+                hashes=hashes,
+            ),
             dependencies=dependencies,
             build_string=package["build_string"],
         )
