@@ -2,7 +2,6 @@ import json
 import subprocess
 from functools import lru_cache
 from tempfile import NamedTemporaryFile, TemporaryDirectory
-from typing import cast
 
 from pdm.exceptions import RequirementError
 from pdm.models.requirements import strip_extras
@@ -17,6 +16,7 @@ from pdm_conda.models.requirements import (
     parse_requirement,
 )
 from pdm_conda.models.setup import CondaSetupDistribution
+from pdm_conda.project import CondaProject
 from pdm_conda.utils import normalize_name
 
 
@@ -62,10 +62,10 @@ def run_conda(cmd, **environment) -> dict:
     return response
 
 
-@lru_cache
-def conda_search(
-    requirement: CondaRequirement | str,
-    project: Project,
+@lru_cache(maxsize=None)
+def _conda_search(
+    requirement: str,
+    project: CondaProject,
     channel: str | None = None,
 ) -> list[CondaCandidate]:
     """
@@ -75,17 +75,11 @@ def conda_search(
     :param channel: requirement channel
     :return: list of conda candidates
     """
-    from pdm_conda.project import CondaProject
-
     config = PluginConfig.load_config(project)
     command = config.command("search")
-    project = cast(CondaProject, project)
     if not project.virtual_packages:
         project.virtual_packages = conda_virtual_packages(project)
 
-    if isinstance(requirement, CondaRequirement):
-        channel = channel or requirement.channel
-        requirement = requirement.as_line()
     command.append(requirement)
     channels = [channel] if channel else config.channels
     for c in channels:
@@ -103,9 +97,27 @@ def conda_search(
                     valid_candidate = False
                     break
         if valid_candidate:
-            candidates.append(CondaCandidate.from_conda_package(p))
+            candidates.append(CondaCandidate.from_conda_package(p, project))
 
     return candidates
+
+
+def conda_search(
+    requirement: CondaRequirement | str,
+    project: CondaProject,
+    channel: str | None = None,
+) -> list[CondaCandidate]:
+    """
+    Search conda candidates for a requirement
+    :param requirement: requirement
+    :param project: PDM project
+    :param channel: requirement channel
+    :return: list of conda candidates
+    """
+    if isinstance(requirement, CondaRequirement):
+        channel = channel or requirement.channel
+        requirement = requirement.as_line()
+    return _conda_search(project.pypi_to_conda(requirement), project, channel)
 
 
 def update_requirements(requirements: list[Requirement], conda_packages: dict[str, CondaCandidate]):
