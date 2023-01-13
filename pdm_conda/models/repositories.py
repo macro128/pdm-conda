@@ -26,14 +26,14 @@ class CondaRepository(BaseRepository):
         return super().get_dependencies(candidate)
 
 
-class PyPICondaRepository(CondaRepository, PyPIRepository):
+class PyPICondaRepository(PyPIRepository, CondaRepository):
     def _find_candidates(self, requirement: Requirement) -> Iterable[Candidate]:
         if isinstance(requirement, CondaRequirement):
             return conda_search(requirement, self.environment.project)
         return super()._find_candidates(requirement)
 
 
-class LockedCondaRepository(CondaRepository, LockedRepository):
+class LockedCondaRepository(LockedRepository, CondaRepository):
     def _read_lockfile(self, lockfile: Mapping[str, Any]) -> None:
         packages = lockfile.get("package", [])
         conda_packages = [p for p in packages if p.get("conda_managed", False)]
