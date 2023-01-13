@@ -38,30 +38,54 @@ class CondaProject(Project):
         self.core.synchronizer_class = CondaSynchronizer
         self.virtual_packages: set[str] = set()
         self._conda_mapping: dict[str, str] = dict()
+        self._pypi_mapping: dict[str, str] = dict()
+
+    @property
+    def pypi_mapping(self):
+        if self.conda_mapping and not self._pypi_mapping:
+            self._pypi_mapping = {v: k for k, v in self._conda_mapping.items()}
+        return self._pypi_mapping
 
     @property
     def conda_mapping(self):
         if not self._conda_mapping:
             config = PluginConfig.load_config(self)
             if config.is_initialized:
-                self._conda_mapping = download_mapping(config.mappings_download_dir)
+                self.conda_mapping = download_mapping(config.mappings_download_dir)
         return self._conda_mapping
 
-    def conda_to_pypi(self, requirement: str) -> tuple[str, str, str]:
-        """
-        Map conda requirement to PyPI version
-        :param requirement: conda requirement
-        :return: PyPI requirement, PyPI requirement name and Conda requirement name
-        """
+    @conda_mapping.setter
+    def conda_mapping(self, value):
+        self._conda_mapping = value
+        self._pypi_mapping = {v: k for k, v in value.items()}
+
+    @staticmethod
+    def _requirement_map(requirement: str, mapping: dict):
         requirement = requirement.strip()
         name = requirement
         for s in (">", "<", "=", "!", "~", " "):
             name = name.split(s, maxsplit=1)[0]
         name = name.strip()
         _name = name.split("[")[0].split("::")[-1]
-        conda_name = self.conda_mapping.get(_name, name)
-        requirement = f"{conda_name}{requirement[len(name):]}"
-        return requirement, name, conda_name
+        map_name = mapping.get(_name, name)
+        requirement = f"{map_name}{requirement[len(name):]}"
+        return requirement, map_name, name
+
+    def conda_to_pypi(self, requirement: str) -> tuple[str, str, str]:
+        """
+        Map Conda requirement to PyPI version
+        :param requirement: Conda requirement
+        :return: PyPI requirement, PyPI requirement name and Conda requirement name
+        """
+        return self._requirement_map(requirement, self.conda_mapping)
+
+    def pypi_to_conda(self, requirement: str) -> str:
+        """
+        Map PyPI requirement to Conda version
+        :param requirement: PyPI requirement
+        :return: Conda requirement
+        """
+        return self._requirement_map(requirement, self.pypi_mapping)[0]
 
     def get_conda_pyproject_dependencies(self, group: str, dev: bool = False) -> list[str]:
         """
@@ -105,12 +129,14 @@ class CondaProject(Project):
                 result.pop(pypi_req.identify())
                 if not req.specifier:
                     req.specifier = pypi_req.specifier
+            else:
+                req.is_python_package = False
             result[req.identify()] = req
 
         if self.pyproject.settings.get("conda", {}).get("as_default_manager", False):
             for k in list(result):
                 req = result[k]
-                if isinstance(req, NamedRequirement):
+                if isinstance(req, NamedRequirement) and not isinstance(req, CondaRequirement):
                     result.pop(k)
                     req.extras = None
                     result[k] = parse_requirement(f"conda:{req.as_line()}")
