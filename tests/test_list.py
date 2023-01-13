@@ -3,7 +3,7 @@ from io import StringIO
 
 import pytest
 
-from tests.conftest import CONDA_INFO
+from tests.conftest import CONDA_INFO, CONDA_MAPPING
 
 
 class TestList:
@@ -11,7 +11,8 @@ class TestList:
 
     @pytest.mark.parametrize("conda_response", CONDA_INFO)
     @pytest.mark.parametrize("empty_conda_list", [False])
-    def test_list(self, core, project, mock_conda, conda_response):
+    @pytest.mark.parametrize("conda_mapping", CONDA_MAPPING)
+    def test_list(self, core, project, mock_conda, conda_response, mock_conda_mapping):
         """
         Test `list` command work as expected
         """
@@ -22,7 +23,7 @@ class TestList:
                     "pdm": {
                         "conda": {
                             "runner": self.conda_runner,
-                            "dependencies": ["dep"],
+                            "dependencies": ["dep-pip"],
                         },
                     },
                 },
