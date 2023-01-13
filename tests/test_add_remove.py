@@ -2,7 +2,7 @@ from typing import cast
 
 import pytest
 
-from tests.conftest import CONDA_INFO, PYTHON_REQUIREMENTS
+from tests.conftest import CONDA_INFO, CONDA_MAPPING, PYTHON_REQUIREMENTS
 
 
 class TestAddRemove:
@@ -13,7 +13,8 @@ class TestAddRemove:
     @pytest.mark.parametrize("packages", [["dep"], ["dep", "another-dep"], ["channel::dep", "another-dep"]])
     @pytest.mark.parametrize("channel", [None, "another_channel"])
     @pytest.mark.parametrize("runner", [None, "micromamba"])
-    def test_add(self, core, project, mock_conda, conda_response, packages, channel, runner):
+    @pytest.mark.parametrize("conda_mapping", CONDA_MAPPING)
+    def test_add(self, core, project, mock_conda, conda_response, packages, channel, runner, mock_conda_mapping):
         """
         Test `add` command work as expected
         """
@@ -56,7 +57,7 @@ class TestAddRemove:
         packages_names = {p.split("::")[-1] for p in packages}
         for c in conda_response:
             if c["name"] in packages_names:
-                num_search += 1 + len(c["depends"])
+                num_search += 1 + len([d for d in c["depends"] if not d.startswith("python ")])
         assert mock_conda.call_count == num_search
 
         project = cast(CondaProject, project)
@@ -68,8 +69,9 @@ class TestAddRemove:
     @pytest.mark.parametrize("conda_response", CONDA_INFO)
     @pytest.mark.parametrize("empty_conda_list", [False])
     @pytest.mark.parametrize("packages", [["dep"], ["dep", "another-dep"], ["channel::dep"]])
-    def test_remove(self, core, project, mock_conda, conda_response, packages):
-        self.test_add(core, project, mock_conda, conda_response, packages, None, None)
+    @pytest.mark.parametrize("conda_mapping", CONDA_MAPPING)
+    def test_remove(self, core, project, mock_conda, conda_response, packages, mock_conda_mapping):
+        self.test_add(core, project, mock_conda, conda_response, packages, None, None, mock_conda_mapping)
         mock_conda.reset_mock()
         core.main(["remove", "--no-self"] + packages, obj=project)
         conda_calls = len(conda_response) - len(PYTHON_REQUIREMENTS)
