@@ -18,21 +18,19 @@ class Command(BaseCommand):
         project = cast(CondaProject, project)
         conda_dependencies = project.get_conda_pyproject_dependencies(options.group, options.dev)
         dependencies, _ = project.get_pyproject_dependencies(options.group, options.dev)
+        _dependencies = [parse_requirement(d).conda_name for d in dependencies]
         # add conda dependencies to common dependencies if going to remove it
         for i in range(len(options.packages)):
             # parse it as conda, if found add it to dependencies
-            conda_package = f"conda:{project.conda_to_pypi(options.packages[i])[0]}"
+            conda_package = f"conda:{options.packages[i]}"
             package = parse_requirement(conda_package)
             idx = None
             for dep_idx, dep in enumerate(conda_dependencies):
-                if "::" in dep:
-                    dep = dep.split("::")[-1]
-                if package.name in dep:
-                    if package.name not in dependencies:
-                        options.packages[i] = conda_package
-                    else:
-                        options.packages.append(conda_package)
-                    dependencies.append(f"conda:{dep}")
+                dep = parse_requirement(f"conda:{dep}")
+                if package.name == dep.name:
+                    if package.name not in _dependencies:
+                        dependencies.append(conda_package)
+                    options.packages[i] = conda_package
                     idx = dep_idx
                     break
             if idx is not None:
