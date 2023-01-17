@@ -13,7 +13,7 @@ class TestPluginConfig:
         subscribed = mocker.spy(project.pyproject._data, "update")
         values = [[], ["defaults"], ["other"], None]
         for v in values:
-            assert_v = v or ["defaults"]
+            assert_v = v or []
             project.pyproject._data.update(
                 {
                     "tool": {
@@ -48,8 +48,6 @@ class TestPluginConfig:
         }
         if channels:
             conf["channels"] = channels
-        else:
-            channels = ["defaults"]
 
         if runner:
             conf["runner"] = runner

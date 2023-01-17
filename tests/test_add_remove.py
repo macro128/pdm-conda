@@ -18,20 +18,12 @@ class TestAddRemove:
         """
         Test `add` command work as expected
         """
-        from pdm_conda.models.config import PluginConfig
         from pdm_conda.project import CondaProject
 
-        project.pyproject._data.update(
-            {
-                "tool": {
-                    "pdm": {
-                        "conda": {
-                            "runner": runner or self.conda_runner,
-                        },
-                    },
-                },
-            },
-        )
+        project = cast(CondaProject, project)
+        conf = project.conda_config
+        conf.runner = runner or self.conda_runner
+        conf.channels = []
         command = ["add", "-v", "--no-self", "--no-sync"]
         for package in packages:
             command.extend(["--conda", package])
@@ -48,19 +40,16 @@ class TestAddRemove:
         if channel:
             channels.add(channel)
 
-        conf = PluginConfig.load_config(project)
-
         assert channels.issubset(conf.channels)
         assert conf.runner == runner
 
-        num_search = 1  # add conda info
+        num_search = 2 + len(PYTHON_REQUIREMENTS)  # add conda info, list and python packages
         packages_names = {p.split("::")[-1] for p in packages}
         for c in conda_response:
             if c["name"] in packages_names:
                 num_search += 1 + len([d for d in c["depends"] if not d.startswith("python ")])
         assert mock_conda.call_count == num_search
 
-        project = cast(CondaProject, project)
         dependencies = project.get_conda_pyproject_dependencies("default")
         for package in packages:
             _package = package.split("::")[-1]
@@ -77,7 +66,7 @@ class TestAddRemove:
         conda_calls = len(conda_response) - len(PYTHON_REQUIREMENTS)
         cmd_order = []
         if conda_calls:
-            cmd_order = ["list"] + ["search"] * len(PYTHON_REQUIREMENTS) + ["remove"] * conda_calls
+            cmd_order = ["list"] + ["remove"] * conda_calls
         assert mock_conda.call_count == len(cmd_order)
         packages = [p["name"] for p in conda_response]
         python_packages = [f"{p['name']}=={p['version']}" for p in PYTHON_REQUIREMENTS]
