@@ -5,6 +5,7 @@ def main(core: Core):
     from pdm.signals import pre_lock
 
     from pdm_conda import utils
+    from pdm_conda.cli import utils as cli_utils
     from pdm_conda.cli.commands.add import Command as AddCommand
     from pdm_conda.cli.commands.remove import Command as RemoveCommand
     from pdm_conda.models.config import CONFIGS
@@ -21,4 +22,4 @@ def main(core: Core):
         core.add_config(name, config)
 
 
-__version__ = "0.3.1"
+__version__ = "0.4.0"
