@@ -11,7 +11,7 @@ ARG MAMBA_DOCKERFILE_ACTIVATE=1
 ARG app_env
 ARG python_version
 RUN --mount=type=cache,target=/opt/conda/pkgs,id=mamba,mode=0775,uid=1000,gid=1000,sharing=locked \
-    micromamba install -y python==3.10.* pdm==2.3.* pdm-pep517==1.0.* tini==0.19.* -n base -c conda-forge && \
+    micromamba install -y python==3.10.* pdm==2.4.* pdm-pep517==1.0.* tini==0.19.* -n base -c conda-forge && \
     micromamba create -y -n ${app_env} python==${python_version} -c conda-forge
 
 RUN micromamba clean -y -a

@@ -4,14 +4,15 @@ A PDM plugin to install project dependencies with Conda.
 
 ## Configuration
 
-| Config item                   | Description                                                                                        | Default value | Possible values                |
-|-------------------------------|----------------------------------------------------------------------------------------------------|---------------|--------------------------------|
-| `conda.runner`                | Conda runner executable                                                                            | `conda`       | `conda`, `mamba`, `micromamba` |
-| `conda.channels`              | Conda channels to use, order will be enforced                                                      | `[defaults]`  |                                |
-| `conda.as_default_manager`    | Use Conda to install all possible requirements                                                     | `False`       |                                |
-| `conda.dependencies`          | Array of dependencies to install with Conda, analogue to `project.dependencies`                    | `[]`          |                                |
-| `conda.optional-dependencies` | Groups of optional dependencies to install with Conda, analogue to `project.optional-dependencies` | `[]`          |                                |
-| `conda.dev-dependencies`      | Groups of development dependencies to install with Conda, analogue to `tool.pdm.dev-dependencies`  | `[]`          |                                |
+| Config item                       | Description                                                                                        | Default value       | Possible values                |
+|-----------------------------------|----------------------------------------------------------------------------------------------------|---------------------|--------------------------------|
+| `conda.runner`                    | Conda runner executable                                                                            | `conda`             | `conda`, `mamba`, `micromamba` |
+| `conda.channels`                  | Conda channels to use, order will be enforced                                                      | `[]`                |                                |
+| `conda.as_default_manager`        | Use Conda to install all possible requirements                                                     | `False`             |                                |
+| `conda.dependencies`              | Array of dependencies to install with Conda, analogue to `project.dependencies`                    | `[]`                |                                |
+| `conda.optional-dependencies`     | Groups of optional dependencies to install with Conda, analogue to `project.optional-dependencies` | `{}`                |                                |
+| `conda.dev-dependencies`          | Groups of development dependencies to install with Conda, analogue to `tool.pdm.dev-dependencies`  | `{}`                |                                |
+| `conda.pypi-mapping.download-dir` | PyPI-Conda mapping download directory                                                              | `$HOME/.pdm-conda/` |                                |
 
 All configuration items use prefix `pdm.tool`, this is a viable configuration:
 
@@ -21,6 +22,9 @@ runner = "micromamba"
 channels = ["conda-forge/noarch", "conda-forge", "anaconda"]
 dependencies = ["pdm"]
 as_default_manager = true
+
+[tool.pdm.conda.pypi-mapping]
+download-dir = "/tmp"
 
 [tool.pdm.conda.optional-dependencies]
 extra = ["anaconda:ffmpeg"] # non python dependency, obtained from anaconda channel

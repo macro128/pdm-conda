@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.4.0] - 17/01/2023
+
+### Added
+
+* Conda-PyPI mapping to avoid conflicts.
+* Config `conda.pypi-mapping.download-dir` to manage where mapping is downloaded.
+* `save_version_specifiers` and `format_lockfile` monkeypatching
+
+### Changed
+
+* New class `CondEnvironment` class instead of monkeypatching.
+
+### Fixed
+
+* `pdm add` provoked conda usage even if not initialized.
+
 ## [0.3.1] - 11/01/2023
 
 ### Fixed
