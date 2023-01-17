@@ -55,8 +55,6 @@ class PluginConfig:
     def __post_init__(self):
 
         with self.omit_set_project_config():
-            if not self.channels:
-                self.channels = ["defaults"]
             if self.runner not in ["conda", "micromamba", "mamba"]:
                 raise ProjectError(f"Invalid Conda runner: {self.runner}")
 
