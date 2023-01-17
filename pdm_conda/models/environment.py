@@ -1,11 +1,12 @@
 from typing import cast
 
 from pdm.models.environment import Environment, GlobalEnvironment
+from pdm.models.requirements import Requirement
 from pdm.models.working_set import WorkingSet
 from pdm.project import Project
 
 from pdm_conda.mapping import pypi_to_conda
-from pdm_conda.plugin import conda_list
+from pdm_conda.plugin import conda_list, conda_search
 from pdm_conda.project import CondaProject
 from pdm_conda.utils import normalize_name
 
@@ -14,6 +15,7 @@ class CondaEnvironment(Environment):
     def __init__(self, project: Project) -> None:
         super().__init__(project)
         self.project = cast(CondaProject, project)
+        self._python_requirements: dict[str, Requirement] | None = None
 
     def get_working_set(self) -> WorkingSet:
         working_set = super().get_working_set()
@@ -21,6 +23,24 @@ class CondaEnvironment(Environment):
             normalize_name(pypi_to_conda(dist.metadata["Name"])): dist for dist in working_set._dist_map.values()
         }
         return working_set
+
+    @property
+    def python_requirements(self):
+        if self._python_requirements is None:
+            self._python_requirements = dict()
+
+            def load_dependencies(name: str, packages: dict, dependencies: dict):
+                if name not in packages and name not in dependencies:
+                    return
+                package = packages[name].as_line().replace(" ", "=")
+                candidate = conda_search(package, self.project)[0]
+                dependencies[name] = candidate.req
+                for d in candidate.dependencies:
+                    load_dependencies(d.name, packages, dependencies)
+
+            load_dependencies("python", conda_list(self.project), self._python_requirements)
+
+        return self._python_requirements
 
 
 class CondaGlobalEnvironment(GlobalEnvironment, CondaEnvironment):

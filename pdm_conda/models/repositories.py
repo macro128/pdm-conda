@@ -9,32 +9,13 @@ from unearth import Link
 from pdm_conda.models.candidates import Candidate, CondaCandidate
 from pdm_conda.models.environment import CondaEnvironment, Environment
 from pdm_conda.models.requirements import CondaRequirement
-from pdm_conda.plugin import conda_list, conda_search
+from pdm_conda.plugin import conda_search
 
 
 class CondaRepository(BaseRepository):
     def __init__(self, sources: list[Source], environment: Environment, ignore_compatibility: bool = True) -> None:
         super().__init__(sources, environment, ignore_compatibility)
         self.environment = cast(CondaEnvironment, environment)
-        self._python_requirements: dict[str, Requirement] | None = None
-
-    @property
-    def python_requirements(self):
-        if self._python_requirements is None:
-            self._python_requirements = dict()
-
-            def load_dependencies(name: str, packages: dict, dependencies: dict):
-                if name not in packages and name not in dependencies:
-                    return
-                package = packages[name].as_line().replace(" ", "=")
-                candidate = conda_search(package, self.environment.project)[0]
-                dependencies[name] = candidate.req
-                for d in candidate.dependencies:
-                    load_dependencies(d.name, packages, dependencies)
-
-            load_dependencies("python", conda_list(self.environment.project), self._python_requirements)
-
-        return self._python_requirements
 
     def get_dependencies(self, candidate: Candidate) -> tuple[list[Requirement], PySpecSet, str]:
         if isinstance(candidate, CondaCandidate):
@@ -57,7 +38,7 @@ class PyPICondaRepository(PyPIRepository, CondaRepository):
             candidates = conda_search(requirement, self.environment.project)
         else:
             candidates = super()._find_candidates(requirement)
-        if (req := self.python_requirements.get(requirement.conda_name, None)) is not None:
+        if (req := self.environment.python_requirements.get(requirement.conda_name, None)) is not None:
             candidates = [c for c in candidates if req.specifier.contains(c.version)]
         return candidates
 
