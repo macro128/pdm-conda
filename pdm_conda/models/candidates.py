@@ -1,3 +1,4 @@
+import functools
 import re
 from importlib.metadata import Distribution
 from pathlib import Path
@@ -11,21 +12,22 @@ from unearth import Link
 from pdm_conda.models.requirements import (
     CondaRequirement,
     Requirement,
+    parse_conda_version,
     parse_requirement,
 )
 from pdm_conda.models.setup import CondaSetupDistribution
-from pdm_conda.project import CondaProject
+
+_patched = False
 
 
 class CondaPreparedCandidate(PreparedCandidate):
     def __init__(self, candidate: Candidate, environment: Environment) -> None:
         super().__init__(candidate, environment)
         self.candidate = cast(CondaCandidate, self.candidate)  # type: ignore
-        self.req = cast(CondaRequirement, self.req)  # type: ignore
 
     def get_dependencies_from_metadata(self) -> list[str]:
         # if conda candidate return already obtained dependencies
-        return [d.as_line() for d in self.candidate.dependencies]
+        return [d.as_line(as_conda=True, with_build_string=True) for d in self.candidate.dependencies]
 
     def prepare_metadata(self) -> Distribution:
         # if conda candidate get setup from package
@@ -37,24 +39,19 @@ class CondaCandidate(Candidate):
         self,
         req: Requirement,
         name: str | None = None,
-        conda_name: str | None = None,
         version: str | None = None,
         link: Link | None = None,
         dependencies: list[str] | None = None,
         build_string: str | None = None,
     ):
         super().__init__(req, name, version, link)
-        # extract hash from link
-        if link and link.hash is not None:
-            self.hashes = {link: link.hash}
         self._req = cast(CondaRequirement, req)  # type: ignore
         self._preferred = None
         self._prepared: CondaPreparedCandidate | None = None
-        self.dependencies = [parse_requirement(f"conda:{r}") for r in (dependencies or [])]
+        self.dependencies: list[CondaRequirement] = [parse_requirement(f"conda:{r}") for r in (dependencies or [])]
         self.build_string = build_string
-        if conda_name is None:
-            conda_name = name
-        self.conda_name = conda_name
+        self.conda_version = version
+        self.version = parse_conda_version(version)
 
     @property
     def req(self):
@@ -72,21 +69,22 @@ class CondaCandidate(Candidate):
                 name=self.name,
                 summary="",
                 version=self.version,
-                install_requires=[d.as_line() for d in self.dependencies],
+                install_requires=[d.as_line(as_conda=True, with_build_string=True) for d in self.dependencies],
                 python_requires=self.requires_python,
             ),
-            conda_name=self.conda_name,
         )
 
     def as_lockfile_entry(self, project_root: Path) -> dict[str, Any]:
         result = super().as_lockfile_entry(project_root)
         result["conda_managed"] = True
-        result["conda_name"] = self.conda_name
         if self.link is None:
             raise ValueError("Uninitialized conda requirement")
         result["url"] = self.link.url
         if self.link.comes_from is not None:
             result["channel_url"] = self.link.comes_from
+        if self.build_string is not None:
+            result["build_string"] = self.build_string
+        result["version"] = self.conda_version
         return result
 
     def prepare(self, environment: Environment) -> CondaPreparedCandidate:
@@ -111,16 +109,14 @@ class CondaCandidate(Candidate):
             | {
                 "channel": package.get("channel_url", None),
                 "depends": dependencies,
-                "build_string": None,
             },
         )
 
     @classmethod
-    def from_conda_package(cls, package: dict, project: CondaProject | None = None) -> "CondaCandidate":
+    def from_conda_package(cls, package: dict) -> "CondaCandidate":
         """
         Create conda candidate from conda package.
         :param package: conda package
-        :param project: conda project
         :return: conda candidate
         """
         dependencies: list = package["depends"] or []
@@ -140,22 +136,33 @@ class CondaCandidate(Candidate):
         for k, v in hashes.items():
             url += f"#{k}={v}"
         name, version = package["name"], package["version"]
-        if project is not None:
-            package["conda_name"] = name
-            package["name"], name, _ = project.conda_to_pypi(name)
-            for i, d in enumerate(dependencies):
-                dependencies[i] = project.conda_to_pypi(d)[0]
+        req = parse_requirement(f"conda:{name} {version}")
+        req.is_python_package = requires_python is not None
         return CondaCandidate(
-            req=parse_requirement(f"conda:{name} {version}"),
+            req=req,
             name=name,
-            conda_name=package["conda_name"],
             version=version,
             link=Link(
                 url,
                 comes_from=package["channel"],
                 requires_python=requires_python,
-                hashes=hashes,
             ),
             dependencies=dependencies,
-            build_string=package["build_string"],
+            build_string=package.get("build_string", None),
         )
+
+
+def wrap_as_lockfile_entry(func):
+    @functools.wraps(func)
+    def wrapper(self, *args, **kwargs) -> dict[str, Any]:
+        res = func(self, *args, **kwargs)
+        if (conda_name := self.req.conda_name) is not None and conda_name != self.name:
+            res["conda_name"] = conda_name
+        return res
+
+    return wrapper
+
+
+if not _patched:
+    setattr(Candidate, "as_lockfile_entry", wrap_as_lockfile_entry(Candidate.as_lockfile_entry))
+    _patched = True

@@ -5,7 +5,6 @@ from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import cast
 
 from pdm.exceptions import RequirementError
-from pdm.models.requirements import strip_extras
 from pdm.models.setup import Setup
 from pdm.project import Project
 
@@ -15,7 +14,6 @@ from pdm_conda.models.requirements import (
     CondaRequirement,
     Requirement,
     parse_conda_version,
-    parse_requirement,
 )
 from pdm_conda.models.setup import CondaSetupDistribution
 from pdm_conda.project import CondaProject
@@ -99,7 +97,7 @@ def _conda_search(
                     valid_candidate = False
                     break
         if valid_candidate:
-            candidates.append(CondaCandidate.from_conda_package(p, project))
+            candidates.append(CondaCandidate.from_conda_package(p))
 
     return candidates
 
@@ -130,11 +128,9 @@ def update_requirements(requirements: list[Requirement], conda_packages: dict[st
     """
     repeated_packages: dict[str, int] = dict()
     for i, requirement in enumerate(requirements):
-        name, _ = strip_extras(requirement.name)
-        if name in conda_packages:
-            requirement.extras = None
-            req = parse_requirement(f"conda:{requirement.as_line()}")
-            req.is_python_package = bool(conda_packages[name].requires_python)
+        if (name := requirement.name) in conda_packages:
+            req = conda_packages[name].req
+            req.specifier = requirement.specifier
             requirements[i] = req
         repeated_packages[name] = repeated_packages.get(name, 0) + 1
     to_remove = []
@@ -209,7 +205,7 @@ def conda_lock(
 
     if "actions" in response:
         for package in response["actions"]["LINK"]:
-            package = CondaCandidate.from_conda_package(package, project)
+            package = CondaCandidate.from_conda_package(package)
             packages[package.name] = package
     else:
         if (msg := response.get("message", None)) is not None:
