@@ -5,8 +5,9 @@ from typing import Any
 from packaging.specifiers import SpecifierSet
 from pdm.models.requirements import NamedRequirement, Requirement, T
 from pdm.models.requirements import parse_requirement as _parse_requirement
+from pdm.models.requirements import strip_extras
 
-from pdm_conda.mapping import pypi_to_conda
+from pdm_conda.mapping import conda_to_pypi, pypi_to_conda
 from pdm_conda.utils import normalize_name
 
 _conda_meta_req_re = re.compile(r"conda:([\w\-_]+::)?(.+)$")
@@ -82,7 +83,7 @@ class CondaRequirement(NamedRequirement):
         )
 
     def as_named_requirement(self) -> NamedRequirement:
-        return NamedRequirement.create(name=self.name, marker=self.marker, specifier=self.specifier)
+        return NamedRequirement.create(name=conda_to_pypi(self.name), specifier=self.specifier)
 
 
 def remove_operator(version):
@@ -118,7 +119,7 @@ def parse_requirement(line: str, editable: bool = False) -> Requirement:
                 version_mapping[remove_operator(version)] = remove_operator(conda_version)
                 version_and[i] = version
         req = CondaRequirement.create(
-            name=name.strip(),
+            name=strip_extras(name.strip())[0],
             specifier=SpecifierSet(version),
             channel=channel,
             version_mapping=version_mapping,
@@ -132,7 +133,7 @@ def parse_requirement(line: str, editable: bool = False) -> Requirement:
 def conda_name(self) -> str | None:
     if not hasattr(self, "_conda_name"):
         name = self.name
-        self._conda_name = pypi_to_conda(name) if name else None
+        self._conda_name = pypi_to_conda(strip_extras(name)[0]) if name else None
     return self._conda_name
 
 
