@@ -1,36 +1,79 @@
 import dataclasses
-import functools
 import re
 from typing import Any
 
-from pdm._types import RequirementDict
-from pdm.models.markers import get_marker
-from pdm.models.requirements import NamedRequirement, PackageRequirement, Requirement, T
+from packaging.specifiers import SpecifierSet
+from pdm.models.requirements import NamedRequirement, Requirement, T
 from pdm.models.requirements import parse_requirement as _parse_requirement
 
-_conda_req_re = re.compile(r"conda:((\w+::)?.+)$")
-_specifier_re = re.compile(r"[<>=~!].*")
+from pdm_conda.mapping import pypi_to_conda
+from pdm_conda.utils import normalize_name
+
+_conda_meta_req_re = re.compile(r"conda:([\w\-_]+::)?(.+)$")
+_specifier_re = re.compile(r"([<>=~!]+)(.+)")
+_conda_specifier_star_re = re.compile(r"([\w.]+)\*")
+_conda_version_letter_re = re.compile(r"(\d)([a-z]+)")
 
 _patched = False
+
+
+def correct_specifier_star(match):
+    res = match.group(1)
+    if res.endswith("."):
+        res += "0"
+    return res
+
+
+def parse_conda_version(version):
+    def correct_conda_version(match):
+        digit, letter_specifier = match.groups()
+        if letter_specifier not in ("a", "b", "rc", "dev", "post"):
+            letter_specifier = "." + "".join(str(ord(letter)) for letter in letter_specifier)
+        return f"{digit}{letter_specifier}"
+
+    return _conda_version_letter_re.sub(correct_conda_version, version)
 
 
 @dataclasses.dataclass(eq=False)
 class CondaRequirement(NamedRequirement):
     channel: str | None = None
-    is_python_package: bool = True
+    _is_python_package: bool = dataclasses.field(default=True, repr=False, init=False)
+    version_mapping: dict = dataclasses.field(default_factory=dict, repr=False)
+    mapping_excluded: bool = dataclasses.field(default=False, repr=False)
+    build_string: str | None = None
 
     @property
-    def project_name(self) -> str | None:
+    def conda_name(self) -> str | None:
         return self.name
+
+    @property
+    def is_python_package(self):
+        return self._is_python_package
+
+    @is_python_package.setter
+    def is_python_package(self, value):
+        self._is_python_package = value
+        self.mapping_excluded = not value
 
     @classmethod
     def create(cls: type[T], **kwargs: Any) -> T:
         kwargs.pop("conda_managed", None)
+        if build_string := kwargs.get("build_string", None):
+            kwargs["build_string"] = build_string.strip()
+
         return super().create(**kwargs)
 
-    def as_line(self, with_channel=False) -> str:
+    def as_line(self, as_conda: bool = False, with_channel=False, with_build_string=False) -> str:
         channel = f"{self.channel}::" if with_channel and self.channel else ""
-        return f"{channel}{self.project_name}{self.specifier}{self._format_marker()}"
+        if as_conda:
+            channel = f"conda:{channel}"
+        specifier = ""
+        for s in self.specifier:
+            if specifier:
+                specifier += ","
+            specifier += f"{s.operator}{self.version_mapping.get(s.version, s.version)}"
+        build_string = f" {self.build_string}" if with_build_string and self.build_string else ""
+        return f"{channel}{self.conda_name}{specifier}{build_string}"
 
     def _hash_key(self) -> tuple:
         return (
@@ -42,61 +85,68 @@ class CondaRequirement(NamedRequirement):
         return NamedRequirement.create(name=self.name, marker=self.marker, specifier=self.specifier)
 
 
-def wrap_from_req_dict(func):
-    @functools.wraps(func)
-    def wrapper(name: str, req_dict: RequirementDict) -> Requirement:
-        if isinstance(req_dict, dict) and req_dict.get("conda_managed", False):
-            return CondaRequirement.create(name=name, **req_dict)
-        return func(name, req_dict)
-
-    return wrapper
+def remove_operator(version):
+    return _specifier_re.sub(r"\2", version)
 
 
 def parse_requirement(line: str, editable: bool = False) -> Requirement:
-    m = _conda_req_re.match(line)
-    if m is not None:
-        if m is not None:
-            line = m.group(1)
-        channel = None
-        if "::" in line:
-            channel, line = line.split("::", maxsplit=1)
-        line = re.sub(r"(>=?[\w.]+)\*", r"\g<1>0", line)
-        if " " in line:
+    if (match := _conda_meta_req_re.match(line)) is not None:
+        version_mapping = dict()
+        channel, line = match.groups()
+        if channel:
+            channel = channel[:-2]
+
+        build_string = None
+        if len(_line := line.split(" ")) == 3 or (len(_line) == 2 and _specifier_re.search(_line[0])):
+            line = " ".join(_line[:-1])
+            build_string = _line[-1]
+
+        line = _conda_specifier_star_re.sub(correct_specifier_star, line)
+        name = line
+        version = ""
+        if match := _specifier_re.search(line):
+            name, version = line[: match.start(1)], line[match.start(1) :]
+        elif " " in line:
             name, version = line.split(" ", maxsplit=1)
-            marker = ""
-            if ";" in version:
-                version, marker = line.split(";", maxsplit=1)
-                marker = f";{marker}"
-            for digit, s in re.findall(r"(\d)([a-z]+)", version):
-                if s not in ("a", "b", "rc", "dev", "post"):
-                    version = version.replace(f"{digit}{s}", digit)
-
-            version = version.replace(",", " ")
-            if not _specifier_re.match(version):
-                version = f"=={version}"
-            version = ",".join(v.strip() for v in version.split(" ") if _specifier_re.match(v))
-            line = f"{name} {version} {marker}"
-        prefix = ""
-        if line.startswith("_"):
-            prefix = "_"
-            line = line[1:]
-
-        package_req = PackageRequirement(line)  # type: ignore
-        return CondaRequirement.create(
-            name=prefix + package_req.name,
-            specifier=package_req.specifier,
-            marker=get_marker(package_req.marker),
+        version_and = version.split(",")
+        for i, conda_version in enumerate(version_and):
+            conda_version = conda_version.split("|")[0]
+            if conda_version:
+                if not _specifier_re.match(conda_version):
+                    conda_version = f"=={conda_version}"
+                version = parse_conda_version(conda_version)
+                version_mapping[remove_operator(version)] = remove_operator(conda_version)
+                version_and[i] = version
+        req = CondaRequirement.create(
+            name=name.strip(),
+            specifier=SpecifierSet(version),
             channel=channel,
+            version_mapping=version_mapping,
+            build_string=build_string,
         )
+    else:
+        req = _parse_requirement(line=line, editable=editable)
+    return req
 
-    return _parse_requirement(line=line, editable=editable)
+
+def conda_name(self) -> str | None:
+    if not hasattr(self, "_conda_name"):
+        name = self.name
+        self._conda_name = pypi_to_conda(name) if name else None
+    return self._conda_name
+
+
+def key(self) -> str | None:
+    return normalize_name(self.conda_name).lower() if self.conda_name else None
 
 
 if not _patched:
     from pdm.cli import actions
     from pdm.models import requirements
 
-    setattr(Requirement, "from_req_dict", wrap_from_req_dict(Requirement.from_req_dict))
-    setattr(actions, "parse_requirement", parse_requirement)
-    setattr(requirements, "parse_requirement", parse_requirement)
+    for m in [actions, requirements]:
+        setattr(m, "parse_requirement", parse_requirement)
+
+    setattr(Requirement, "conda_name", property(conda_name))
+    setattr(Requirement, "key", property(key))
     _patched = True
