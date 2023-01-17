@@ -3,6 +3,35 @@ from pdm.exceptions import ProjectError
 
 
 class TestPluginConfig:
+    def test_set_configs(self, project, mocker):
+        """
+        Test settings configs correctly
+        """
+
+        config_name = "channels"
+        config = project.conda_config
+        subscribed = mocker.spy(project.pyproject._data, "update")
+        values = [[], ["defaults"], ["other"], None]
+        for v in values:
+            assert_v = v or ["defaults"]
+            project.pyproject._data.update(
+                {
+                    "tool": {
+                        "pdm": {
+                            "conda": {config_name: v},
+                        }
+                        if v is not None
+                        else dict(),
+                    },
+                },
+            )
+            assert getattr(config, config_name) == assert_v
+
+        assert subscribed.call_count == len(values)
+        for v in values[:-1]:
+            setattr(config, config_name, v)
+            assert v == project.pyproject.settings["conda"][config_name]
+
     @pytest.mark.parametrize("channels", [[], ["conda-forge"]])
     @pytest.mark.parametrize("runner", ["micromamba", "mamba", "conda", None])
     @pytest.mark.parametrize("as_default_manager", [True, False, None])
@@ -40,9 +69,7 @@ class TestPluginConfig:
                 },
             },
         )
-        from pdm_conda.models.config import PluginConfig
-
-        config = PluginConfig.load_config(project)
+        config = project.conda_config
         assert config.dependencies == dependencies
         assert config.optional_dependencies == optional_dependencies
         assert config.runner == runner
@@ -54,19 +81,15 @@ class TestPluginConfig:
         Test load config raises on incorrect runner
         """
         runner = "another runner"
-        project.pyproject._data.update(
-            {
-                "tool": {
-                    "pdm": {
-                        "conda": {
-                            "runner": runner,
+        with pytest.raises(ProjectError, match=f"Invalid Conda runner: {runner}"):
+            project.pyproject._data.update(
+                {
+                    "tool": {
+                        "pdm": {
+                            "conda": {
+                                "runner": runner,
+                            },
                         },
                     },
                 },
-            },
-        )
-
-        from pdm_conda.models.config import PluginConfig
-
-        with pytest.raises(ProjectError, match=f"Invalid Conda runner: {runner}"):
-            PluginConfig.load_config(project)
+            )
