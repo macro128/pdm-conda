@@ -1,10 +1,13 @@
 import json
+import os
 from datetime import datetime, timedelta
+from functools import lru_cache
 from pathlib import Path
 
 import requests
 
 MAPPINGS_URL = "https://github.com/regro/cf-graph-countyfair/raw/master/mappings/pypi/grayskull_pypi_mapping.yaml"
+DOWNLOAD_DIR_ENV_VAR = "PYPI_MAPPING_DIR"
 
 
 def process_mapping(yaml_path: Path, dict_path: Path):
@@ -26,7 +29,7 @@ def process_mapping(yaml_path: Path, dict_path: Path):
         while (conda_name := find_key("conda_name:", f)) is not None:
             pypi_name = find_key("pypi_name:", f)
             if pypi_name:
-                mappings[conda_name] = pypi_name
+                mappings[pypi_name] = conda_name
 
     with dict_path.open("w") as f:
         json.dump(mappings, f)
@@ -54,3 +57,30 @@ def download_mapping(download_dir: Path, update_interval: timedelta | None = Non
 
     with dict_path.open() as f:
         return json.load(f)
+
+
+@lru_cache
+def get_pypi_mapping() -> dict[str, str]:
+    download_dir = os.getenv(DOWNLOAD_DIR_ENV_VAR)
+    return download_mapping(Path(str(download_dir)))
+
+
+def _requirement_map(requirement: str, mapping: dict, exclude: set | None = None):
+    requirement = requirement.strip()
+    name = requirement
+    for s in (">", "<", "=", "!", "~", " ", "["):
+        name = name.split(s, maxsplit=1)[0]
+    name = name.split("::")[-1].strip()
+    if exclude is not None and name in exclude:
+        return name
+
+    return mapping.get(name, name)
+
+
+def pypi_to_conda(requirement: str) -> str:
+    """
+    Map PyPI requirement to Conda version
+    :param requirement: PyPI requirement
+    :return: Conda requirement
+    """
+    return _requirement_map(requirement, get_pypi_mapping())
