@@ -36,7 +36,7 @@ class CondaInstallManager(InstallManager):
         """
         if isinstance(dist, CondaSetupDistribution):
             try:
-                conda_uninstall(self.environment.project, dist.conda_name, no_deps=True)
+                conda_uninstall(self.environment.project, dist.name, no_deps=True)
             except RequirementError as e:
                 raise UninstallError(e) from e
         else:
