@@ -40,13 +40,17 @@ class Command(BaseCommand):
     arguments = BaseCommand.arguments + [conda_group]
 
     def handle(self, project: Project, options: argparse.Namespace) -> None:
-        project = cast(CondaProject, project)
         if conda_packages := options.conda_packages:
+            project = cast(CondaProject, project)
             channel = options.conda_channel
-            confs = project.pyproject.settings.setdefault("conda", dict())
+
+            config = project.conda_config
+            existing_channels = config.channels
             if options.conda_runner:
-                confs["runner"] = options.conda_runner
-            existing_channels = confs.setdefault("channels", [])
+                config.runner = options.conda_runner
+            if channel:
+                existing_channels.append(channel)
+                config.channels = existing_channels
 
             for package in conda_packages:
                 if package.startswith("conda:"):
@@ -61,7 +65,7 @@ class Command(BaseCommand):
                 if package_channel and package_channel not in existing_channels:
                     project.core.ui.echo(f"Detected Conda channel {package_channel}, adding it to pyproject")
                     existing_channels.append(package_channel)
-                package, _, _ = project.conda_to_pypi(package)
+                    config.channels = existing_channels
                 package = f"conda:{package}"
                 options.packages.append(package)
 
