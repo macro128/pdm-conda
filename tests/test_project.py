@@ -1,6 +1,4 @@
 import re
-from pathlib import Path
-from tempfile import TemporaryDirectory
 
 import pytest
 
@@ -29,7 +27,7 @@ DEPENDENCIES = dict(
 )
 CONDA_MAPPING = dict(
     argnames="conda_mapping",
-    argvalues=[{"pytest-conda": "pytest"}],
+    argvalues=[{"pytest": "pytest-conda"}],
     ids=["use conda mapping"],
 )
 GROUPS = dict(argnames="group", argvalues=["default", "dev", "optional"])
@@ -40,27 +38,21 @@ class TestProject:
         self,
         dependencies,
         conda_dependencies,
-        conda_mapping,
         as_default_manager=False,
     ):
+        from pdm_conda.mapping import pypi_to_conda
         from pdm_conda.models.requirements import CondaRequirement, parse_requirement
 
         requirements = dict()
         for d in dependencies:
             if as_default_manager:
-                if "[" in d:
-                    d = d.split("[")[0]
                 d = f"conda:{d}"
             r = parse_requirement(d)
-            r.extras = None
+            if as_default_manager:
+                r.name = pypi_to_conda(r.name)
             requirements[r.identify()] = r
         for d in conda_dependencies:
             d = d.strip()
-            name = d
-            for s in [" ", "=", "!", ">", "<", "~"]:
-                name = name.split(s)[0]
-            name = name.strip()
-            d = conda_mapping.get(name.split("[")[0].split("::")[-1], name) + d[len(name) :]
             r = parse_requirement(f"conda:{d}")
             if "::" in d:
                 assert d.endswith(r.as_line())
@@ -72,52 +64,13 @@ class TestProject:
             assert not r.extras
             if "::" in d:
                 assert r.channel == d.split("::")[0]
-            pypi_req = next((v for v in requirements.values() if v.name == r.name), None)
+            pypi_req = next((v for v in requirements.values() if v.conda_name == r.conda_name), None)
             if pypi_req is not None:
                 requirements.pop(pypi_req.identify())
                 if not r.specifier:
                     r.specifier = pypi_req.specifier
-            else:
-                r.is_python_package = False
             requirements[r.identify()] = r
         return requirements
-
-    @pytest.mark.parametrize("conda_mapping", [dict(), {"pytest-conda": "pytest", "other-conda": "other"}])
-    def test_download_mapping(self, project, conda_mapping, mocked_responses):
-        """
-        Test project conda_mapping downloads conda mapping just one and mapping is as expected
-        """
-        with TemporaryDirectory() as d:
-            project.pyproject._data.update(
-                {
-                    "tool": {
-                        "pdm": {
-                            "conda": {
-                                "pypi-mapping": {"download-dir": d},
-                            },
-                        },
-                    },
-                },
-            )
-
-            from pdm_conda.mapping import MAPPINGS_URL
-
-            response = ""
-            for conda_name, pypi_name in conda_mapping.items():
-                response += f"""
-                {pypi_name}:
-                    conda_name: {conda_name}
-                    import_name: {pypi_name}
-                    mapping_source: other
-                    pypi_name: {pypi_name}
-                """
-            rsp = mocked_responses.get(MAPPINGS_URL, body=response)
-
-            for _ in range(5):
-                project.conda_mapping == conda_mapping
-            assert rsp.call_count == 1
-            for ext in ["yaml", "json"]:
-                assert (Path(d) / f"pypi_mapping.{ext}").exists()
 
     @pytest.mark.parametrize(**DEPENDENCIES)
     @pytest.mark.parametrize(**GROUPS)
@@ -130,7 +83,6 @@ class TestProject:
         conda_dependencies,
         group,
         as_default_manager,
-        conda_mapping,
         mock_conda_mapping,
     ):
         """
@@ -172,13 +124,13 @@ class TestProject:
         requirements = self._parse_requirements(
             dependencies,
             conda_dependencies,
-            conda_mapping,
             as_default_manager=as_default_manager,
         )
         project_requirements = project.get_dependencies(group)
         for name, req in project_requirements.items():
-            assert req == requirements[name]
-            assert isinstance(req, type(requirements[name]))
+            conda_req = requirements[req.conda_name]
+            assert conda_req == req
+            assert isinstance(req, type(conda_req))
         assert all("[" not in k for k in project_requirements)
 
     @pytest.mark.parametrize(**DEPENDENCIES)
@@ -190,10 +142,9 @@ class TestProject:
         dependencies,
         conda_dependencies,
         group,
-        conda_mapping,
         mock_conda_mapping,
     ):
-        requirements = self._parse_requirements(dependencies, conda_dependencies, conda_mapping)
+        requirements = self._parse_requirements(dependencies, conda_dependencies)
 
         group_name = group if group == "default" else "dev"
         dev = group == "dev"
@@ -203,16 +154,17 @@ class TestProject:
             assert req == requirements[name]
             assert isinstance(req, type(requirements[name]))
 
+        from pdm_conda.mapping import conda_to_pypi
+
         if conda_dependencies:
             _dependencies, _ = project.get_pyproject_dependencies(group_name, dev)
             _conda_dependencies = project.get_conda_pyproject_dependencies(group_name, dev)
             for d in conda_dependencies:
                 asserted = 0
                 d = d.split("[")[0].split("=")[0].split(">")[0].split("::")[-1]
-                d = conda_mapping.get(d, d)
-                for c in (_dependencies, _conda_dependencies):
+                for c in (_conda_dependencies, _dependencies):
                     for r in c:
-                        if d in r:
+                        if d in r or conda_to_pypi(d) in r:
                             asserted += 1
                             break
                 assert asserted == len(conda_dependencies) * (2 if requirements[d].is_python_package else 1)
