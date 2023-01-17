@@ -65,6 +65,11 @@ def get_pypi_mapping() -> dict[str, str]:
     return download_mapping(Path(str(download_dir)))
 
 
+@lru_cache
+def get_conda_mapping() -> dict[str, str]:
+    return {v: k for k, v in get_pypi_mapping().items()}
+
+
 def _requirement_map(requirement: str, mapping: dict, exclude: set | None = None):
     requirement = requirement.strip()
     name = requirement
@@ -84,3 +89,12 @@ def pypi_to_conda(requirement: str) -> str:
     :return: Conda requirement
     """
     return _requirement_map(requirement, get_pypi_mapping())
+
+
+def conda_to_pypi(requirement: str) -> str:
+    """
+    Map Conda requirement to PyPI version
+    :param requirement: Conda requirement
+    :return: PyPI requirement
+    """
+    return _requirement_map(requirement, get_conda_mapping())
