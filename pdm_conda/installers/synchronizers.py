@@ -1,8 +1,9 @@
-from typing import Collection
+from typing import Collection, cast
 
 from pdm.installers import Synchronizer
 from pdm.models.candidates import Candidate
-from pdm.models.environment import Environment
+
+from pdm_conda.models.environment import CondaEnvironment, Environment
 
 
 class CondaSynchronizer(Synchronizer):
@@ -31,6 +32,7 @@ class CondaSynchronizer(Synchronizer):
             reinstall,
             only_keep,
         )
+        self.environment = cast(CondaEnvironment, environment)
         self.parallel = bool(self.parallel)  # type: ignore
 
     def compare_with_working_set(self) -> tuple[list[str], list[str], list[str]]:
@@ -38,6 +40,9 @@ class CondaSynchronizer(Synchronizer):
 
         # deactivate parallel execution if uninstall
         if to_remove or to_update:
+            if to_remove:
+                to_remove = [p for p in to_remove if p not in self.environment.python_requirements]
+
             if self.parallel:
                 self.environment.project.core.ui.echo("Deactivating parallel uninstall.")
             self.parallel = False
