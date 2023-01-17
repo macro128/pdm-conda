@@ -1,4 +1,5 @@
 """Configuration for the pytest test suite."""
+import sys
 from copy import deepcopy
 from tempfile import TemporaryDirectory
 
@@ -31,7 +32,7 @@ def project(core, distributions) -> Project:
             _project,
             name="test",
             version="0.0.0",
-            python_requires=">=3.10",
+            python_requires=f"=={PYTHON_VERSION}",
             author="test",
             email="test@test.com",
         )
@@ -54,9 +55,14 @@ def mock_conda(mocker, conda_response: dict | list, empty_conda_list):
         if subcommand == "install":
             return deepcopy(install_response)
         elif subcommand == "list":
+            python_packages = {p["name"] for p in PYTHON_REQUIREMENTS}
+            res = deepcopy(conda_response)
             if empty_conda_list:
-                return []
-            return deepcopy(conda_response)
+                res = [c for c in res if c["name"] in python_packages]
+            for p in res:
+                if p["channel"].startswith("http"):
+                    p["channel"] = "channel"
+            return res
         elif subcommand == "info":
             return {
                 "virtual packages": [
@@ -83,15 +89,20 @@ def mocked_responses():
 
 
 @pytest.fixture
-def mock_conda_mapping(project, mocked_responses, conda_mapping):
-    project._conda_mapping = conda_mapping or {None: None}
+def mock_conda_mapping(mocker, mocked_responses, conda_mapping):
+    yield mocker.patch("pdm_conda.mapping.download_mapping", return_value=conda_mapping)
+    from pdm_conda.mapping import get_pypi_mapping
 
+    get_pypi_mapping.cache_clear()
+
+
+PYTHON_VERSION = sys.version.split(" ")[0]
 
 PYTHON_REQUIREMENTS = [
     {
         "name": "lib2",
         "depends": [],
-        "version": "1.0.0",
+        "version": "1.0.0g",
         "url": "https://channel.com/lib2",
         "channel": "https://channel.com",
         "sha256": "this-is-a-hash",
@@ -99,7 +110,7 @@ PYTHON_REQUIREMENTS = [
     },
     {
         "name": "lib",
-        "depends": ["lib2 ==1.0.0"],
+        "depends": ["lib2 ==1.0.0g"],
         "version": "1.0.0",
         "url": "https://channel.com/lib",
         "channel": "https://channel.com",
@@ -109,7 +120,7 @@ PYTHON_REQUIREMENTS = [
     {
         "name": "python",
         "depends": ["lib ==1.0.0"],
-        "version": "3.10.9",
+        "version": PYTHON_VERSION,
         "url": "https://channel.com/python",
         "channel": "https://channel.com",
         "sha256": "this-is-a-hash",
@@ -123,7 +134,7 @@ CONDA_INFO = [
         {
             "name": "another-dep",
             "depends": [],
-            "version": "1.0.0",
+            "version": "1.0.0gg",
             "url": "https://channel.com/another-dep",
             "channel": "https://channel.com",
             "sha256": "this-is-a-hash",
@@ -131,7 +142,7 @@ CONDA_INFO = [
         },
         {
             "name": "dep",
-            "depends": ["python >=3.7", "another-dep ==1.0.0"],
+            "depends": ["python >=3.7", "another-dep ==1.0.0gg"],
             "version": "1.0.0",
             "url": "https://channel.com/dep",
             "channel": "https://channel.com",
@@ -141,4 +152,4 @@ CONDA_INFO = [
     ],
 ]
 
-CONDA_MAPPING = [{p["name"]: f"{p['name']}-pip" for p in CONDA_INFO[0] if p not in PYTHON_REQUIREMENTS}]
+CONDA_MAPPING = [{f"{p['name']}-pip": p["name"] for p in CONDA_INFO[0] if p not in PYTHON_REQUIREMENTS}]
