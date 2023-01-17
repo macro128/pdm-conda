@@ -3,6 +3,7 @@ import subprocess
 from functools import lru_cache
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import cast
+from urllib.parse import urlparse
 
 from pdm.exceptions import RequirementError
 from pdm.models.setup import Setup
@@ -66,22 +67,20 @@ def run_conda(cmd, **environment) -> dict:
 def _conda_search(
     requirement: str,
     project: CondaProject,
-    channel: str | None = None,
+    channels: tuple[str],
 ) -> list[CondaCandidate]:
     """
     Search conda candidates for a requirement
     :param requirement: requirement
     :param project: PDM project
-    :param channel: requirement channel
+    :param channels: requirement channels
     :return: list of conda candidates
     """
-    config = project.conda_config
-    command = config.command("search")
+    command = project.conda_config.command("search")
     if not project.virtual_packages:
         project.virtual_packages = conda_virtual_packages(project)
 
     command.append(requirement)
-    channels = [channel] if channel else config.channels
     for c in channels:
         command.extend(["-c", c])
     command.append("--json")
@@ -97,6 +96,14 @@ def _conda_search(
                     valid_candidate = False
                     break
         if valid_candidate:
+            package_channel = urlparse(p["channel"]).path
+            for c in channels:
+                if c in package_channel:
+                    p["channel"] = c
+                    break
+            if "defaults" in channels and p["channel"].startswith("http"):
+                p["channel"] = "defaults"
+
             candidates.append(CondaCandidate.from_conda_package(p))
 
     return candidates
@@ -119,7 +126,8 @@ def conda_search(
         requirement = requirement.as_line(with_build_string=True).replace(" ", "=")
     if "::" in requirement:
         channel, requirement = requirement.split("::", maxsplit=1)
-    return _conda_search(requirement, project, channel)
+    channels = [channel] if channel else (project.conda_config.channels or ["defaults"])
+    return _conda_search(requirement, project, tuple(channels))
 
 
 def update_requirements(requirements: list[Requirement], conda_packages: dict[str, CondaCandidate]):
@@ -130,10 +138,9 @@ def update_requirements(requirements: list[Requirement], conda_packages: dict[st
     """
     repeated_packages: dict[str, int] = dict()
     for i, requirement in enumerate(requirements):
-        if (name := requirement.name) in conda_packages:
-            req = conda_packages[name].req
-            req.specifier = requirement.specifier
-            requirements[i] = req
+        if (name := requirement.conda_name) in conda_packages and not isinstance(requirement, CondaRequirement):
+            requirement.name = requirement.conda_name
+            requirements[i] = parse_requirement(f"conda:{requirement.as_line()}")
         repeated_packages[name] = repeated_packages.get(name, 0) + 1
     to_remove = []
     for r in requirements:
@@ -202,7 +209,7 @@ def conda_lock(
     _requirements = [r.as_line(with_build_string=True, with_channel=True).replace(" ", "=") for r in requirements]
     response = run_conda(
         config.command() + ["--force-reinstall", "--json", "--dry-run", "--prefix", prefix],
-        channels=config.channels,
+        channels=config.channels or ["defaults"],
         dependencies=_requirements,
     )
 

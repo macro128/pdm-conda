@@ -43,6 +43,7 @@ class CondaCandidate(Candidate):
         link: Link | None = None,
         dependencies: list[str] | None = None,
         build_string: str | None = None,
+        channel: str | None = None,
     ):
         super().__init__(req, name, version, link)
         self._req = cast(CondaRequirement, req)  # type: ignore
@@ -50,6 +51,7 @@ class CondaCandidate(Candidate):
         self._prepared: CondaPreparedCandidate | None = None
         self.dependencies: list[CondaRequirement] = [parse_requirement(f"conda:{r}") for r in (dependencies or [])]
         self.build_string = build_string
+        self.channel = channel
         self.conda_version = version
         self.version = parse_conda_version(version)
 
@@ -80,8 +82,7 @@ class CondaCandidate(Candidate):
         if self.link is None:
             raise ValueError("Uninitialized conda requirement")
         result["url"] = self.link.url
-        if self.link.comes_from is not None:
-            result["channel_url"] = self.link.comes_from
+        result["channel"] = self.channel
         if self.build_string is not None:
             result["build_string"] = self.build_string
         result["version"] = self.conda_version
@@ -107,7 +108,6 @@ class CondaCandidate(Candidate):
         return CondaCandidate.from_conda_package(
             package
             | {
-                "channel": package.get("channel_url", None),
                 "depends": dependencies,
             },
         )
@@ -136,6 +136,7 @@ class CondaCandidate(Candidate):
         for k, v in hashes.items():
             url += f"#{k}={v}"
         name, version, build_string = package["name"], package["version"], package.get("build_string", "")
+        channel = package["channel"]
         req = parse_requirement(f"conda:{name} {version} {build_string}")
         req.is_python_package = requires_python is not None
         return CondaCandidate(
@@ -144,9 +145,10 @@ class CondaCandidate(Candidate):
             version=version,
             link=Link(
                 url,
-                comes_from=package["channel"],
                 requires_python=requires_python,
+                comes_from=channel,
             ),
+            channel=channel,
             dependencies=dependencies,
             build_string=build_string,
         )
