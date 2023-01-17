@@ -9,11 +9,11 @@ from pdm.models.setup import Setup
 from pdm.project import Project
 
 from pdm_conda.models.candidates import CondaCandidate
-from pdm_conda.models.config import PluginConfig
 from pdm_conda.models.requirements import (
     CondaRequirement,
     Requirement,
     parse_conda_version,
+    parse_requirement,
 )
 from pdm_conda.models.setup import CondaSetupDistribution
 from pdm_conda.project import CondaProject
@@ -75,7 +75,7 @@ def _conda_search(
     :param channel: requirement channel
     :return: list of conda candidates
     """
-    config = PluginConfig.load_config(project)
+    config = project.conda_config
     command = config.command("search")
     if not project.virtual_packages:
         project.virtual_packages = conda_virtual_packages(project)
@@ -116,8 +116,10 @@ def conda_search(
     """
     if isinstance(requirement, CondaRequirement):
         channel = channel or requirement.channel
-        requirement = requirement.as_line()
-    return _conda_search(project.pypi_to_conda(requirement), project, channel)
+        requirement = requirement.as_line(with_build_string=True).replace(" ", "=")
+    if "::" in requirement:
+        channel, requirement = requirement.split("::", maxsplit=1)
+    return _conda_search(requirement, project, channel)
 
 
 def update_requirements(requirements: list[Requirement], conda_packages: dict[str, CondaCandidate]):
@@ -149,19 +151,23 @@ def lock_conda_dependencies(project: Project, requirements: list[Requirement], *
     :param requirements: requirements list
     """
     project = cast(CondaProject, project)
-    config = PluginConfig.load_config(project)
+    config = project.conda_config
     if not config.is_initialized:
         return
 
-    _requirements = [r.as_line() for r in requirements if isinstance(r, CondaRequirement)]
+    _requirements = [r for r in requirements if isinstance(r, CondaRequirement)]
     if 0 < len(_requirements) < len(requirements):
-        _requirements.insert(0, f"python=={project.python.version}")
+        python_req = f"python=={project.python.version}"
+        working_set = conda_list(project)
+        if "python" in working_set:
+            python_req = working_set["python"].as_line()
+        _requirements.insert(0, parse_requirement(f"conda:{python_req}"))
         with TemporaryDirectory() as d:
             prefix = f"{d}/env"
             run_conda(config.command("create") + ["--prefix", prefix, "--json"])
             project.core.ui.echo(f"Created temporary environment at {prefix}")
             try:
-                conda_packages = conda_lock(project, _requirements, prefix, config)
+                conda_packages = conda_lock(project, _requirements, prefix)
             finally:
                 run_conda(config.command("remove") + ["--prefix", prefix, "--json"])
                 project.core.ui.echo(f"Removed temporary environment at {prefix}")
@@ -176,31 +182,28 @@ def lock_conda_dependencies(project: Project, requirements: list[Requirement], *
 
 def conda_lock(
     project: CondaProject,
-    requirements: list[str],
+    requirements: list[CondaRequirement],
     prefix: str,
-    config: PluginConfig | None = None,
 ) -> dict[str, CondaCandidate]:
     """
     Resolve conda marked requirements
     :param project: PDM project
     :param requirements: list of requirements
     :param prefix: environment prefix
-    :param config: plugin config
     :return: resolved packages
     """
     packages: dict[str, CondaCandidate] = dict()
-    if config is None:
-        config = PluginConfig.load_config(project)
+    config = project.conda_config
     core = project.core
     if not requirements:
         return packages
 
-    requirements = [project.pypi_to_conda(r) for r in requirements]
-    core.ui.echo("Using conda to get: " + " ".join([r for r in requirements if not r.startswith("python==")]))
+    core.ui.echo("Using conda to get: " + " ".join([r.as_line() for r in requirements if r.name != "python"]))
+    _requirements = [r.as_line(with_build_string=True, with_channel=True).replace(" ", "=") for r in requirements]
     response = run_conda(
         config.command() + ["--force-reinstall", "--json", "--dry-run", "--prefix", prefix],
         channels=config.channels,
-        dependencies=requirements,
+        dependencies=_requirements,
     )
 
     if "actions" in response:
@@ -233,7 +236,6 @@ def _conda_install(
 def conda_install(
     project: CondaProject,
     packages: str | list[str],
-    config: PluginConfig | None = None,
     verbose: bool = False,
     dry_run: bool = False,
     no_deps: bool = False,
@@ -242,13 +244,11 @@ def conda_install(
     Install resolved packages using conda
     :param project: PDM project
     :param packages: resolved packages
-    :param config: plugin config
     :param verbose: show conda response if true
     :param dry_run: don't install if dry run
     :param no_deps: don't install dependencies if true
     """
-
-    config = config or PluginConfig.load_config(project)
+    config = project.conda_config
     command = config.command()
     if no_deps:
         command.append("--no-deps")
@@ -261,7 +261,6 @@ def conda_install(
 def conda_uninstall(
     project: CondaProject,
     packages: str | list[str],
-    config: PluginConfig | None = None,
     verbose: bool = False,
     dry_run: bool = False,
     no_deps: bool = False,
@@ -270,13 +269,11 @@ def conda_uninstall(
     Uninstall resolved packages using conda
     :param project: PDM project
     :param packages: resolved packages
-    :param config: plugin config
     :param verbose: show conda response if true
     :param dry_run: don't uninstall if dry run
     :param no_deps: don't uninstall dependencies if true
     """
-
-    config = config or PluginConfig.load_config(project)
+    config = project.conda_config
     command = config.command("remove")
     if no_deps:
         command.append("--no-prune")
@@ -296,7 +293,7 @@ def conda_virtual_packages(project: CondaProject) -> set[str]:
     :param project: PDM project
     :return: set of virtual packages
     """
-    config = PluginConfig.load_config(project)
+    config = project.conda_config
     virtual_packages = []
     if config.is_initialized:
         info = run_conda(config.command("info") + ["--json"])
@@ -310,7 +307,7 @@ def conda_list(project: CondaProject) -> dict[str, CondaSetupDistribution]:
     :param project: PDM project
     :return: packages distribution
     """
-    config = PluginConfig.load_config(project)
+    config = project.conda_config
     distributions = dict()
     if config.is_initialized:
         packages = run_conda(config.command("list") + ["--json"])
