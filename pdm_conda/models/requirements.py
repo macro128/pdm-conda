@@ -72,7 +72,7 @@ class CondaRequirement(NamedRequirement):
             if specifier:
                 specifier += ","
             specifier += f"{s.operator}{self.version_mapping.get(s.version, s.version)}"
-        build_string = f" {self.build_string}" if with_build_string and self.build_string else ""
+        build_string = f" {self.build_string}" if with_build_string and self.build_string and specifier else ""
         return f"{channel}{self.conda_name}{specifier}{build_string}"
 
     def _hash_key(self) -> tuple:

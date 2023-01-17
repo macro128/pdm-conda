@@ -135,8 +135,8 @@ class CondaCandidate(Candidate):
         url = package["url"]
         for k, v in hashes.items():
             url += f"#{k}={v}"
-        name, version = package["name"], package["version"]
-        req = parse_requirement(f"conda:{name} {version}")
+        name, version, build_string = package["name"], package["version"], package.get("build_string", "")
+        req = parse_requirement(f"conda:{name} {version} {build_string}")
         req.is_python_package = requires_python is not None
         return CondaCandidate(
             req=req,
@@ -148,7 +148,7 @@ class CondaCandidate(Candidate):
                 requires_python=requires_python,
             ),
             dependencies=dependencies,
-            build_string=package.get("build_string", None),
+            build_string=build_string,
         )
 
 
