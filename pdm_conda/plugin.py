@@ -14,6 +14,7 @@ from pdm_conda.models.config import PluginConfig
 from pdm_conda.models.requirements import (
     CondaRequirement,
     Requirement,
+    parse_conda_version,
     parse_requirement,
 )
 from pdm_conda.models.setup import CondaSetupDistribution
@@ -318,15 +319,14 @@ def conda_list(project: CondaProject) -> dict[str, CondaSetupDistribution]:
     if config.is_initialized:
         packages = run_conda(config.command("list") + ["--json"])
         for package in packages:
-            _, name, conda_name = project.conda_to_pypi(package["name"])
+            name, version = package["name"], package["version"]
             distributions[normalize_name(name)] = CondaSetupDistribution(
                 Setup(
                     name=name,
                     summary="",
-                    version=package["version"],
+                    version=parse_conda_version(version),
                 ),
-                conda_name=conda_name,
-                extras=package,
+                package=package,
             )
 
     return distributions

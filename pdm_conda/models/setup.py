@@ -4,13 +4,8 @@ from pdm.models.setup import Setup, SetupDistribution
 
 
 class CondaSetupDistribution(SetupDistribution):
-    def __init__(self, data: Setup, conda_name: str | None = None, extras: dict | None = None) -> None:
-        if conda_name is None:
-            conda_name = data.name
-        if conda_name is None:
-            raise ValueError(f"Missing conda name for package {data}")
-        self.conda_name: str = conda_name
-        self.extras = extras or dict()
+    def __init__(self, data: Setup, package: dict | None = None) -> None:
+        self.package = package or dict()
         super().__init__(data)
 
     @property
@@ -19,3 +14,14 @@ class CondaSetupDistribution(SetupDistribution):
         metadata["Home-Page"] = None
         metadata["License"] = "other"
         return metadata
+
+    def as_line(self):
+        channel = self.package.get("channel", "")
+        if channel:
+            channel += "::"
+        build_string = self.package.get("build_string", "")
+        if build_string:
+            build_string = f" {build_string}"
+        version = self.package.get("version", "")
+        name = self.package.get("name", "")
+        return f"{channel}{name}=={version}{build_string}"
