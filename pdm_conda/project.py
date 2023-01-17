@@ -10,6 +10,7 @@ from pdm.project import Project
 from pdm.utils import get_venv_like_prefix
 from tomlkit.items import Array
 
+from pdm_conda.mapping import pypi_to_conda
 from pdm_conda.models.config import PluginConfig
 from pdm_conda.models.requirements import (
     CondaRequirement,
@@ -82,16 +83,15 @@ class CondaProject(Project):
                 result.pop(pypi_req.identify())
                 if not req.specifier:
                     req.specifier = pypi_req.specifier
-            else:
-                req.is_python_package = False
             result[req.identify()] = req
 
-        if self.pyproject.settings.get("conda", {}).get("as_default_manager", False):
+        if self.conda_config.as_default_manager:
             for k in list(result):
                 req = result[k]
                 if isinstance(req, NamedRequirement) and not isinstance(req, CondaRequirement):
                     result.pop(k)
                     req.extras = None
+                    req.name = pypi_to_conda(req.name)
                     result[k] = parse_requirement(f"conda:{req.as_line()}")
 
         return result
