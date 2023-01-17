@@ -82,6 +82,13 @@ class PluginConfig:
             if config_item.env_var:
                 os.environ.setdefault(config_item.env_var, str(value))
 
+    def reload(self):
+        _conf = self.load_config(self._project)
+        with self.omit_set_project_config():
+            for k, v in _conf.__dict__.items():
+                if not callable(v) and k not in ("_project", "_set_project_config") and getattr(self, k) != v:
+                    setattr(self, k, v)
+
     @staticmethod
     def suscribe(config, func):
         """
@@ -93,11 +100,7 @@ class PluginConfig:
         @wraps(func)
         def wrapper(*args, **kwargs):
             result = func(*args, **kwargs)
-            _conf = config.load_config(config._project)
-            with config.omit_set_project_config():
-                for k, v in _conf.__dict__.items():
-                    if not callable(v) and k not in ("_project", "_set_project_config") and getattr(config, k) != v:
-                        setattr(config, k, v)
+            config.reload()
             return result
 
         return wrapper
