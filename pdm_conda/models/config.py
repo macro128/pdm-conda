@@ -60,9 +60,11 @@ class PluginConfig:
             if self.runner not in ["conda", "micromamba", "mamba"]:
                 raise ProjectError(f"Invalid Conda runner: {self.runner}")
 
-        to_suscribe = self._project.pyproject._data
-        if not is_decorated(to_suscribe.update):
-            to_suscribe.update = self.suscribe(self, to_suscribe.update)
+        to_suscribe = [(self._project.pyproject._data, "update"), (self._project.pyproject, "reload")]
+        for obj, name in to_suscribe:
+            func = getattr(obj, name)
+            if not is_decorated(func):
+                setattr(obj, name, self.suscribe(self, func))
         self._set_project_config = True
 
     def __setattr__(self, name: str, value: Any) -> None:
