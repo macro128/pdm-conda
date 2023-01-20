@@ -19,6 +19,11 @@ class CondaRepository(BaseRepository):
 
     def get_dependencies(self, candidate: Candidate) -> tuple[list[Requirement], PySpecSet, str]:
         if isinstance(candidate, CondaCandidate):
+            dependencies = list(candidate.dependencies)
+            if candidate.constrains:
+                for i, dep in enumerate(dependencies):
+                    if (constrain := candidate.constrains.get(dep.identify(), None)) is not None:
+                        dependencies[i] = constrain
             return (
                 candidate.dependencies,
                 PySpecSet(candidate.requires_python),
