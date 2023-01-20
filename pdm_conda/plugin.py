@@ -86,7 +86,19 @@ def _conda_search(
     command.append("--json")
     result = run_conda(command)
     candidates = []
-    for p in result.get("result", dict()).get("pkgs", []):
+    # sort values per build number (greater first)
+    packages = result.get("result", dict()).get("pkgs", [])
+    _packages: dict[tuple, list] = dict()
+    for p in packages:
+        name = p["name"]
+        version = p["version"]
+        k = (name, version)
+        _packages.setdefault(k, []).append(p)
+    packages = []
+    for ps in _packages.values():
+        packages.extend(sorted(reversed(ps), key=lambda p: p["build_number"], reverse=True))
+
+    for p in packages:
         dependencies = p.get("depends", [])
         valid_candidate = True
         for d in dependencies:
@@ -123,7 +135,7 @@ def conda_search(
     """
     if isinstance(requirement, CondaRequirement):
         channel = channel or requirement.channel
-        requirement = requirement.as_line(with_build_string=True).replace(" ", "=")
+        requirement = requirement.as_line(with_build_string=True).replace(" ", "=").replace("~", "")
     if "::" in requirement:
         channel, requirement = requirement.split("::", maxsplit=1)
     channels = [channel] if channel else (project.conda_config.channels or ["defaults"])
@@ -165,7 +177,7 @@ def lock_conda_dependencies(project: Project, requirements: list[Requirement], *
     _requirements = [r for r in requirements if isinstance(r, CondaRequirement)]
     if 0 < len(_requirements) < len(requirements):
         python_req = f"python=={project.python.version}"
-        working_set = conda_list(project)
+        working_set = project.environment.get_working_set()
         if "python" in working_set:
             python_req = working_set["python"].as_line()
         _requirements.insert(0, parse_requirement(f"conda:{python_req}"))
@@ -261,6 +273,11 @@ def conda_install(
         command.append("--no-deps")
     if dry_run:
         command.append("--dry-run")
+    if config.installation_method == "copy":
+        _copy = "copy"
+        if config.runner == "micromamba":
+            _copy = f"always-{_copy}"
+        command.append(f"--{_copy}")
 
     _conda_install(project, command, packages, verbose)
 
@@ -283,7 +300,10 @@ def conda_uninstall(
     config = project.conda_config
     command = config.command("remove")
     if no_deps:
-        command.append("--no-prune")
+        _prune = "no-prune"
+        if config.runner == "conda":
+            _prune = "force-remove"
+        command.append(f"--{_prune}")
     if dry_run:
         command.append("--dry-run")
     if isinstance(packages, str):
