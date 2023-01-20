@@ -11,9 +11,9 @@ from pdm_conda.mapping import conda_to_pypi, pypi_to_conda
 from pdm_conda.utils import normalize_name
 
 _conda_meta_req_re = re.compile(r"conda:([\w\-_]+::)?(.+)$")
-_specifier_re = re.compile(r"([<>=~!]+)(.+)")
+_specifier_re = re.compile(r"((<|>|=|~=|!=|==)+)(.+)")
 _conda_specifier_star_re = re.compile(r"([\w.]+)\*")
-_conda_version_letter_re = re.compile(r"(\d)([a-z]+)")
+_conda_version_letter_re = re.compile(r"(\d|\.)([a-z]+)(\d?)")
 
 _patched = False
 
@@ -27,9 +27,13 @@ def correct_specifier_star(match):
 
 def parse_conda_version(version):
     def correct_conda_version(match):
-        digit, letter_specifier = match.groups()
-        if letter_specifier not in ("a", "b", "rc", "dev", "post"):
-            letter_specifier = "." + "".join(str(ord(letter)) for letter in letter_specifier)
+        digit, letter_specifier, follow_digit = match.groups()
+        if letter_specifier in ("a", "b", "rc", "dev", "post") and follow_digit:
+            letter_specifier += follow_digit
+        else:
+            letter_specifier = "".join(str(ord(letter)) for letter in letter_specifier)
+            if digit != ".":
+                letter_specifier = f".{letter_specifier}"
         return f"{digit}{letter_specifier}"
 
     return _conda_version_letter_re.sub(correct_conda_version, version)
@@ -87,7 +91,7 @@ class CondaRequirement(NamedRequirement):
 
 
 def remove_operator(version):
-    return _specifier_re.sub(r"\2", version)
+    return _specifier_re.sub(r"\3", version)
 
 
 def parse_requirement(line: str, editable: bool = False) -> Requirement:
@@ -102,7 +106,6 @@ def parse_requirement(line: str, editable: bool = False) -> Requirement:
             line = " ".join(_line[:-1])
             build_string = _line[-1]
 
-        line = _conda_specifier_star_re.sub(correct_specifier_star, line)
         name = line
         version = ""
         if match := _specifier_re.search(line):
@@ -113,11 +116,18 @@ def parse_requirement(line: str, editable: bool = False) -> Requirement:
         for i, conda_version in enumerate(version_and):
             conda_version = conda_version.split("|")[0]
             if conda_version:
-                if not _specifier_re.match(conda_version):
-                    conda_version = f"=={conda_version}"
-                version = parse_conda_version(conda_version)
-                version_mapping[remove_operator(version)] = remove_operator(conda_version)
+                if conda_version == "*":
+                    version = ""
+                else:
+                    if not _specifier_re.match(conda_version):
+                        s = "="
+                        if _conda_specifier_star_re.match(conda_version):
+                            s = "~"
+                        conda_version = f"{s}={conda_version}"
+                    version = parse_conda_version(_conda_specifier_star_re.sub(correct_specifier_star, conda_version))
+                    version_mapping[remove_operator(version)] = remove_operator(conda_version)
                 version_and[i] = version
+        version = ",".join(version_and)
         req = CondaRequirement.create(
             name=strip_extras(name.strip())[0],
             specifier=SpecifierSet(version),
