@@ -8,7 +8,11 @@ from unearth import Link
 
 from pdm_conda.models.candidates import Candidate, CondaCandidate
 from pdm_conda.models.environment import CondaEnvironment, Environment
-from pdm_conda.models.requirements import CondaRequirement
+from pdm_conda.models.requirements import (
+    CondaRequirement,
+    NamedRequirement,
+    parse_requirement,
+)
 from pdm_conda.plugin import conda_search
 
 
@@ -25,11 +29,23 @@ class CondaRepository(BaseRepository):
                     if (constrain := candidate.constrains.get(dep.identify(), None)) is not None:
                         dependencies[i] = constrain
             return (
-                candidate.dependencies,
+                dependencies,
                 PySpecSet(candidate.requires_python),
                 candidate.summary,
             )
-        return super().get_dependencies(candidate)
+        requirements, requires_python, summary = super().get_dependencies(candidate)
+        conda_conf = self.environment.project.conda_config
+        if conda_conf.as_default_manager:
+            for i, req in enumerate(requirements):
+                if (
+                    req.name not in conda_conf.excluded
+                    and isinstance(req, NamedRequirement)
+                    and not isinstance(req, CondaRequirement)
+                ):
+                    req.marker = None
+                    req.name = req.conda_name
+                    requirements[i] = parse_requirement(f"conda:{req.as_line()}")
+        return requirements, requires_python, summary
 
     def get_hashes(self, candidate: Candidate) -> dict[Link, str] | None:
         if isinstance(candidate, CondaCandidate):
