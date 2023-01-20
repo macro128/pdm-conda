@@ -42,6 +42,7 @@ class CondaCandidate(Candidate):
         version: str | None = None,
         link: Link | None = None,
         dependencies: list[str] | None = None,
+        constrains: list[str] | None = None,
         build_string: str | None = None,
         channel: str | None = None,
     ):
@@ -50,6 +51,10 @@ class CondaCandidate(Candidate):
         self._preferred = None
         self._prepared: CondaPreparedCandidate | None = None
         self.dependencies: list[CondaRequirement] = [parse_requirement(f"conda:{r}") for r in (dependencies or [])]
+        self.constrains: dict[str, CondaRequirement] = dict()
+        for r in constrains or []:
+            c = cast(CondaRequirement, parse_requirement(f"conda:{r}"))
+            self.constrains[c.identify()] = c
         self.build_string = build_string
         self.channel = channel
         self.conda_version = version
@@ -85,6 +90,8 @@ class CondaCandidate(Candidate):
         result["channel"] = self.channel
         if self.build_string is not None:
             result["build_string"] = self.build_string
+        if self.constrains:
+            result["constrains"] = [c.as_line(with_build_string=True) for c in self.constrains.values()]
         result["version"] = self.conda_version
         return result
 
@@ -105,12 +112,7 @@ class CondaCandidate(Candidate):
         dependencies = package.get("dependencies", [])
         if requires_python:
             dependencies.append(f"python {requires_python}")
-        return CondaCandidate.from_conda_package(
-            package
-            | {
-                "depends": dependencies,
-            },
-        )
+        return CondaCandidate.from_conda_package(package | {"depends": dependencies})
 
     @classmethod
     def from_conda_package(cls, package: dict) -> "CondaCandidate":
@@ -128,7 +130,7 @@ class CondaCandidate(Candidate):
             elif match := re.match(r"python( .+|$)", d):
                 to_delete.append(d)
                 if requires_python is None:
-                    requires_python = match.group(1).strip() or None
+                    requires_python = match.group(1).split(" ")[0].strip() or "*"
         for d in to_delete:
             dependencies.remove(d)
         hashes = {h: package[h] for h in ["sha256", "md5"] if h in package}
@@ -150,6 +152,7 @@ class CondaCandidate(Candidate):
             ),
             channel=channel,
             dependencies=dependencies,
+            constrains=package.get("constrains", []),
             build_string=build_string,
         )
 
