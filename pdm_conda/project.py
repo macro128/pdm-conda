@@ -113,6 +113,11 @@ class CondaProject(Project):
         show_message: bool = True,
     ) -> None:
         conda_requirements = {n: r for n, r in requirements.items() if isinstance(r, CondaRequirement)}
+        requirements = {n: r for n, r in requirements.items() if n not in conda_requirements} | {
+            n: r.as_named_requirement() for n, r in conda_requirements.items() if r.is_python_package
+        }
+        if self.conda_config.as_default_manager:
+            conda_requirements = {n: r for n, r in conda_requirements.items() if not r.is_python_package}
         if conda_requirements:
             deps = self.get_conda_pyproject_dependencies(to_group, dev)
             cast(Array, deps).multiline(True)
@@ -125,9 +130,6 @@ class CondaProject(Project):
                     deps[matched_index] = req
             self.conda_config.reload()
 
-        requirements = {n: r for n, r in requirements.items() if n not in conda_requirements} | {
-            n: r.as_named_requirement() for n, r in conda_requirements.items() if r.is_python_package
-        }
         super().add_dependencies(requirements, to_group, dev, show_message)
 
     def get_environment(self) -> Environment:
