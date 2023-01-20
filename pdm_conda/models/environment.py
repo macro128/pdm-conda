@@ -25,7 +25,7 @@ class CondaEnvironment(Environment):
         return working_set
 
     @property
-    def python_requirements(self):
+    def python_requirements(self) -> dict[str, Requirement]:
         if self._python_requirements is None:
             self._python_requirements = dict()
 
