@@ -15,9 +15,11 @@ CONFIGS = [
     ("runner", ConfigItem("Conda runner executable", "conda")),
     ("channels", ConfigItem("Conda channels to use")),
     ("as-default-manager", ConfigItem("Use Conda to install all possible requirements", False)),
+    ("installation-method", ConfigItem("Whether to use hard-link or copy when installing", "hard-link")),
     ("dependencies", ConfigItem("Dependencies to install with Conda")),
     ("optional-dependencies", ConfigItem("Optional dependencies to install with Conda")),
     ("dev-dependencies", ConfigItem("Development dependencies to install with Conda")),
+    ("excluded", ConfigItem("Excluded dependencies from Conda")),
     (
         "pypi-mapping.download-dir",
         ConfigItem(
@@ -47,6 +49,8 @@ class PluginConfig:
     channels: list[str] = field(default_factory=list)
     runner: str = "conda"
     as_default_manager: bool = False
+    installation_method: str = "hard-link"
+    excluded: list[str] = field(default_factory=list, repr=False)
     dependencies: list[str] = field(default_factory=list, repr=False)
     optional_dependencies: dict[str, list] = field(default_factory=dict)
     dev_dependencies: dict[str, list] = field(default_factory=dict)
@@ -54,10 +58,10 @@ class PluginConfig:
 
     def __post_init__(self):
 
-        with self.omit_set_project_config():
-            if self.runner not in ["conda", "micromamba", "mamba"]:
-                raise ProjectError(f"Invalid Conda runner: {self.runner}")
-
+        if self.runner not in ["conda", "micromamba", "mamba"]:
+            raise ProjectError(f"Invalid Conda runner: {self.runner}")
+        if self.installation_method not in ["hard-link", "copy"]:
+            raise ProjectError(f"Invalid Conda install method: {self.installation_method}")
         to_suscribe = [(self._project.pyproject._data, "update"), (self._project.pyproject, "reload")]
         for obj, name in to_suscribe:
             func = getattr(obj, name)
@@ -141,6 +145,6 @@ class PluginConfig:
         :return: args list
         """
         _command = [self.runner, cmd, "-y"]
-        if cmd in ("install", "create", "search"):
+        if cmd in ("install", "create") or (cmd == "search" and self.runner != "conda"):
             _command.append("--strict-channel-priority")
         return _command
