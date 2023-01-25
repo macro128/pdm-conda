@@ -6,6 +6,7 @@ from pdm.models.working_set import WorkingSet
 from pdm.project import Project
 
 from pdm_conda.mapping import pypi_to_conda
+from pdm_conda.models.candidates import CondaCandidate
 from pdm_conda.plugin import conda_list, conda_search
 from pdm_conda.project import CondaProject
 from pdm_conda.utils import normalize_name
@@ -16,6 +17,7 @@ class CondaEnvironment(Environment):
         super().__init__(project)
         self.project = cast(CondaProject, project)
         self._python_requirements: dict[str, Requirement] | None = None
+        self._python_candidate: CondaCandidate | None = None
 
     def get_working_set(self) -> WorkingSet:
         working_set = super().get_working_set()
@@ -23,6 +25,12 @@ class CondaEnvironment(Environment):
             normalize_name(pypi_to_conda(dist.metadata["Name"])): dist for dist in working_set._dist_map.values()
         }
         return working_set
+
+    @property
+    def python_candidate(self) -> CondaCandidate | None:
+        if self._python_candidate is None:
+            self.python_requirements  # noqa
+        return self._python_candidate
 
     @property
     def python_requirements(self) -> dict[str, Requirement]:
@@ -37,9 +45,11 @@ class CondaEnvironment(Environment):
                 dependencies[name] = candidate.req
                 for d in candidate.dependencies:
                     load_dependencies(d.name, packages, dependencies)
+                return candidate
 
-            load_dependencies("python", conda_list(self.project), self._python_requirements)
-
+            python_candidate = load_dependencies("python", conda_list(self.project), self._python_requirements)
+            if python_candidate.name == "python":
+                self._python_candidate = python_candidate
         return self._python_requirements
 
 
