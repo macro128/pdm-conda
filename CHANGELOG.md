@@ -1,6 +1,12 @@
 # Changelog
 
-## [0.5.0] - 24/01/2023
+## [0.5.2] - 25/01/2023
+
+### Fixed
+
+- Incorrect building fix and use of `pdm-backend` as backend.
+
+## [0.5.0] - 25/01/2023
 
 ### Added
 

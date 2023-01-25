@@ -1,6 +1,6 @@
 [build-system]
-requires = ["pdm-pep517"]
-build-backend = "pdm.pep517.api"
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
 
 [project]
 name = "pdm-conda"
@@ -39,13 +39,15 @@ conda = "pdm_conda:main"
 
 [tool.pdm.version]
 source = "file"
-path = "pdm_conda/__init__.py"
+path = "src/pdm_conda/__init__.py"
 
 [tool.pdm.build]
-package-dir = "pdm_conda"
+package-dir = "src"
+includes = ["src"]
+exclude = ["tests"]
 
 [tool.pdm.scripts]
-test = "pytest --cov=pdm_conda/ tests/"
+test = "pytest --cov=src/pdm_conda/ tests/"
 
 [tool.mypy]
 python_version = "3.10"

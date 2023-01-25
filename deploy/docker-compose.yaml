@@ -6,7 +6,7 @@ services:
       context: ../
       dockerfile: ./deploy/Dockerfile
       args:
-        src: ./pdm_conda
+        src: ./src
     image: pdm-conda:latest
     restart: always
     platform: linux/amd64
