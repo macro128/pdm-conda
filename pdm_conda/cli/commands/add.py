@@ -4,6 +4,7 @@ from typing import cast
 from pdm.cli.commands.add import Command as BaseCommand
 from pdm.cli.options import ArgumentGroup
 
+from pdm_conda.models.requirements import CondaRequirement, parse_requirement
 from pdm_conda.project import CondaProject, Project
 
 conda_group = ArgumentGroup("Conda Arguments")
@@ -40,11 +41,15 @@ class Command(BaseCommand):
     arguments = BaseCommand.arguments + [conda_group]
 
     def handle(self, project: Project, options: argparse.Namespace) -> None:
+        project = cast(CondaProject, project)
+        config = project.conda_config
+        if config.as_default_manager:
+            options.conda_packages.extend(options.packages)
+            options.packages = []
+
         if conda_packages := options.conda_packages:
-            project = cast(CondaProject, project)
             channel = options.conda_channel
 
-            config = project.conda_config
             existing_channels = config.channels
             if options.conda_runner:
                 config.runner = options.conda_runner
@@ -53,20 +58,30 @@ class Command(BaseCommand):
                 config.channels = existing_channels
 
             for package in conda_packages:
-                if package.startswith("conda:"):
-                    package = package[len("conda:") :]
                 package_channel = None
-                if "::" not in package:
-                    if channel:
+                if "::" in package:
+                    package_channel, package = package.split("conda:", maxsplit=1)[-1].split("::", maxsplit=1)
+
+                _p = parse_requirement(package)
+                if isinstance(_p, CondaRequirement):
+                    _p = _p.as_named_requirement()
+
+                # if not named we can't use Conda
+                if _p.is_named and _p.name not in config.excluded:
+                    if package.startswith("conda:"):
+                        package = package[len("conda:") :]
+                    if not package_channel and channel:
                         package_channel = channel
-                        package = f"{channel}::{package}"
-                else:
-                    package_channel, _ = package.split("::", maxsplit=1)
-                if package_channel and package_channel not in existing_channels:
-                    project.core.ui.echo(f"Detected Conda channel {package_channel}, adding it to pyproject")
-                    existing_channels.append(package_channel)
-                    config.channels = existing_channels
-                package = f"conda:{package}"
+
+                    if package_channel:
+                        package = f"{package_channel}::{package}"
+                        if package_channel not in existing_channels:
+                            project.core.ui.echo(f"Detected Conda channel {package_channel}, adding it to pyproject")
+                            existing_channels.append(package_channel)
+                            config.channels = existing_channels
+
+                    package = f"conda:{package}"
+
                 options.packages.append(package)
 
         super().handle(project, options)
