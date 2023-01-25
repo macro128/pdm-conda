@@ -58,7 +58,6 @@ class TestLock:
         if add_conflict:
             cmd_order = ["list", "create", "install", "remove"]
             packages_to_search.add(conda_response[0]["name"])
-        cmd_order.append("info")
         for c in conda_response:
             for d in c["depends"]:
                 if not d.startswith("python "):
@@ -66,7 +65,10 @@ class TestLock:
         if packages_to_search:
             for c in PYTHON_REQUIREMENTS:
                 packages_to_search.add(f"{c['name']}=={c['version']}={c['build_string']}")
-            cmd_order.extend(["search", "list"])
+            if add_conflict:
+                cmd_order.extend(["list", "info", "search"])
+            else:
+                cmd_order.extend(["info", "search", "list"])
             cmd_order.extend(["search"] * (len(packages_to_search) - 1))
 
         assert mock_conda.call_count == len(cmd_order)
