@@ -10,12 +10,23 @@ from pdm.project import ConfigItem, Project
 
 from pdm_conda.mapping import DOWNLOAD_DIR_ENV_VAR
 
-_CONFIG_MAP = {"mapping_download_dir": "pypi-mapping.download-dir"}
+_CONFIG_MAP = {"pypi-mapping.download-dir": "mapping_download_dir"}
+_CONFIG_MAP |= {v: k for k, v in _CONFIG_MAP.items()}
 CONFIGS = [
-    ("runner", ConfigItem("Conda runner executable", "conda")),
+    ("runner", ConfigItem("Conda runner executable", "conda", env_var="CONDA_RUNNER")),
     ("channels", ConfigItem("Conda channels to use")),
-    ("as-default-manager", ConfigItem("Use Conda to install all possible requirements", False)),
-    ("installation-method", ConfigItem("Whether to use hard-link or copy when installing", "hard-link")),
+    (
+        "as-default-manager",
+        ConfigItem("Use Conda to install all possible requirements", False, env_var="CONDA_AS_DEFAULT_MANAGER"),
+    ),
+    (
+        "installation-method",
+        ConfigItem(
+            "Whether to use hard-link or copy when installing",
+            "hard-link",
+            env_var="CONDA_INSTALLATION_METHOD",
+        ),
+    ),
     ("dependencies", ConfigItem("Dependencies to install with Conda")),
     ("optional-dependencies", ConfigItem("Optional dependencies to install with Conda")),
     ("dev-dependencies", ConfigItem("Development dependencies to install with Conda")),
@@ -57,11 +68,10 @@ class PluginConfig:
     mapping_download_dir: Path = field(repr=False, default=Path())
 
     def __post_init__(self):
-
         if self.runner not in ["conda", "micromamba", "mamba"]:
             raise ProjectError(f"Invalid Conda runner: {self.runner}")
         if self.installation_method not in ["hard-link", "copy"]:
-            raise ProjectError(f"Invalid Conda install method: {self.installation_method}")
+            raise ProjectError(f"Invalid Conda installation method: {self.installation_method}")
         to_suscribe = [(self._project.pyproject._data, "update"), (self._project.pyproject, "reload")]
         for obj, name in to_suscribe:
             func = getattr(obj, name)
@@ -132,10 +142,18 @@ class PluginConfig:
         :param kwargs: settings overwrites
         :return: plugin configs
         """
-        config = {k.replace("-", "_"): v for k, v in project.pyproject.settings.get("conda", {}).items()}
+        config = {k: v for k, v in project.pyproject.settings.get("conda", {}).items()}
         kwargs["_initialized"] = is_conda_config_initialized(project)
-        name = "mapping_download_dir"
-        config[name] = Path(project.config[f"conda.{_CONFIG_MAP.get(name, name)}"])
+        for n, c in CONFIGS:
+            n = n[len("conda.") :]
+            if (prop_name := _CONFIG_MAP.get(n, n)) not in config and c.env_var:
+                value = project.config[f"conda.{n}"]
+                if prop_name == "mapping_download_dir":
+                    value = Path(value)
+                elif prop_name == "as-default-manager":
+                    value = str(value).lower() in ("true", "1")
+                config[prop_name] = value
+        config = {k.replace("-", "_"): v for k, v in config.items()}
         return PluginConfig(_project=project, **(config | kwargs))
 
     def command(self, cmd="install"):
