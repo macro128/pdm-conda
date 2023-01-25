@@ -49,7 +49,6 @@ class CondaResolution(Resolution):
     def _get_updated_criteria(self, candidate):
         criteria = super()._get_updated_criteria(candidate)
         if isinstance(candidate, CondaCandidate):
-            self.state.constrains.update(candidate.constrains)
             for identifier, constrain in candidate.constrains.items():
                 if identifier != "python":
                     # keep most restrictive constrain
