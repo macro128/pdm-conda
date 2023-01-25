@@ -34,7 +34,7 @@ class TestLock:
 
         python_requirements = {c["name"] for c in PYTHON_REQUIREMENTS}
         conda_response = [c for c in conda_response if c["name"] not in python_requirements]
-        package = conda_response[1]["name"]
+        package = conda_response[-1]["name"]
         config = project.conda_config
         config.runner = self.conda_runner
         config.dependencies = [package]
@@ -62,7 +62,7 @@ class TestLock:
         for c in conda_response:
             for d in c["depends"]:
                 if not d.startswith("python "):
-                    packages_to_search.add(d.replace(" ", ""))
+                    packages_to_search.add(d.replace(" ", "").split("|")[0])
         if packages_to_search:
             for c in PYTHON_REQUIREMENTS:
                 packages_to_search.add(f"{c['name']}=={c['version']}={c['build_string']}")

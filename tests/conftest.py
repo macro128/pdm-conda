@@ -56,7 +56,12 @@ def mock_conda(mocker, conda_response: dict | list, empty_conda_list):
             return deepcopy(install_response)
         elif subcommand == "list":
             python_packages = {p["name"] for p in PYTHON_REQUIREMENTS}
-            res = deepcopy(conda_response)
+            res = []
+            listed_packages = set()
+            for p in conda_response:
+                if p["name"] not in listed_packages:
+                    listed_packages.add(p["name"])
+                    res.append(deepcopy(p))
             if empty_conda_list:
                 res = [c for c in res if c["name"] in python_packages]
             for p in res:
@@ -103,6 +108,7 @@ PYTHON_REQUIREMENTS = [
         "name": "lib2",
         "depends": [],
         "version": "1.0.0g",
+        "build_number": 0,
         "url": f"{REPO_BASE}/channel/lib2",
         "channel": f"{REPO_BASE}/channel",
         "sha256": "this-is-a-hash",
@@ -112,6 +118,7 @@ PYTHON_REQUIREMENTS = [
         "name": "lib",
         "depends": ["lib2 ==1.0.0g"],
         "version": "1.0.0",
+        "build_number": 0,
         "url": f"{REPO_BASE}/channel/lib",
         "channel": f"{REPO_BASE}/channel",
         "sha256": "this-is-a-hash",
@@ -120,6 +127,7 @@ PYTHON_REQUIREMENTS = [
     {
         "name": "python",
         "depends": ["lib ==1.0.0"],
+        "build_number": 0,
         "version": PYTHON_VERSION,
         "url": f"{REPO_BASE}/channel/python",
         "channel": f"{REPO_BASE}/channel",
@@ -134,7 +142,18 @@ CONDA_INFO = [
         {
             "name": "another-dep",
             "depends": [],
-            "version": "1.0.0gg",
+            "version": "1!0.0gg",
+            "build_number": 0,
+            "url": f"{REPO_BASE}/channel/another-dep",
+            "channel": f"{REPO_BASE}/channel",
+            "sha256": "this-is-a-hash",
+            "build_string": "another-dep",
+        },
+        {
+            "name": "another-dep",
+            "depends": [],
+            "build_number": 1,
+            "version": "1!0.0gg",
             "url": f"{REPO_BASE}/channel/another-dep",
             "channel": f"{REPO_BASE}/channel",
             "sha256": "this-is-a-hash",
@@ -142,7 +161,8 @@ CONDA_INFO = [
         },
         {
             "name": "dep",
-            "depends": ["python >=3.7", "another-dep ==1.0.0gg"],
+            "build_number": 0,
+            "depends": ["python >=3.7", "another-dep ==1!0.0gg|==1!0.0g"],
             "version": "1.0.0",
             "url": f"{REPO_BASE}/channel/dep",
             "channel": f"{REPO_BASE}/channel",

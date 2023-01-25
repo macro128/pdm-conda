@@ -1,5 +1,3 @@
-import re
-
 import pytest
 
 DEPENDENCIES = dict(
@@ -13,6 +11,7 @@ DEPENDENCIES = dict(
         ([], ["conda-channel::pytest-conda"]),
         (["pytest"], []),
         ([], ["pytest-conda>=1.*"]),
+        ([], ["pytest-conda>1.*"]),
     ],
     ids=[
         "different pkgs",
@@ -22,7 +21,8 @@ DEPENDENCIES = dict(
         "conda version override",
         "conda channel",
         "only pypi",
-        "star greater specifier",
+        "star >= specifier",
+        "star > specifier",
     ],
 )
 CONDA_MAPPING = dict(
@@ -56,8 +56,6 @@ class TestProject:
             r = parse_requirement(f"conda:{d}")
             if "::" in d:
                 assert d.endswith(r.as_line())
-            elif "[" not in d:
-                assert r.as_line() == re.sub(r"(>=?[\w.]+)\*", r"\g<1>0", d)
             else:
                 assert d.startswith(r.as_line())
             assert isinstance(r, CondaRequirement)
@@ -112,7 +110,7 @@ class TestProject:
                     },
                 }
             if as_default_manager:
-                conf["tool"]["pdm"].setdefault("conda", dict())["as_default_manager"] = True
+                conf["tool"]["pdm"].setdefault("conda", dict())["as-default-manager"] = True
 
             return conf
 

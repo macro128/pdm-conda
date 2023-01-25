@@ -45,9 +45,11 @@ class TestAddRemove:
 
         num_search = 2 + len(PYTHON_REQUIREMENTS)  # add conda info, list and python packages
         packages_names = {p.split("::")[-1] for p in packages}
+        to_search = set()
         for c in conda_response:
-            if c["name"] in packages_names:
+            if (name := c["name"]) in packages_names and name not in to_search:
                 num_search += 1 + len([d for d in c["depends"] if not d.startswith("python ")])
+                to_search.add(name)
         assert mock_conda.call_count == num_search
 
         dependencies = project.get_conda_pyproject_dependencies("default")
@@ -63,7 +65,7 @@ class TestAddRemove:
         self.test_add(core, project, mock_conda, conda_response, packages, None, None, mock_conda_mapping)
         mock_conda.reset_mock()
         core.main(["remove", "--no-self"] + packages, obj=project)
-        conda_calls = len(conda_response) - len(PYTHON_REQUIREMENTS)
+        conda_calls = len({p["name"] for p in conda_response}) - len(PYTHON_REQUIREMENTS)
         cmd_order = []
         if conda_calls:
             cmd_order = ["list"] + ["remove"] * conda_calls

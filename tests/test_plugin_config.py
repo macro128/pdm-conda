@@ -54,7 +54,7 @@ class TestPluginConfig:
         else:
             runner = "conda"
         if isinstance(as_default_manager, bool):
-            conf["as_default_manager"] = as_default_manager
+            conf["as-default-manager"] = as_default_manager
         else:
             as_default_manager = False
 
@@ -74,18 +74,19 @@ class TestPluginConfig:
         assert config.channels == channels
         assert config.as_default_manager == as_default_manager
 
-    def test_incorrect_runner(self, project):
+    @pytest.mark.parametrize("name", ["runner", "installation-method"])
+    def test_incorrect_config(self, project, name):
         """
-        Test load config raises on incorrect runner
+        Test load config raises on incorrect config
         """
-        runner = "another runner"
-        with pytest.raises(ProjectError, match=f"Invalid Conda runner: {runner}"):
+        config_value = "incorrect config value"
+        with pytest.raises(ProjectError, match=f"Invalid Conda [^:]+: {config_value}"):
             project.pyproject._data.update(
                 {
                     "tool": {
                         "pdm": {
                             "conda": {
-                                "runner": runner,
+                                name: config_value,
                             },
                         },
                     },

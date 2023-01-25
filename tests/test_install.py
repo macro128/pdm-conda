@@ -32,7 +32,7 @@ class TestInstall:
             command.append("--dry-run")
         core.main(command, obj=project)
 
-        conda_calls = len(conda_response) - len(PYTHON_REQUIREMENTS)
+        conda_calls = len({r["name"] for r in conda_response if r not in PYTHON_REQUIREMENTS})
         cmd_order = (
             ["info", "search", "list"]
             + ["search"] * (conda_calls + len(PYTHON_REQUIREMENTS) - 1)
@@ -41,7 +41,20 @@ class TestInstall:
         )
         assert mock_conda.call_count == len(cmd_order)
 
-        urls = [format_url(p) for p in conda_response if p not in PYTHON_REQUIREMENTS]
+        urls = []
+        i = 0
+        while i < len(conda_response):
+            if (p := conda_response[i]) not in PYTHON_REQUIREMENTS:
+                version = p["version"]
+                name = p["name"]
+                i += 1
+                while i < len(conda_response) and (other_p := conda_response[i])["name"] == name:
+                    if version == other_p["version"]:
+                        p = other_p
+                    i += 1
+                urls.append(format_url(p))
+            else:
+                i += 1
         for (cmd,), kwargs in mock_conda.call_args_list:
             assert cmd[0] == self.conda_runner
             cmd_subcommand = cmd[1]
