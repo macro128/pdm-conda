@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.3] - 25/01/2023
+
+### Fixed
+
+- Incorrect constrains update on resolution.
+
 ## [0.5.2] - 25/01/2023
 
 ### Fixed

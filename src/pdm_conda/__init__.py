@@ -23,4 +23,4 @@ def main(core: Core):
         core.add_config(name, config)
 
 
-__version__ = "0.5.2"
+__version__ = "0.5.3"
