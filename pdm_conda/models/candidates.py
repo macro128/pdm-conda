@@ -130,7 +130,7 @@ class CondaCandidate(Candidate):
             elif match := re.match(r"python( .+|$)", d):
                 to_delete.append(d)
                 if requires_python is None:
-                    requires_python = match.group(1).split(" ")[0].strip() or "*"
+                    requires_python = match.group(1).strip().split(" ")[0] or "*"
         for d in to_delete:
             dependencies.remove(d)
         hashes = {h: package[h] for h in ["sha256", "md5"] if h in package}
