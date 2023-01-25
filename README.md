@@ -4,15 +4,17 @@ A PDM plugin to install project dependencies with Conda.
 
 ## Configuration
 
-| Config item                       | Description                                                                                        | Default value       | Possible values                |
-|-----------------------------------|----------------------------------------------------------------------------------------------------|---------------------|--------------------------------|
-| `conda.runner`                    | Conda runner executable                                                                            | `conda`             | `conda`, `mamba`, `micromamba` |
-| `conda.channels`                  | Conda channels to use, order will be enforced                                                      | `[]`                |                                |
-| `conda.as_default_manager`        | Use Conda to install all possible requirements                                                     | `False`             |                                |
-| `conda.dependencies`              | Array of dependencies to install with Conda, analogue to `project.dependencies`                    | `[]`                |                                |
-| `conda.optional-dependencies`     | Groups of optional dependencies to install with Conda, analogue to `project.optional-dependencies` | `{}`                |                                |
-| `conda.dev-dependencies`          | Groups of development dependencies to install with Conda, analogue to `tool.pdm.dev-dependencies`  | `{}`                |                                |
-| `conda.pypi-mapping.download-dir` | PyPI-Conda mapping download directory                                                              | `$HOME/.pdm-conda/` |                                |
+| Config item                       | Description                                                                                        | Default value       | Possible values                | Environment variable        |
+|-----------------------------------|----------------------------------------------------------------------------------------------------|---------------------|--------------------------------|-----------------------------|
+| `conda.runner`                    | Conda runner executable                                                                            | `conda`             | `conda`, `mamba`, `micromamba` | `CONDA_RUNNER`              |
+| `conda.channels`                  | Conda channels to use, order will be enforced                                                      | `[]`                |                                |                             |
+| `conda.as-default-manager`        | Use Conda to install all possible requirements                                                     | `False`             |                                | `CONDA_AS_DEFAULT_MANAGER`  |
+| `conda.excluded`                  | Array of dependencies to exclude from Conda resolution                                             | `[]`                |                                |                             |
+| `conda.installation-method`       | Installation method to use when installing dependencies with Conda                                 | `hard-link`         | `hard-link`, `copy`            | `CONDA_INSTALLATION_METHOD` |
+| `conda.dependencies`              | Array of dependencies to install with Conda, analogue to `project.dependencies`                    | `[]`                |                                |                             |
+| `conda.optional-dependencies`     | Groups of optional dependencies to install with Conda, analogue to `project.optional-dependencies` | `{}`                |                                |                             |
+| `conda.dev-dependencies`          | Groups of development dependencies to install with Conda, analogue to `tool.pdm.dev-dependencies`  | `{}`                |                                |                             |
+| `conda.pypi-mapping.download-dir` | PyPI-Conda mapping download directory                                                              | `$HOME/.pdm-conda/` |                                | `PYPI_MAPPING_DIR`          |
 
 All configuration items use prefix `pdm.tool`, this is a viable configuration:
 
@@ -21,7 +23,10 @@ All configuration items use prefix `pdm.tool`, this is a viable configuration:
 runner = "micromamba"
 channels = ["conda-forge/noarch", "conda-forge", "anaconda"]
 dependencies = ["pdm"]
-as_default_manager = true
+as-default-manager = true
+excluded = ["pytest-cov"] # don't install with conda even if it's a dependency from other packages
+installation-method = "copy"
+
 
 [tool.pdm.conda.pypi-mapping]
 download-dir = "/tmp"
@@ -35,7 +40,7 @@ dev = ["pytest"]
 
 ## Usage
 
-This plugin modifies PDM commands so after adding configuration to the pyproject file it's done.
+This plugin adds capabilities to the default PDM commands.
 
 ### Working commands
 
@@ -51,6 +56,20 @@ The following commands were tested and work:
     * With flag `-r` or `--runner` you can specify the Conda runner to use.
 * `pdm remove`
 * `pdm list`
+
+### How it works
+
+When PDM detects a Conda managed package, it gets Candidates with Conda and then tries to resolve the environment as
+with any other requirement.
+
+To keep the resolution consistent with Conda, PDM uses resolution rules from Conda as good as possible.
+
+### Settings overriden
+
+In order to use Conda to install packages some settings were overriden:
+
+* `install.parallel` if some Conda managed packages are to be uninstalled or updated this option is disabled
+  momentarily.
 
 ## Development
 

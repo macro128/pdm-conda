@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.5.0] - 24/01/2023
+
+### Added
+
+* New classes `CondaResolver` and `CondaResolution` to use Conda packages' constrains when resolving dependencies.
+* Config `conda.excluded` to exclude requirements from Conda resolution.
+* Config `conda.installation-method` to select Conda installation method.
+* Environment variables to configs.
+
+### Changed
+
+* If `conda.as-default-manager` is `true`, even dependencies from PyPI packages will be obtained from Conda.
+* `install.parallel` only deactivates if Conda packages are set to uninstall/update.
+* When parsing OR Conda package specifier (i.e. `>=2,<3`), keep greater version specifier
+
+### Fixed
+
+* Fixes when parsing Conda packages' version.
+
 ## [0.4.0] - 17/01/2023
 
 ### Added
@@ -10,7 +29,7 @@
 
 ### Changed
 
-* New class `CondEnvironment` class instead of monkeypatching.
+* New class `CondEnvironment` instead of monkeypatching.
 
 ### Fixed
 
@@ -21,7 +40,6 @@
 ### Fixed
 
 * Change conda requirement specifier `>=x.*` for `>=x.0` to avoid parse errors.
-
 
 ## [0.3.0] - 11/01/2023
 
@@ -72,7 +90,7 @@
 
 ### Changed
 
-* New class `CondaProject` class instead of monkeypatching.
+* New class `CondaProject` instead of monkeypatching.
 * New class `LockedCondaRepository` instead of monkeypatching.
 * New class `PyPICondaRepository` instead of monkeypatching.
 * `CondaCandidate.prepare` returns `CondaPreparedCandidate` instead of monkeypatching.
