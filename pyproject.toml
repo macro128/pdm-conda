@@ -20,8 +20,8 @@ dependencies = [
 ]
 
 [build-system]
-requires = ["pdm-pep517"]
-build-backend = "pdm.pep517.api"
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
 
 [project.urls]
 Homepage = "https://github.com/macro128/pdm-conda"
@@ -34,14 +34,6 @@ version = { source = "file", path = "pdm_conda/__init__.py" }
 
 [tool.pdm.scripts]
 test = "pytest --cov=pdm_conda/ tests/"
-
-[tool.pdm.dev-dependencies]
-dev = [
-    "pytest>=7.2.0",
-    "pytest-mock>=3.10.0",
-    "pytest-cov>=4.0.0",
-    "responses>=0.22.0",
-]
 
 [tool.mypy]
 python_version = "3.10"
