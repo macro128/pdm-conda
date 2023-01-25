@@ -44,7 +44,7 @@ path = "src/pdm_conda/__init__.py"
 [tool.pdm.build]
 package-dir = "src"
 includes = ["src"]
-exclude = ["tests"]
+excludes = ["tests"]
 
 [tool.pdm.scripts]
 test = "pytest --cov=src/pdm_conda/ tests/"
