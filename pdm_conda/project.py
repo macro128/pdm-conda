@@ -10,7 +10,6 @@ from pdm.project import Project
 from pdm.utils import get_venv_like_prefix
 from tomlkit.items import Array
 
-from pdm_conda.mapping import pypi_to_conda
 from pdm_conda.models.config import PluginConfig
 from pdm_conda.models.requirements import (
     CondaRequirement,
@@ -35,11 +34,13 @@ class CondaProject(Project):
             LockedCondaRepository,
             PyPICondaRepository,
         )
+        from pdm_conda.resolver import CondaResolver
 
         super().__init__(core, root_path, is_global, global_config)
         self.core.repository_class = PyPICondaRepository
         self.core.install_manager_class = CondaInstallManager
         self.core.synchronizer_class = CondaSynchronizer
+        self.core.resolver_class = CondaResolver
         self.locked_repository_class = LockedCondaRepository
         self.environment_class = CondaEnvironment
         self.virtual_packages: set[str] = set()
@@ -88,10 +89,12 @@ class CondaProject(Project):
         if self.conda_config.as_default_manager:
             for k in list(result):
                 req = result[k]
-                if isinstance(req, NamedRequirement) and not isinstance(req, CondaRequirement):
-                    result.pop(k)
-                    req.extras = None
-                    req.name = pypi_to_conda(req.name)
+                if (
+                    req.name not in self.conda_config.excluded
+                    and isinstance(req, NamedRequirement)
+                    and not isinstance(req, CondaRequirement)
+                ):
+                    req.name = req.conda_name
                     result[k] = parse_requirement(f"conda:{req.as_line()}")
 
         return result
