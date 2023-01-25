@@ -3,6 +3,7 @@ import re
 from typing import Any
 
 from packaging.specifiers import SpecifierSet
+from packaging.version import Version
 from pdm.models.requirements import NamedRequirement, Requirement, T
 from pdm.models.requirements import parse_requirement as _parse_requirement
 from pdm.models.requirements import strip_extras
@@ -114,19 +115,23 @@ def parse_requirement(line: str, editable: bool = False) -> Requirement:
             name, version = line.split(" ", maxsplit=1)
         version_and = version.split(",")
         for i, conda_version in enumerate(version_and):
-            conda_version = conda_version.split("|")[0]
-            if conda_version:
-                if conda_version == "*":
-                    version = ""
-                else:
-                    if not _specifier_re.match(conda_version):
-                        s = "="
-                        if _conda_specifier_star_re.match(conda_version):
-                            s = "~"
-                        conda_version = f"{s}={conda_version}"
-                    version = parse_conda_version(_conda_specifier_star_re.sub(correct_specifier_star, conda_version))
-                    version_mapping[remove_operator(version)] = remove_operator(conda_version)
-                version_and[i] = version
+            version_or = conda_version.split("|")
+            for j, conda_version_or in enumerate(version_or):
+                if conda_version_or:
+                    if conda_version_or == "*":
+                        _version = ""
+                    else:
+                        if not _specifier_re.match(conda_version_or):
+                            s = "="
+                            if _conda_specifier_star_re.match(conda_version_or):
+                                s = "~"
+                            conda_version_or = f"{s}={conda_version_or}"
+                        _version = parse_conda_version(
+                            _conda_specifier_star_re.sub(correct_specifier_star, conda_version_or),
+                        )
+                        version_mapping[remove_operator(_version)] = remove_operator(conda_version_or)
+                    version_or[j] = _version
+            version_and[i] = max((v for v in version_or if v), key=lambda v: Version(remove_operator(v)), default="")
         version = ",".join(version_and)
         req = CondaRequirement.create(
             name=strip_extras(name.strip())[0],
