@@ -48,7 +48,7 @@ class CondaEnvironment(Environment):
                 return candidate
 
             python_candidate = load_dependencies("python", conda_list(self.project), self._python_requirements)
-            if python_candidate.name == "python":
+            if python_candidate is not None and python_candidate.name == "python":
                 self._python_candidate = python_candidate
         return self._python_requirements
 
