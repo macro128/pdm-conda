@@ -103,7 +103,6 @@ def _conda_search(
         valid_candidate = True
         for d in dependencies:
             if d.startswith("__"):
-                print(d)
                 if d not in project.virtual_packages:
                     valid_candidate = False
                     break

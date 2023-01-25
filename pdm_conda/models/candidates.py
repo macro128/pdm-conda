@@ -54,7 +54,7 @@ class CondaCandidate(Candidate):
         self.constrains: dict[str, CondaRequirement] = dict()
         for r in constrains or []:
             c = cast(CondaRequirement, parse_requirement(f"conda:{r}"))
-            self.constrains[c.identify()] = c
+            self.constrains[str(c.conda_name)] = c
         self.build_string = build_string
         self.channel = channel
         self.conda_version = version
