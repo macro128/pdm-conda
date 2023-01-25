@@ -2,9 +2,11 @@ from copy import copy
 from dataclasses import dataclass, field
 
 from packaging.version import Version
+from pdm.models.specifiers import PySpecSet
 from resolvelib.resolvers import Resolution, Resolver, _build_result  # type: ignore
 
 from pdm_conda.models.candidates import CondaCandidate
+from pdm_conda.models.environment import CondaEnvironment
 
 
 @dataclass
@@ -16,10 +18,14 @@ class State:
 
 
 class CondaResolution(Resolution):
+    def __init__(self, *args, base_constrains: dict | None, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._base_constrains = base_constrains or dict()
+
     @property
     def state(self):
         if self._states and not isinstance(state := self._states[-1], State):
-            self._states[-1] = State(state.mapping, state.criteria, state.backtrack_causes)
+            self._states[-1] = State(state.mapping, state.criteria, state.backtrack_causes, self._base_constrains)
         return super().state
 
     def _push_new_state(self):
@@ -62,6 +68,16 @@ class CondaResolution(Resolution):
 
 class CondaResolver(Resolver):
     def resolve(self, requirements, max_rounds=100):
-        resolution = CondaResolution(self.provider, self.reporter)
+        base_constrains = dict()
+        if isinstance(environment := self.provider.repository.environment, CondaEnvironment):
+            # add base python contrains
+            if (can := environment.python_candidate) is not None:
+                base_constrains |= can.constrains
+                base_constrains |= {d.conda_name: d for d in can.dependencies}
+                # reduce python version to actual installed one
+                python_req = next(filter(lambda r: r.name == "python", requirements))
+                python_req.specifier &= PySpecSet(str(can.req.specifier))
+
+        resolution = CondaResolution(self.provider, self.reporter, base_constrains=base_constrains)
         state = resolution.resolve(requirements, max_rounds=max_rounds)
         return _build_result(state)
