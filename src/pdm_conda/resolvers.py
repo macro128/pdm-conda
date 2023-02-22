@@ -2,7 +2,6 @@ from copy import copy
 from dataclasses import dataclass, field
 
 from packaging.version import Version
-from pdm.models.specifiers import PySpecSet
 from resolvelib.resolvers import Resolution, Resolver, _build_result  # type: ignore
 
 from pdm_conda.models.candidates import CondaCandidate
@@ -69,13 +68,10 @@ class CondaResolver(Resolver):
     def resolve(self, requirements, max_rounds=100):
         base_constrains = dict()
         if isinstance(environment := self.provider.repository.environment, CondaEnvironment):
-            # add base python contrains
+            # add installed python constrains
             if (can := environment.python_candidate) is not None:
                 base_constrains |= can.constrains
                 base_constrains |= {d.conda_name: d for d in can.dependencies}
-                # reduce python version to actual installed one
-                python_req = next(filter(lambda r: r.name == "python", requirements))
-                python_req.specifier &= PySpecSet(str(can.req.specifier))
 
         resolution = CondaResolution(self.provider, self.reporter, base_constrains=base_constrains)
         state = resolution.resolve(requirements, max_rounds=max_rounds)

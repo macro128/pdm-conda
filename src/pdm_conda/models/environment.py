@@ -1,6 +1,7 @@
 from typing import cast
 
-from pdm.models.environment import Environment, GlobalEnvironment
+from pdm.exceptions import NoPythonVersion
+from pdm.models.environment import Environment
 from pdm.models.requirements import Requirement
 from pdm.models.working_set import WorkingSet
 from pdm.project import Project
@@ -16,10 +17,13 @@ class CondaEnvironment(Environment):
     def __init__(self, project: Project) -> None:
         super().__init__(project)
         self.project = cast(CondaProject, project)
-        self._python_requirements: dict[str, Requirement] | None = None
+        self._python_dependencies: dict[str, Requirement] | None = None
         self._python_candidate: CondaCandidate | None = None
 
     def get_working_set(self) -> WorkingSet:
+        """
+        Get the working set based on local packages directory, include Conda managed packages.
+        """
         working_set = super().get_working_set()
         working_set._dist_map = conda_list(self.project) | {
             normalize_name(pypi_to_conda(dist.metadata["Name"])): dist for dist in working_set._dist_map.values()
@@ -27,15 +31,18 @@ class CondaEnvironment(Environment):
         return working_set
 
     @property
-    def python_candidate(self) -> CondaCandidate | None:
+    def python_candidate(self) -> CondaCandidate:
         if self._python_candidate is None:
-            self.python_requirements  # noqa
+            python_package = conda_list(self.project).get("python", None)
+            if python_package is None:
+                raise NoPythonVersion("No python found in Conda environment.")
+            self._python_candidate = conda_search(python_package.as_line().replace(" ", "="), self.project)[0]
         return self._python_candidate
 
     @property
-    def python_requirements(self) -> dict[str, Requirement]:
-        if self._python_requirements is None:
-            self._python_requirements = dict()
+    def python_dependencies(self) -> dict[str, Requirement]:
+        if self._python_dependencies is None:
+            self._python_dependencies = dict()
 
             def load_dependencies(name: str, packages: dict, dependencies: dict):
                 if name not in packages and name not in dependencies:
@@ -45,13 +52,7 @@ class CondaEnvironment(Environment):
                 dependencies[name] = candidate.req
                 for d in candidate.dependencies:
                     load_dependencies(d.name, packages, dependencies)
-                return candidate
 
-            python_candidate = load_dependencies("python", conda_list(self.project), self._python_requirements)
-            if python_candidate is not None and python_candidate.name == "python":
-                self._python_candidate = python_candidate
-        return self._python_requirements
+            load_dependencies("python", conda_list(self.project), self._python_dependencies)
 
-
-class CondaGlobalEnvironment(GlobalEnvironment, CondaEnvironment):
-    pass
+        return self._python_dependencies

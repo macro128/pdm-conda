@@ -34,7 +34,7 @@ class CondaProject(Project):
             LockedCondaRepository,
             PyPICondaRepository,
         )
-        from pdm_conda.resolver import CondaResolver
+        from pdm_conda.resolvers import CondaResolver
 
         super().__init__(core, root_path, is_global, global_config)
         self.core.repository_class = PyPICondaRepository
@@ -135,16 +135,16 @@ class CondaProject(Project):
 
         super().add_dependencies(requirements, to_group, dev, show_message)
 
+    @property
+    def python_requires(self) -> PySpecSet:
+        if not self._python:
+            return super().python_requires
+        return PySpecSet(f"=={self.python.version}")
+
     def get_environment(self) -> Environment:
         if not self.config["python.use_venv"]:
             raise ProjectError("python.use_venv is required to use Conda.")
         if get_venv_like_prefix(self.python.executable) is None:
             raise ProjectError("Conda environment not detected.")
 
-        env = self.environment_class(self)
-        if self.is_global:
-            # Rewrite global project's python requires to be
-            # compatible with the exact version
-            env.python_requires = PySpecSet(f"=={self.python.version}")
-
-        return env
+        return self.environment_class(self)
