@@ -46,7 +46,7 @@ ENV PATH=${BIN_PATH}:${PATH}
 RUN --mount=type=cache,target=/opt/conda/pkgs,id=mamba,mode=0775,uid=1000,gid=1000,sharing=locked \
     python /tmp/pdm_install.py "/opt/conda/bin/pdm" -G ${dependencies} --plugins pdm-backend ${plugins} - --${env}
 # add src to python path
-ENV PYTHONPATH=${src_path}:${PYTHONPATH}
+ENV PYTHONPATH=${src_path}${src}:${PYTHONPATH}
 
 # prod stage
 FROM mambaorg/micromamba:jammy AS prod
