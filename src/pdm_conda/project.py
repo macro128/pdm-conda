@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import cast
+from typing import Iterable, cast
 
 from pdm.core import Core
 from pdm.exceptions import ProjectError
@@ -7,6 +7,7 @@ from pdm.models.environment import Environment
 from pdm.models.repositories import LockedRepository
 from pdm.models.specifiers import PySpecSet
 from pdm.project import Project
+from pdm.resolver.providers import BaseProvider
 from pdm.utils import get_venv_like_prefix
 from tomlkit.items import Array
 
@@ -148,3 +149,32 @@ class CondaProject(Project):
             raise ProjectError("Conda environment not detected.")
 
         return self.environment_class(self)
+
+    def get_provider(
+        self,
+        strategy: str = "all",
+        tracked_names: Iterable[str] | None = None,
+        for_install: bool = False,
+        ignore_compatibility: bool = True,
+    ) -> BaseProvider:
+        from pdm_conda.resolver.providers import (
+            CondaBaseProvider,
+            CondaEagerUpdateProvider,
+            CondaReusePinProvider,
+            EagerUpdateProvider,
+        )
+
+        provider = super().get_provider(strategy, tracked_names, for_install, ignore_compatibility)
+        args = [provider.repository, provider.allow_prereleases, provider.overrides]
+        provider_class = CondaBaseProvider
+        if not isinstance(provider, BaseProvider):
+            provider_class = (
+                CondaEagerUpdateProvider  # type: ignore
+                if isinstance(
+                    provider,
+                    EagerUpdateProvider,
+                )
+                else CondaReusePinProvider  # type: ignore
+            )
+            args = [provider.preferred_pins, provider.tracked_names] + args
+        return provider_class(*args)
