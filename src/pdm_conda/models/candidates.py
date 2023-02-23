@@ -58,7 +58,7 @@ class CondaCandidate(Candidate):
         self.build_string = build_string
         self.channel = channel
         self.conda_version = version
-        self.version = parse_conda_version(version)
+        self.version = parse_conda_version(version, name != "openssl")
 
     @property
     def req(self):
@@ -80,6 +80,10 @@ class CondaCandidate(Candidate):
                 python_requires=self.requires_python,
             ),
         )
+
+    @property
+    def dependencies_lines(self):
+        return [dep.as_line(as_conda=True, with_build_string=True, with_channel=True) for dep in self.dependencies]
 
     def as_lockfile_entry(self, project_root: Path) -> dict[str, Any]:
         result = super().as_lockfile_entry(project_root)

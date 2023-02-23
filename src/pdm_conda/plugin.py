@@ -103,7 +103,8 @@ def _conda_search(
         valid_candidate = True
         for d in dependencies:
             if d.startswith("__"):
-                if d not in project.virtual_packages:
+                d = parse_requirement(f"conda:{d}")
+                if not any(d.is_compatible(v) for v in project.virtual_packages):
                     valid_candidate = False
                     break
         if valid_candidate:
@@ -134,7 +135,7 @@ def conda_search(
     """
     if isinstance(requirement, CondaRequirement):
         channel = channel or requirement.channel
-        requirement = requirement.as_line(with_build_string=True).replace(" ", "=").replace("~", "")
+        requirement = requirement.as_line(with_build_string=True, conda_compatible=True).replace(" ", "=")
     if "::" in requirement:
         channel, requirement = requirement.split("::", maxsplit=1)
     channels = [channel] if channel else (project.conda_config.channels or ["defaults"])
@@ -192,8 +193,9 @@ def lock_conda_dependencies(project: Project, requirements: list[Requirement], *
     else:
         conda_packages = {}
         for r in _requirements:
-            candidate = conda_search(r, project)[0]
-            conda_packages[candidate.name] = candidate
+            if candidates := conda_search(r, project):
+                candidate = candidates[0]
+                conda_packages[candidate.name] = candidate
 
     update_requirements(requirements, conda_packages)
 
@@ -218,9 +220,13 @@ def conda_lock(
 
     core.ui.echo("Using conda to get: " + " ".join([r.as_line() for r in requirements if r.name != "python"]))
     _requirements = [r.as_line(with_build_string=True, with_channel=True).replace(" ", "=") for r in requirements]
+    channels = config.channels or ["defaults"]
+    for req in requirements:
+        if req.channel is not None and req.channel not in channels:
+            channels.append(req.channel)
     response = run_conda(
         config.command() + ["--force-reinstall", "--json", "--dry-run", "--prefix", prefix],
-        channels=config.channels or ["defaults"],
+        channels=channels,
         dependencies=_requirements,
     )
 
@@ -313,18 +319,19 @@ def conda_uninstall(
     _conda_install(project, command, verbose=verbose)
 
 
-def conda_virtual_packages(project: CondaProject) -> set[str]:
+def conda_virtual_packages(project: CondaProject) -> set[CondaRequirement]:
     """
     Get conda virtual packages
     :param project: PDM project
     :return: set of virtual packages
     """
     config = project.conda_config
-    virtual_packages = []
+    virtual_packages = set()
     if config.is_initialized:
         info = run_conda(config.command("info") + ["--json"])
-        virtual_packages = [p.split("=")[0] for p in info["virtual packages"]]
-    return set(virtual_packages)
+        # todo: fix conda
+        virtual_packages = {parse_requirement(f"conda:{p}") for p in info["virtual packages"]}
+    return virtual_packages
 
 
 def conda_list(project: CondaProject) -> dict[str, CondaSetupDistribution]:
