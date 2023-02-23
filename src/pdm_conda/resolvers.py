@@ -2,10 +2,16 @@ from copy import copy
 from dataclasses import dataclass, field
 
 from packaging.version import Version
-from resolvelib.resolvers import Resolution, Resolver, _build_result  # type: ignore
+from resolvelib.resolvers import (  # type: ignore
+    RequirementInformation,
+    Resolution,
+    Resolver,
+    _build_result,
+)
 
 from pdm_conda.models.candidates import CondaCandidate
 from pdm_conda.models.environment import CondaEnvironment
+from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement
 
 
 @dataclass
@@ -43,6 +49,38 @@ class CondaResolution(Resolution):
         if (constrain := constrains.get(requirement.conda_name, None)) is not None:
             _req = copy(constrain)
             _req.specifier &= requirement.specifier
+        identifier = self._p.identify(_req)
+        if criterion := criteria.get(identifier):
+            excluded = self._p.repository.environment.project.conda_config.excluded
+            if isinstance(_req, CondaRequirement):
+                # if conda requirement but other not conda requirement and excluded
+                # then transform to named requirement
+                if any(
+                    not isinstance(i.requirement, CondaRequirement) and i.requirement.name in excluded
+                    for i in criterion.information
+                ):
+                    _req = _req.as_named_requirement()
+                # else any other to conda
+                else:
+                    criterion.information = [
+                        RequirementInformation(as_conda_requirement(i.requirement), i.parent)
+                        for i in criterion.information
+                    ]
+
+            # if excluded then delete conda related information else if other conda requirement transform to conda
+            else:
+                if requirement.name in excluded:
+                    criterion.information = [
+                        RequirementInformation(i.requirement.as_named_requirement(), i.parent)
+                        if isinstance(
+                            i.requirement,
+                            CondaRequirement,
+                        )
+                        else i
+                        for i in criterion.information
+                    ]
+                elif any(isinstance(i.requirement, CondaRequirement) for i in criterion.information):
+                    _req = as_conda_requirement(requirement)
         super()._add_to_criteria(criteria, _req, parent)
 
     def _get_updated_criteria(self, candidate):
