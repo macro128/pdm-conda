@@ -1,3 +1,5 @@
+import re
+
 import pytest
 
 DEPENDENCIES = dict(
@@ -12,6 +14,8 @@ DEPENDENCIES = dict(
         (["pytest"], []),
         ([], ["pytest-conda>=1.*"]),
         ([], ["pytest-conda>1.*"]),
+        ([], ["pytest~=1.0.0"]),
+        ([], ["pytest~=1.*"]),
     ],
     ids=[
         "different pkgs",
@@ -23,6 +27,8 @@ DEPENDENCIES = dict(
         "only pypi",
         "star >= specifier",
         "star > specifier",
+        "~= specifier",
+        "~= star specifier",
     ],
 )
 CONDA_MAPPING = dict(
@@ -124,12 +130,16 @@ class TestProject:
             conda_dependencies,
             as_default_manager=as_default_manager,
         )
-        project_requirements = project.get_dependencies(group)
-        for name, req in project_requirements.items():
-            conda_req = requirements[req.conda_name]
-            assert conda_req == req
-            assert isinstance(req, type(conda_req))
-        assert all("[" not in k for k in project_requirements)
+
+        for project_requirements in (project.get_dependencies(group), project.all_dependencies[group]):
+            for name, req in project_requirements.items():
+                conda_req = requirements[req.conda_name]
+                assert conda_req == req
+                assert isinstance(req, type(conda_req))
+                if "~=" in str(req.specifier):
+                    line = conda_req.as_line(conda_compatible=True)
+                    assert re.match(r".+==[\w.*]+,>=[\w.]+.*", line)
+            assert all("[" not in k for k in project_requirements)
 
     @pytest.mark.parametrize(**DEPENDENCIES)
     @pytest.mark.parametrize(**GROUPS)

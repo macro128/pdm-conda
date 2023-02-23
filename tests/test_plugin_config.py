@@ -3,34 +3,44 @@ from pdm.exceptions import ProjectError
 
 
 class TestPluginConfig:
-    def test_set_configs(self, project, mocker):
+    @pytest.mark.parametrize(
+        ("config_name", "config_value"),
+        [
+            ("channels", []),
+            ("channels", ["defaults"]),
+            ("channels", ["other"]),
+            ("channels", None),
+            ("dependencies", ["package"]),
+            ("dev-dependencies", {"dev": ["package"]}),
+            ("optional-dependencies", {"other": ["package"]}),
+        ],
+    )
+    def test_set_configs(self, project, mocker, config_name, config_value):
         """
         Test settings configs correctly
         """
 
-        config_name = "channels"
         config = project.conda_config
         subscribed = mocker.spy(project.pyproject._data, "update")
-        values = [[], ["defaults"], ["other"], None]
-        for v in values:
-            assert_v = v or []
-            project.pyproject._data.update(
-                {
-                    "tool": {
-                        "pdm": {
-                            "conda": {config_name: v},
-                        }
-                        if v is not None
-                        else dict(),
-                    },
+        assert_value = config_value or []
+        project.pyproject._data.update(
+            {
+                "tool": {
+                    "pdm": {
+                        "conda": {config_name: config_value},
+                    }
+                    if config_value is not None
+                    else dict(),
                 },
-            )
-            assert getattr(config, config_name) == assert_v
+            },
+        )
+        conda_config_name = config_name.replace("-", "_")
+        assert getattr(config, conda_config_name) == assert_value
 
-        assert subscribed.call_count == len(values)
-        for v in values[:-1]:
-            setattr(config, config_name, v)
-            assert v == project.pyproject.settings["conda"][config_name]
+        assert subscribed.call_count == 1
+        if config_value is not None:
+            setattr(config, conda_config_name, config_value)
+            assert config_value == project.pyproject.settings["conda"][config_name]
 
     @pytest.mark.parametrize("channels", [[], ["conda-forge"]])
     @pytest.mark.parametrize("runner", ["micromamba", "mamba", "conda", None])
