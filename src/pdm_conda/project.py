@@ -14,8 +14,8 @@ from tomlkit.items import Array
 from pdm_conda.models.config import PluginConfig
 from pdm_conda.models.requirements import (
     CondaRequirement,
-    NamedRequirement,
     Requirement,
+    as_conda_requirement,
     parse_requirement,
 )
 
@@ -61,6 +61,14 @@ class CondaProject(Project):
             deps = settings.setdefault(f"{name}-dependencies", dict()).setdefault(group, [])
         return deps
 
+    def iter_groups(self) -> Iterable[str]:
+        groups = set(super().iter_groups())
+        config = self.conda_config
+        for deps in (config.optional_dependencies, config.dev_dependencies):
+            if deps:
+                groups.update(deps.keys())
+        return groups
+
     def get_dependencies(self, group: str | None = None) -> dict[str, Requirement]:
         result = super().get_dependencies(group)
 
@@ -90,13 +98,8 @@ class CondaProject(Project):
         if self.conda_config.as_default_manager:
             for k in list(result):
                 req = result[k]
-                if (
-                    req.name not in self.conda_config.excluded
-                    and isinstance(req, NamedRequirement)
-                    and not isinstance(req, CondaRequirement)
-                ):
-                    req.name = req.conda_name
-                    result[k] = parse_requirement(f"conda:{req.as_line()}")
+                if req.name not in self.conda_config.excluded and not isinstance(req, CondaRequirement):
+                    result[k] = as_conda_requirement(req)
 
         return result
 
