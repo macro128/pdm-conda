@@ -11,7 +11,7 @@ from pdm_conda.models.environment import CondaEnvironment, Environment
 from pdm_conda.models.requirements import (
     CondaRequirement,
     NamedRequirement,
-    parse_requirement,
+    as_conda_requirement,
 )
 from pdm_conda.plugin import conda_search
 
@@ -21,31 +21,32 @@ class CondaRepository(BaseRepository):
         super().__init__(sources, environment, ignore_compatibility)
         self.environment = cast(CondaEnvironment, environment)
 
+    def _uses_conda(self, requirement: Requirement) -> bool:
+        """
+        True if requirement is conda requirement or (not excluded and named requirement
+        and conda as default manager or used by another conda requirement)
+        :param requirement: requirement to evaluate
+        """
+        conda_config = self.environment.project.conda_config
+        return isinstance(requirement, CondaRequirement) or (
+            isinstance(requirement, NamedRequirement)
+            and conda_config.as_default_manager
+            and requirement.name not in conda_config.excluded
+        )
+
     def get_dependencies(self, candidate: Candidate) -> tuple[list[Requirement], PySpecSet, str]:
         if isinstance(candidate, CondaCandidate):
             dependencies = list(candidate.dependencies)
+            # if dep in constrains use constrain
             if candidate.constrains:
                 for i, dep in enumerate(dependencies):
                     if (constrain := candidate.constrains.get(dep.identify(), None)) is not None:
                         dependencies[i] = constrain
-            return (
-                dependencies,
-                PySpecSet(candidate.requires_python),
-                candidate.summary,
-            )
-        requirements, requires_python, summary = super().get_dependencies(candidate)
-        conda_conf = self.environment.project.conda_config
-        if conda_conf.as_default_manager:
-            for i, req in enumerate(requirements):
-                if (
-                    req.name not in conda_conf.excluded
-                    and isinstance(req, NamedRequirement)
-                    and not isinstance(req, CondaRequirement)
-                ):
-                    req.marker = None
-                    req.name = req.conda_name
-                    requirements[i] = parse_requirement(f"conda:{req.as_line()}")
-        return requirements, requires_python, summary
+            requires_python = PySpecSet(candidate.requires_python)
+            summary = candidate.summary
+        else:
+            dependencies, requires_python, summary = super().get_dependencies(candidate)
+        return dependencies, requires_python, summary
 
     def get_hashes(self, candidate: Candidate) -> dict[Link, str] | None:
         if isinstance(candidate, CondaCandidate):
@@ -55,12 +56,11 @@ class CondaRepository(BaseRepository):
 
 class PyPICondaRepository(PyPIRepository, CondaRepository):
     def _find_candidates(self, requirement: Requirement) -> Iterable[Candidate]:
-        if isinstance(requirement, CondaRequirement):
+        if self._uses_conda(requirement):
+            requirement = as_conda_requirement(requirement)
             candidates = conda_search(requirement, self.environment.project)
         else:
             candidates = super()._find_candidates(requirement)
-        if (req := self.environment.python_requirements.get(requirement.conda_name, None)) is not None:
-            candidates = [c for c in candidates if req.specifier.contains(c.version)]
         return candidates
 
 
@@ -75,11 +75,7 @@ class LockedCondaRepository(LockedRepository, CondaRepository):
             can = CondaCandidate.from_lock_package(package)
             can_id = self._identify_candidate(can)
             self.packages[can_id] = can
-            self.candidate_info[can_id] = (
-                [d.as_line(as_conda=True, with_build_string=True) for d in can.dependencies],
-                package.get("requires_python", ""),
-                "",
-            )
+            self.candidate_info[can_id] = (can.dependencies_lines, package.get("requires_python", ""), "")
 
     def _identify_candidate(self, candidate: Candidate) -> tuple:
         if isinstance(candidate, CondaCandidate):
