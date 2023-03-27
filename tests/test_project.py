@@ -14,8 +14,8 @@ DEPENDENCIES = dict(
         (["pytest"], []),
         ([], ["pytest-conda>=1.*"]),
         ([], ["pytest-conda>1.*"]),
-        ([], ["pytest~=1.0.0"]),
-        ([], ["pytest~=1.*"]),
+        ([], ["pytest-conda~=1.0.0"]),
+        ([], ["pytest-conda~=1.*"]),
     ],
     ids=[
         "different pkgs",
@@ -152,24 +152,28 @@ class TestProject:
         group,
         mock_conda_mapping,
     ):
+        from pdm_conda.mapping import conda_to_pypi
+        from pdm_conda.models.requirements import CondaRequirement
+
         requirements = self._parse_requirements(dependencies, conda_dependencies)
 
         group_name = group if group == "default" else "dev"
         dev = group == "dev"
         project.add_dependencies(requirements, to_group=group_name, dev=dev)
         project_requirements = project.get_dependencies(group_name)
-        for name, req in project_requirements.items():
-            assert req == requirements[name]
-            assert isinstance(req, type(requirements[name]))
-
-        from pdm_conda.mapping import conda_to_pypi
+        for name, req in requirements.items():
+            assert req == project_requirements[name]
+            if isinstance(req, CondaRequirement) and req.is_python_package:
+                named_req = req.as_named_requirement()
+                if named_req.name != req.name:
+                    assert named_req not in project_requirements
 
         if conda_dependencies:
             _dependencies, _ = project.get_pyproject_dependencies(group_name, dev)
             _conda_dependencies = project.get_conda_pyproject_dependencies(group_name, dev)
             for d in conda_dependencies:
                 asserted = 0
-                d = d.split("[")[0].split("=")[0].split(">")[0].split("::")[-1]
+                d = d.split("[")[0].split("=")[0].split(">")[0].split("~")[0].split("::")[-1]
                 for c in (_conda_dependencies, _dependencies):
                     for r in c:
                         if d in r or conda_to_pypi(d) in r:

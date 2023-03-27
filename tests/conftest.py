@@ -96,6 +96,16 @@ CONDA_INFO = [
 CONDA_MAPPING = [{f"{p['name']}-pip": p["name"] for p in CONDA_INFO[0] if p not in PYTHON_REQUIREMENTS}]
 
 
+@pytest.fixture(autouse=True)
+def test_name():
+    yield os.getenv("PYTEST_CURRENT_TEST").split(":")[-1]
+
+
+@pytest.fixture()
+def test_id(test_name):
+    yield test_name.split("[")[-1].split("]")[0]
+
+
 @pytest.fixture(name="core")
 def core_with_plugin(core, monkeypatch) -> Core:
     from pdm_conda import main
