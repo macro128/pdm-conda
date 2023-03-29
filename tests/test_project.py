@@ -39,6 +39,9 @@ CONDA_MAPPING = dict(
 GROUPS = dict(argnames="group", argvalues=["default", "dev", "optional"])
 
 
+@pytest.mark.parametrize(**DEPENDENCIES)
+@pytest.mark.parametrize(**GROUPS)
+@pytest.mark.parametrize(**CONDA_MAPPING)
 class TestProject:
     def _parse_requirements(
         self,
@@ -76,9 +79,6 @@ class TestProject:
             requirements[r.identify()] = r
         return requirements
 
-    @pytest.mark.parametrize(**DEPENDENCIES)
-    @pytest.mark.parametrize(**GROUPS)
-    @pytest.mark.parametrize(**CONDA_MAPPING)
     @pytest.mark.parametrize("as_default_manager", [False, True], ids=["", "as_default_manager"])
     def test_get_dependencies(
         self,
@@ -141,9 +141,6 @@ class TestProject:
                     assert re.match(r".+==[\w.*]+,>=[\w.]+.*", line)
             assert all("[" not in k for k in project_requirements)
 
-    @pytest.mark.parametrize(**DEPENDENCIES)
-    @pytest.mark.parametrize(**GROUPS)
-    @pytest.mark.parametrize(**CONDA_MAPPING)
     def test_add_dependencies(
         self,
         project,

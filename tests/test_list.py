@@ -1,18 +1,15 @@
-from contextlib import redirect_stdout
-from io import StringIO
-
 import pytest
 
 from tests.conftest import CONDA_INFO, CONDA_MAPPING
 
 
+@pytest.mark.parametrize("empty_conda_list", [False])
 class TestList:
     conda_runner = "micromamba"
 
     @pytest.mark.parametrize("conda_response", CONDA_INFO)
-    @pytest.mark.parametrize("empty_conda_list", [False])
     @pytest.mark.parametrize("conda_mapping", CONDA_MAPPING)
-    def test_list(self, core, project, mock_conda, conda_response, mock_conda_mapping):
+    def test_list(self, pdm, project, conda, conda_response, mock_conda_mapping):
         """
         Test `list` command work as expected
         """
@@ -29,13 +26,13 @@ class TestList:
                 },
             },
         )
-        command = ["list"]
-        with StringIO() as output:
-            with redirect_stdout(output):
-                core.main(command, obj=project)
+        result = pdm(["list"], obj=project)
+        assert result.exception is None
 
-            o = output.getvalue()
-            for p in conda_response:
-                assert p["name"] in o
+        for p in conda_response:
+            assert p["name"] in result.stdout
+        for (cmd,), _ in conda.call_args_list:
+            assert cmd[0] == self.conda_runner
+            assert cmd[1] == "list"
 
-        assert mock_conda.call_count == 1
+        assert conda.call_count == 1

@@ -1,3 +1,5 @@
+import re
+
 import pytest
 
 from tests.conftest import CONDA_INFO, CONDA_MAPPING, PYTHON_REQUIREMENTS
@@ -13,9 +15,9 @@ class TestInstall:
     @pytest.mark.parametrize("conda_mapping", CONDA_MAPPING)
     def test_install(
         self,
-        core,
+        pdm,
         project,
-        mock_conda,
+        conda,
         conda_response,
         dry_run,
         mock_conda_mapping,
@@ -23,39 +25,39 @@ class TestInstall:
         """
         Test `install` command work as expected
         """
-        dependency = conda_response[-1]["name"]
+        conda_response = [r for r in conda_response if r not in PYTHON_REQUIREMENTS]
         conf = project.conda_config
         conf.runner = self.conda_runner
-        conf.dependencies = [dependency]
+        conf.dependencies = [conda_response[-1]["name"]]
         command = ["install", "-v", "--no-self"]
         if dry_run:
             command.append("--dry-run")
-        core.main(command, obj=project)
+        result = pdm(command, obj=project)
+        assert result.exception is None
 
-        conda_calls = len({r["name"] for r in conda_response if r not in PYTHON_REQUIREMENTS})
+        packages_to_install = {r["name"]: None for r in conda_response}
+        num_installs = len(packages_to_install)
+        if dry_run:
+            out = "Packages to add:\n"
+            for p in packages_to_install:
+                out += f"\\s+- {p} [^\n]+\n"
+            assert re.search(out, result.stdout)
+        else:
+            assert f"{num_installs} to add" in result.stdout
+
         cmd_order = (
-            ["info", "search", "list"]
-            + ["search"] * (conda_calls + len(PYTHON_REQUIREMENTS) - 1)
+            ["list", "info", "search"]
+            + ["search"] * num_installs
             + ["list"]
-            + ["install"] * (0 if dry_run else conda_calls)
+            + ["install"] * (0 if dry_run else num_installs)
         )
-        assert mock_conda.call_count == len(cmd_order)
+        assert conda.call_count == len(cmd_order)
 
-        urls = []
-        i = 0
-        while i < len(conda_response):
-            if (p := conda_response[i]) not in PYTHON_REQUIREMENTS:
-                version = p["version"]
-                name = p["name"]
-                i += 1
-                while i < len(conda_response) and (other_p := conda_response[i])["name"] == name:
-                    if version == other_p["version"]:
-                        p = other_p
-                    i += 1
-                urls.append(format_url(p))
-            else:
-                i += 1
-        for (cmd,), kwargs in mock_conda.call_args_list:
+        urls = dict()
+        for p in conda_response:
+            urls[p["name"]] = format_url(p)
+        urls = list(urls.values())
+        for (cmd,), kwargs in conda.call_args_list:
             assert cmd[0] == self.conda_runner
             cmd_subcommand = cmd[1]
             assert cmd_subcommand == cmd_order.pop(0)

@@ -1,6 +1,5 @@
 """Configuration for the pytest test suite."""
 import os
-import re
 import sys
 from copy import deepcopy
 
@@ -126,7 +125,7 @@ def project(core, project_no_init, monkeypatch) -> Project:
     _project = project_no_init
     _project.global_config["check_update"] = False
     _project.global_config["pypi.json_api"] = True
-    _project.global_config["pypi.url"] = REPO_BASE
+    _project.global_config["pypi.url"] = f"{REPO_BASE}/simple"
     do_init(
         _project,
         name="test",
@@ -145,7 +144,7 @@ def pdm_run(core, pdm):
 
 
 @pytest.fixture(name="conda")
-def mock_conda(mocker, conda_response: dict | list, empty_conda_list: bool = False):
+def mock_conda(mocker, conda_response: dict | list, empty_conda_list: bool):
     if isinstance(conda_response, dict):
         conda_response = [conda_response]
     install_response = {
@@ -188,12 +187,15 @@ def mock_conda(mocker, conda_response: dict | list, empty_conda_list: bool = Fal
         else:
             return {"message": "ok"}
 
-    yield mocker.patch("pdm_conda.plugin.run_conda", side_effect=_mock)
+    yield mocker.patch("pdm_conda.conda.run_conda", side_effect=_mock)
 
 
 @pytest.fixture(name="pypi")
 def mock_pypi(mocked_responses):
-    def _mocker(conda_response, with_dependencies: list[str] | None = None):
+    def _mocker(conda_response, with_dependencies: bool | list[str] | None = None):
+        from pdm_conda.models.requirements import parse_conda_version
+
+        _responses = dict()
         if with_dependencies is None:
             with_dependencies = []
         for package in conda_response:
@@ -210,14 +212,15 @@ def mock_pypi(mocked_responses):
             for d in to_delete:
                 dependencies.remove(d)
             name = package["name"]
-            version = package["version"]
-            mocked_responses.get(
-                f"{REPO_BASE}/{name}/",
+            version = parse_conda_version(package["version"])
+            url = f"{REPO_BASE}/simple/{name}/"
+            _responses[url] = mocked_responses.get(
+                url,
                 content_type="application/vnd.pypi.simple.v1+json",
                 json=dict(
                     files=[
                         {
-                            "url": f"{name}#egg={name}-{re.sub('[a-z]', '', version)}",
+                            "url": f"{name}#egg={name}-{version}",
                             "requires-python": requires_python,
                             "yanked": None,
                             "dist-info-metadata": False,
@@ -227,9 +230,12 @@ def mock_pypi(mocked_responses):
                 ),
             )
 
-            if name in with_dependencies:
-                mocked_responses.get(
-                    f"{REPO_BASE}/pypi/{name}/{version}/json",
+            if (isinstance(with_dependencies, bool) and with_dependencies) or (
+                isinstance(with_dependencies, list) and name in with_dependencies
+            ):
+                url = f"{REPO_BASE}/pypi/{name}/{version}/json"
+                _responses[url] = mocked_responses.get(
+                    url,
                     json=dict(
                         info=dict(
                             summary="",
@@ -239,12 +245,14 @@ def mock_pypi(mocked_responses):
                     ),
                 )
 
+            return _responses
+
     return _mocker
 
 
 @pytest.fixture
 def mocked_responses():
-    with responses.RequestsMock() as rsps:
+    with responses.RequestsMock(assert_all_requests_are_fired=False) as rsps:
         yield rsps
 
 
