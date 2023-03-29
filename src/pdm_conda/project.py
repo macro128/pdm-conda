@@ -70,7 +70,10 @@ class CondaProject(Project):
         return groups
 
     def get_dependencies(self, group: str | None = None) -> dict[str, Requirement]:
-        result = super().get_dependencies(group)
+        if group in super().iter_groups():
+            result = super().get_dependencies(group)
+        else:
+            result = dict()
 
         config = self.conda_config
         group = group or "default"
