@@ -1,7 +1,7 @@
 ARG env="prod"
 ARG app_env="app"
 ARG src=./
-ARG src_path="/app/src/"
+ARG src_path="/app/"
 # dev/build stage
 FROM mambaorg/micromamba:jammy AS dev
 
@@ -11,7 +11,7 @@ ARG MAMBA_DOCKERFILE_ACTIVATE=1
 ARG app_env
 ARG python_version="3.10.*"
 ARG pdm_version="2.4.*"
-ENV BIN_PATH=/opt/conda/bin_
+ENV BIN_PATH=/opt/conda/_bin
 RUN --mount=type=cache,target=/opt/conda/pkgs,id=mamba,mode=0775,uid=1000,gid=1000,sharing=locked \
     micromamba install -y python==3.10.* pdm==${pdm_version} git -n base -c conda-forge && \
     micromamba create -y -n ${app_env} python==${python_version} -c conda-forge && \

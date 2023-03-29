@@ -7,4 +7,4 @@ services:
     platform: linux/arm64
     user: root
     volumes:
-      - ../:/app/src/
+      - ../:/app/
