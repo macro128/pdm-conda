@@ -6,6 +6,7 @@ from pdm.models.requirements import Requirement
 from pdm.models.specifiers import PySpecSet
 from unearth import Link
 
+from pdm_conda.conda import conda_search
 from pdm_conda.models.candidates import Candidate, CondaCandidate
 from pdm_conda.models.environment import CondaEnvironment, Environment
 from pdm_conda.models.requirements import (
@@ -13,7 +14,6 @@ from pdm_conda.models.requirements import (
     NamedRequirement,
     as_conda_requirement,
 )
-from pdm_conda.plugin import conda_search
 
 
 class CondaRepository(BaseRepository):

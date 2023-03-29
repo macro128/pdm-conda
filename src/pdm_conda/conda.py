@@ -1,13 +1,11 @@
 import json
 import subprocess
 from functools import lru_cache
-from tempfile import NamedTemporaryFile, TemporaryDirectory
-from typing import cast
+from tempfile import NamedTemporaryFile
 from urllib.parse import urlparse
 
 from pdm.exceptions import RequirementError
 from pdm.models.setup import Setup
-from pdm.project import Project
 
 from pdm_conda.models.candidates import CondaCandidate
 from pdm_conda.models.requirements import (
@@ -161,84 +159,6 @@ def update_requirements(requirements: list[Requirement], conda_packages: dict[st
             repeated_packages.pop(r.name)
     for r in to_remove:
         requirements.remove(r)
-
-
-def lock_conda_dependencies(project: Project, requirements: list[Requirement], **kwargs):
-    """
-    Overwrite requirements with conda versions if needed in lock
-    :param project: PDM project
-    :param requirements: requirements list
-    """
-    project = cast(CondaProject, project)
-    config = project.conda_config
-    if not config.is_initialized:
-        return
-
-    _requirements = [r for r in requirements if isinstance(r, CondaRequirement)]
-    if 0 < len(_requirements) < len(requirements):
-        python_req = f"python=={project.python.version}"
-        working_set = project.environment.get_working_set()
-        if "python" in working_set:
-            python_req = working_set["python"].as_line()
-        _requirements.insert(0, parse_requirement(f"conda:{python_req}"))
-        with TemporaryDirectory() as d:
-            prefix = f"{d}/env"
-            run_conda(config.command("create") + ["--prefix", prefix, "--json"])
-            project.core.ui.echo(f"Created temporary environment at {prefix}")
-            try:
-                conda_packages = conda_lock(project, _requirements, prefix)
-            finally:
-                run_conda(config.command("remove") + ["--prefix", prefix, "--json"])
-                project.core.ui.echo(f"Removed temporary environment at {prefix}")
-    else:
-        conda_packages = {}
-        for r in _requirements:
-            if candidates := conda_search(r, project):
-                candidate = candidates[0]
-                conda_packages[candidate.name] = candidate
-
-    update_requirements(requirements, conda_packages)
-
-
-def conda_lock(
-    project: CondaProject,
-    requirements: list[CondaRequirement],
-    prefix: str,
-) -> dict[str, CondaCandidate]:
-    """
-    Resolve conda marked requirements
-    :param project: PDM project
-    :param requirements: list of requirements
-    :param prefix: environment prefix
-    :return: resolved packages
-    """
-    packages: dict[str, CondaCandidate] = dict()
-    config = project.conda_config
-    core = project.core
-    if not requirements:
-        return packages
-
-    core.ui.echo("Using conda to get: " + " ".join([r.as_line() for r in requirements if r.name != "python"]))
-    _requirements = [r.as_line(with_build_string=True, with_channel=True).replace(" ", "=") for r in requirements]
-    channels = config.channels or ["defaults"]
-    for req in requirements:
-        if req.channel is not None and req.channel not in channels:
-            channels.append(req.channel)
-    response = run_conda(
-        config.command() + ["--force-reinstall", "--json", "--dry-run", "--prefix", prefix],
-        channels=channels,
-        dependencies=_requirements,
-    )
-
-    if "actions" in response:
-        for package in response["actions"]["LINK"]:
-            package = CondaCandidate.from_conda_package(package)
-            packages[package.name] = package
-    else:
-        if (msg := response.get("message", None)) is not None:
-            core.ui.echo(msg)
-
-    return packages
 
 
 def _conda_install(

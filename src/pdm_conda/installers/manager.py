@@ -5,10 +5,10 @@ from installer.exceptions import InstallerError
 from pdm.exceptions import RequirementError, UninstallError
 from pdm.installers import InstallManager
 
+from pdm_conda.conda import conda_install, conda_uninstall
 from pdm_conda.models.candidates import Candidate, CondaCandidate
 from pdm_conda.models.environment import CondaEnvironment, Environment
 from pdm_conda.models.setup import CondaSetupDistribution
-from pdm_conda.plugin import conda_install, conda_uninstall
 
 
 class CondaInstallManager(InstallManager):

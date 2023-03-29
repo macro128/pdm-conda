@@ -6,9 +6,9 @@ from pdm.models.requirements import Requirement
 from pdm.models.working_set import WorkingSet
 from pdm.project import Project
 
+from pdm_conda.conda import conda_list, conda_search
 from pdm_conda.mapping import pypi_to_conda
 from pdm_conda.models.candidates import CondaCandidate
-from pdm_conda.plugin import conda_list, conda_search
 from pdm_conda.project import CondaProject
 from pdm_conda.utils import normalize_name
 
