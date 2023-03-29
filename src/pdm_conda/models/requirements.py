@@ -67,10 +67,13 @@ class CondaRequirement(NamedRequirement):
             operator = s.operator
             version = self.version_mapping.get(s.version, s.version)
             if conda_compatible and operator == "~=":
-                operator = "=="
+                operator = "="
                 if len(parts := version.split(".")) > 0:
                     if parts[-1] == "*":
                         version = f"{'.'.join(parts[:-1])}.0"
+                    # special releases are omitted
+                    if len(parts) > 2 and re.search(r"(a|b|rc|dev|post|rev|alpha|beta|preview|pre)\d", parts[-1]):
+                        parts = parts[:-1]
                     version = f"{'.'.join(parts[:-1])}.*,>={version}"
             specifier += f"{operator}{version}"
         build_string = f" {self.build_string}" if with_build_string and self.build_string and specifier else ""
@@ -97,7 +100,7 @@ class CondaRequirement(NamedRequirement):
 
 
 def as_conda_requirement(requirement: NamedRequirement | CondaRequirement) -> Requirement:
-    if isinstance(requirement, NamedRequirement):
+    if isinstance(requirement, NamedRequirement) and not isinstance(requirement, CondaRequirement):
         req = copy(requirement)
         req.marker = None
         req.name = req.conda_name

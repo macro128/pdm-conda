@@ -138,7 +138,7 @@ class TestProject:
                 assert isinstance(req, type(conda_req))
                 if "~=" in str(req.specifier):
                     line = conda_req.as_line(conda_compatible=True)
-                    assert re.match(r".+==[\w.*]+,>=[\w.]+.*", line)
+                    assert re.match(r".+=[\w.*]+,>=[\w.]+.*", line)
             assert all("[" not in k for k in project_requirements)
 
     def test_add_dependencies(

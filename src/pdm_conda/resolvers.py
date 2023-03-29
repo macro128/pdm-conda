@@ -2,12 +2,8 @@ from copy import copy
 from dataclasses import dataclass, field
 
 from packaging.version import Version
-from resolvelib.resolvers import (  # type: ignore
-    RequirementInformation,
-    Resolution,
-    Resolver,
-    _build_result,
-)
+from resolvelib.resolvers import _build_result  # type: ignore
+from resolvelib.resolvers import RequirementInformation, Resolution, Resolver
 
 from pdm_conda.models.candidates import CondaCandidate
 from pdm_conda.models.environment import CondaEnvironment
@@ -49,6 +45,8 @@ class CondaResolution(Resolution):
         if (constrain := constrains.get(requirement.conda_name, None)) is not None:
             _req = copy(constrain)
             _req.specifier &= requirement.specifier
+            if isinstance(requirement, CondaRequirement):
+                _req.channel = requirement.channel
         identifier = self._p.identify(_req)
         if criterion := criteria.get(identifier):
             excluded = self._p.repository.environment.project.conda_config.excluded
@@ -85,6 +83,7 @@ class CondaResolution(Resolution):
 
     def _get_updated_criteria(self, candidate):
         criteria = super()._get_updated_criteria(candidate)
+        # update previous constrain if exists
         if isinstance(candidate, CondaCandidate):
             for identifier, constrain in candidate.constrains.items():
                 if identifier != "python":
