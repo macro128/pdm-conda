@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.6.0] - 29/03/2023
+
+### Added
+
+- New Provider classes to override packages search preference.
+
+### Changed
+
+- Now project `python_requires` matches the installed python version.
+- Avoid using `conda lock`.
+
+### Fixed
+
+- Duplicated channels on `pdm add`.
+- Virtual packages are parsed as any other requirement.
+- `CondaProject.iter_groups` includes conda dependency groups.
+
 ## [0.5.3] - 25/01/2023
 
 ### Fixed
