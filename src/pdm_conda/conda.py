@@ -8,6 +8,7 @@ from pdm.exceptions import RequirementError
 from pdm.models.setup import Setup
 
 from pdm_conda.models.candidates import CondaCandidate
+from pdm_conda.models.config import CondaRunner
 from pdm_conda.models.requirements import (
     CondaRequirement,
     Requirement,
@@ -47,9 +48,7 @@ def run_conda(cmd, **environment) -> dict:
             process.check_returncode()
         except subprocess.CalledProcessError:
             msg = "Error locking dependencies\n"
-            if isinstance(response, dict):
-                if response.get("success", False):
-                    pass
+            if isinstance(response, dict) and not response.get("success", False):
                 if err := response.get("solver_problems", []):
                     msg += "\n".join(err)
                 elif err := response.get("message", []):
@@ -74,18 +73,25 @@ def _conda_search(
     :param channels: requirement channels
     :return: list of conda candidates
     """
-    command = project.conda_config.command("search")
+    config = project.conda_config
+    command = config.command("search")
     if not project.virtual_packages:
         project.virtual_packages = conda_virtual_packages(project)
 
     command.append(requirement)
     for c in channels:
         command.extend(["-c", c])
+    if channels:
+        command.append("--override-channels")
     command.append("--json")
     result = run_conda(command)
     candidates = []
     # sort values per build number (greater first)
-    packages = result.get("result", dict()).get("pkgs", [])
+    if config.runner != CondaRunner.MICROMAMBA:
+        packages = list(result.values())
+        packages = packages[0] if len(packages) == 1 else []
+    else:
+        packages = result.get("result", dict()).get("pkgs", [])
     _packages: dict[tuple, list] = dict()
     for p in packages:
         name = p["name"]
@@ -136,7 +142,7 @@ def conda_search(
         requirement = requirement.as_line(with_build_string=True, conda_compatible=True).replace(" ", "=")
     if "::" in requirement:
         channel, requirement = requirement.split("::", maxsplit=1)
-    channels = [channel] if channel else (project.conda_config.channels or ["defaults"])
+    channels = [channel] if channel else project.conda_config.channels
     return _conda_search(requirement, project, tuple(channels))
 
 
@@ -200,7 +206,7 @@ def conda_install(
         command.append("--dry-run")
     if config.installation_method == "copy":
         _copy = "copy"
-        if config.runner == "micromamba":
+        if config.runner == CondaRunner.MICROMAMBA:
             _copy = f"always-{_copy}"
         command.append(f"--{_copy}")
 
@@ -226,7 +232,7 @@ def conda_uninstall(
     command = config.command("remove")
     if no_deps:
         _prune = "no-prune"
-        if config.runner == "conda":
+        if config.runner != CondaRunner.MICROMAMBA:
             _prune = "force-remove"
         command.append(f"--{_prune}")
     if dry_run:
@@ -249,8 +255,11 @@ def conda_virtual_packages(project: CondaProject) -> set[CondaRequirement]:
     virtual_packages = set()
     if config.is_initialized:
         info = run_conda(config.command("info") + ["--json"])
-        # todo: fix conda
-        virtual_packages = {parse_requirement(f"conda:{p}") for p in info["virtual packages"]}
+        if config.runner == CondaRunner.CONDA:
+            _virtual_packages = {"=".join(p) for p in info["virtual_pkgs"]}
+        else:
+            _virtual_packages = set(info["virtual packages"])
+        virtual_packages = {parse_requirement(f"conda:{p}") for p in _virtual_packages}
     return virtual_packages
 
 

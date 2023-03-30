@@ -19,7 +19,7 @@ class CondaSetupDistribution(SetupDistribution):
         channel = self.package.get("channel", "")
         if channel:
             channel += "::"
-        build_string = self.package.get("build_string", "")
+        build_string = self.package.get("build", "")
         if build_string:
             build_string = f" {build_string}"
         version = self.package.get("version", "")

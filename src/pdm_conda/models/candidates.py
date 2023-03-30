@@ -141,7 +141,7 @@ class CondaCandidate(Candidate):
         url = package["url"]
         for k, v in hashes.items():
             url += f"#{k}={v}"
-        name, version, build_string = package["name"], package["version"], package.get("build_string", "")
+        name, version, build_string = package["name"], package["version"], package.get("build", "")
         channel = package["channel"]
         req = parse_requirement(f"conda:{name} {version} {build_string}")
         req.is_python_package = requires_python is not None
