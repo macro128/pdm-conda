@@ -1,6 +1,7 @@
 import os
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from enum import Enum
 from functools import wraps
 from pathlib import Path
 from typing import Any
@@ -51,6 +52,12 @@ def is_conda_config_initialized(project: Project):
     return "conda" in project.pyproject.settings
 
 
+class CondaRunner(str, Enum):
+    CONDA = "conda"
+    MAMBA = "mamba"
+    MICROMAMBA = "micromamba"
+
+
 @dataclass
 class PluginConfig:
     _project: Project = field(repr=False, default=None)
@@ -68,7 +75,7 @@ class PluginConfig:
     mapping_download_dir: Path = field(repr=False, default=Path())
 
     def __post_init__(self):
-        if self.runner not in ["conda", "micromamba", "mamba"]:
+        if self.runner not in list(CondaRunner):
             raise ProjectError(f"Invalid Conda runner: {self.runner}")
         if self.installation_method not in ["hard-link", "copy"]:
             raise ProjectError(f"Invalid Conda installation method: {self.installation_method}")
@@ -163,6 +170,6 @@ class PluginConfig:
         :return: args list
         """
         _command = [self.runner, cmd, "-y"]
-        if cmd in ("install", "create") or (cmd == "search" and self.runner != "conda"):
+        if cmd in ("install", "create") or (cmd == "search" and self.runner == CondaRunner.MICROMAMBA):
             _command.append("--strict-channel-priority")
         return _command
