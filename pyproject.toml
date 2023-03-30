@@ -34,6 +34,7 @@ dev = [
 
 [project.urls]
 Homepage = "https://github.com/macro128/pdm-conda"
+Changelog = "https://github.com/macro128/pdm-conda/blob/main/CHANGELOG.md"
 
 [project.entry-points.pdm]
 conda = "pdm_conda:main"
