@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.1] - 29/03/2023
+
+### Fixed
+
+- Improved compatibility with `conda` and `mamba` commands.
+
 ## [0.6.0] - 29/03/2023
 
 ### Added
