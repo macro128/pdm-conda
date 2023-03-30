@@ -22,7 +22,7 @@ PYTHON_REQUIREMENTS = [
         "url": f"{REPO_BASE}/channel/lib2",
         "channel": f"{REPO_BASE}/channel",
         "sha256": "this-is-a-hash",
-        "build_string": "lib2",
+        "build": "lib2",
     },
     {
         "name": "openssl",
@@ -32,7 +32,7 @@ PYTHON_REQUIREMENTS = [
         "url": f"{REPO_BASE}/channel/lib2",
         "channel": f"{REPO_BASE}/channel",
         "sha256": "this-is-a-hash",
-        "build_string": "lib2",
+        "build": "lib2",
     },
     {
         "name": "lib",
@@ -42,7 +42,7 @@ PYTHON_REQUIREMENTS = [
         "url": f"{REPO_BASE}/channel/lib",
         "channel": f"{REPO_BASE}/channel",
         "sha256": "this-is-a-hash",
-        "build_string": "lib",
+        "build": "lib",
     },
     {
         "name": "python",
@@ -52,7 +52,7 @@ PYTHON_REQUIREMENTS = [
         "url": f"{REPO_BASE}/channel/python",
         "channel": f"{REPO_BASE}/channel",
         "sha256": "this-is-a-hash",
-        "build_string": "python",
+        "build": "python",
     },
 ]
 PYTHON_PACKAGE = PYTHON_REQUIREMENTS[-1]
@@ -67,7 +67,7 @@ CONDA_INFO = [
             "url": f"{REPO_BASE}/channel/another-dep",
             "channel": f"{REPO_BASE}/channel",
             "sha256": "this-is-a-hash",
-            "build_string": "another-dep",
+            "build": "another-dep",
         },
         {
             "name": "another-dep",
@@ -77,7 +77,7 @@ CONDA_INFO = [
             "url": f"{REPO_BASE}/channel/another-dep",
             "channel": f"{REPO_BASE}/channel",
             "sha256": "this-is-a-hash",
-            "build_string": "another-dep",
+            "build": "another-dep",
         },
         {
             "name": "dep",
@@ -87,7 +87,7 @@ CONDA_INFO = [
             "url": f"{REPO_BASE}/channel/dep",
             "channel": f"{REPO_BASE}/channel",
             "sha256": "this-is-a-hash",
-            "build_string": "dep",
+            "build": "dep",
         },
     ],
 ]
@@ -154,7 +154,7 @@ def mock_conda(mocker, conda_response: dict | list, empty_conda_list: bool):
     }
 
     def _mock(cmd, **kwargs):
-        subcommand = cmd[1]
+        runner, subcommand, *_ = cmd
         if subcommand == "install":
             return deepcopy(install_response)
         elif subcommand == "list":
@@ -172,6 +172,16 @@ def mock_conda(mocker, conda_response: dict | list, empty_conda_list: bool):
                     p["channel"] = p["channel"].split("/")[-1]
             return res
         elif subcommand == "info":
+            if runner != "micromamba":
+                return {
+                    "virtual_pkgs": [
+                        ["__unix", "0", "0"],
+                        ["__linux", "5.10.109", "0"],
+                        ["__glibc", "2.35", "0"],
+                        ["__archspec", "1", "aarch64"],
+                    ],
+                }
+
             return {
                 "virtual packages": [
                     "__unix=0=0",
@@ -183,7 +193,10 @@ def mock_conda(mocker, conda_response: dict | list, empty_conda_list: bool):
         elif subcommand == "search":
             name = next(filter(lambda x: not x.startswith("-"), cmd[2:]))
             name = name.split(">")[0].split("<")[0].split("=")[0].split("~")[0]
-            return {"result": {"pkgs": [deepcopy(p) for p in conda_response if p["name"] == name]}}
+            packages = [deepcopy(p) for p in conda_response if p["name"] == name]
+            if runner != "micromamba":
+                return {name: packages}
+            return {"result": {"pkgs": packages}}
         else:
             return {"message": "ok"}
 

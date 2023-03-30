@@ -12,12 +12,11 @@ from tests.conftest import (
 
 
 @pytest.mark.parametrize("empty_conda_list", [False])
+@pytest.mark.parametrize("runner", ["conda", "micromamba"])
 @pytest.mark.parametrize("conda_mapping", CONDA_MAPPING)
 @pytest.mark.parametrize("conda_response", CONDA_INFO)
 @pytest.mark.parametrize("group", ["default", "dev", "other"])
 class TestLock:
-    conda_runner = "micromamba"
-
     @pytest.mark.parametrize("add_conflict", [True, False])
     def test_lock(
         self,
@@ -25,6 +24,7 @@ class TestLock:
         project,
         conda,
         conda_response,
+        runner,
         pypi,
         group,
         add_conflict,
@@ -39,7 +39,7 @@ class TestLock:
         python_dependencies = {c["name"] for c in PYTHON_REQUIREMENTS}
         conda_packages = [c for c in conda_response if c["name"] not in python_dependencies]
         config = project.conda_config
-        config.runner = self.conda_runner
+        config.runner = runner
 
         packages = {group: [conda_packages[-1]["name"]]}
         if group != "default":
@@ -75,7 +75,7 @@ class TestLock:
         # first subcommands are for python dependency and virtual packages
         cmd_order = ["list", "info"]
         packages_to_search = {
-            f"{PYTHON_PACKAGE['name']}=={PYTHON_PACKAGE['version']}={PYTHON_PACKAGE['build_string']}",
+            f"{PYTHON_PACKAGE['name']}=={PYTHON_PACKAGE['version']}={PYTHON_PACKAGE['build']}",
             *requirements,
         }
         for c in conda_packages:
@@ -88,7 +88,7 @@ class TestLock:
 
         assert conda.call_count == len(cmd_order)
         for (cmd,), kwargs in conda.call_args_list:
-            assert cmd[0] == self.conda_runner
+            assert cmd[0] == runner
             assert (cmd_subcommand := cmd[1]) == cmd_order.pop(0)
             if cmd_subcommand == "search":
                 # assert packaged is search
@@ -101,6 +101,17 @@ class TestLock:
         for p in packages:
             assert p["name"] in packages_to_search
 
-    def test_lock_refresh(self, pdm, project, conda, conda_response, pypi, group, mock_conda_mapping):
-        self.test_lock(pdm, project, conda, conda_response, pypi, group, False, mock_conda_mapping)
-        self.test_lock(pdm, project, conda, conda_response, pypi, group, False, mock_conda_mapping, refresh=True)
+    def test_lock_refresh(self, pdm, project, conda, conda_response, runner, pypi, group, mock_conda_mapping):
+        self.test_lock(pdm, project, conda, conda_response, runner, pypi, group, False, mock_conda_mapping)
+        self.test_lock(
+            pdm,
+            project,
+            conda,
+            conda_response,
+            runner,
+            pypi,
+            group,
+            False,
+            mock_conda_mapping,
+            refresh=True,
+        )

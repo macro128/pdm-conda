@@ -8,12 +8,12 @@ from tests.conftest import CONDA_INFO, CONDA_MAPPING, PYTHON_REQUIREMENTS
 @pytest.mark.parametrize("conda_response", CONDA_INFO)
 @pytest.mark.parametrize("empty_conda_list", [False])
 @pytest.mark.parametrize("conda_mapping", CONDA_MAPPING)
+@pytest.mark.parametrize("runner", [None, "micromamba", "conda"])
 class TestAddRemove:
-    conda_runner = "micromamba"
+    default_runner = "micromamba"
 
     @pytest.mark.parametrize("packages", [["dep"], ["dep", "another-dep"], ["channel::dep", "another-dep"]])
     @pytest.mark.parametrize("channel", [None, "another_channel"])
-    @pytest.mark.parametrize("runner", [None, "micromamba"])
     def test_add(self, pdm, project, conda, conda_response, packages, channel, runner, mock_conda_mapping):
         """
         Test `add` command work as expected
@@ -22,8 +22,9 @@ class TestAddRemove:
 
         project = cast(CondaProject, project)
         conf = project.conda_config
-        conf.runner = runner or self.conda_runner
+        conf.runner = runner or self.default_runner
         conf.channels = []
+        project.pyproject.write(False)
         command = ["add", "-v", "--no-self", "--no-sync"]
         for package in packages:
             command.extend(["--conda", package])
@@ -32,7 +33,7 @@ class TestAddRemove:
         if runner:
             command += ["--runner", runner]
         else:
-            runner = self.conda_runner
+            runner = self.default_runner
         pdm(command, obj=project)
 
         project.pyproject.reload()
@@ -58,8 +59,8 @@ class TestAddRemove:
             assert any(True for d in dependencies if _package in d)
 
     @pytest.mark.parametrize("packages", [["dep"], ["dep", "another-dep"], ["channel::dep"]])
-    def test_remove(self, pdm, project, conda, conda_response, packages, mock_conda_mapping):
-        self.test_add(pdm, project, conda, conda_response, packages, None, None, mock_conda_mapping)
+    def test_remove(self, pdm, project, conda, conda_response, packages, runner, mock_conda_mapping):
+        self.test_add(pdm, project, conda, conda_response, packages, None, runner, mock_conda_mapping)
         conda.reset_mock()
         pdm(["remove", "--no-self"] + packages, obj=project)
         conda_calls = len({p["name"] for p in conda_response}) - len(PYTHON_REQUIREMENTS)
@@ -73,9 +74,9 @@ class TestAddRemove:
             )
         assert conda.call_count == len(cmd_order)
         packages = [p["name"] for p in conda_response]
-        python_packages = [f"{p['name']}=={p['version']}={p['build_string']}" for p in PYTHON_REQUIREMENTS]
+        python_packages = [f"{p['name']}=={p['version']}={p['build']}" for p in PYTHON_REQUIREMENTS]
         for (cmd,), kwargs in conda.call_args_list:
-            assert cmd[0] == self.conda_runner
+            assert cmd[0] == (runner or self.default_runner)
             cmd_subcommand = cmd[1]
             assert cmd_subcommand == cmd_order.pop(0)
             if cmd_subcommand in ("remove", "search"):
