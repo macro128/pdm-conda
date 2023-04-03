@@ -3,6 +3,7 @@ import json
 import subprocess
 from functools import lru_cache
 from tempfile import NamedTemporaryFile
+from typing import Iterable
 from urllib.parse import urlparse
 
 from pdm.exceptions import RequirementError
@@ -70,6 +71,48 @@ def run_conda(cmd, **environment) -> dict:
     return response
 
 
+def _sort_packages(packages: list[dict]) -> Iterable[dict]:
+    """
+    Sort packages following mamba specification
+    (https://mamba.readthedocs.io/en/latest/advanced_usage/package_resolution.html).
+    :param packages: list of conda packages
+    :return: sorted conda packages
+    """
+    if len(packages) <= 1:
+        return packages
+    _with_track_features = []
+    _sorted = []
+    _by_version: dict[str, list] = dict()
+
+    # get most recent version with timestamp
+    for p in packages:
+        pkgs = _by_version.setdefault(p["version"], [0, []])
+        if pkgs[0] < (ts := p.get("timestamp", 0)):
+            pkgs[0] = ts
+        pkgs[1].append(p)
+
+    # sort versions by timestamp
+    for _, pkgs in sorted(_by_version.values(), key=lambda x: x[0]):
+        # sort same version packages using build number
+        if len(pkgs) > 1:
+            _by_build_number: dict[int, list] = dict()
+            for p in pkgs:
+                _by_build_number.setdefault(p.get("build_number", 0), []).append(p)
+            pkgs.clear()
+            # sort same build number by timestamp
+            for n in sorted(_by_build_number.keys()):
+                pkgs.extend(sorted(_by_build_number[n], key=lambda p: p.get("timestamp", 0)))
+
+        # track_feature to bottom
+        for p in pkgs:
+            if p.get("track_feature", ""):
+                _with_track_features.append(p)
+            else:
+                _sorted.append(p)
+
+    return reversed(_with_track_features + _sorted)
+
+
 @lru_cache(maxsize=None)
 def _conda_search(
     requirement: str,
@@ -108,17 +151,8 @@ def _conda_search(
         packages = result.get(parse_requirement(f"conda:{requirement}").name, [])
     else:
         packages = result.get("result", dict()).get("pkgs", [])
-    _packages: dict[tuple, list] = dict()
-    for p in packages:
-        name = p["name"]
-        version = p["version"]
-        k = (name, version)
-        _packages.setdefault(k, []).append(p)
-    packages = []
-    for ps in _packages.values():
-        packages.extend(sorted(reversed(ps), key=lambda p: p["build_number"], reverse=True))
 
-    for p in packages:
+    for p in _sort_packages(packages):
         dependencies = p.get("depends", [])
         valid_candidate = True
         for d in dependencies:
