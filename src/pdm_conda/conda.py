@@ -1,3 +1,4 @@
+import contextlib
 import json
 import subprocess
 from functools import lru_cache
@@ -20,6 +21,14 @@ from pdm_conda.project import CondaProject
 from pdm_conda.utils import normalize_name
 
 
+@contextlib.contextmanager
+def _optional_temporary_file(environment: dict):
+    if environment:
+        with NamedTemporaryFile(mode="w+", suffix=".yml") as f:
+            yield f
+    yield
+
+
 def run_conda(cmd, **environment) -> dict:
     """
     Creates temporary environment file and run conda command
@@ -27,7 +36,7 @@ def run_conda(cmd, **environment) -> dict:
     :param environment: environment data
     :return: conda command response
     """
-    with NamedTemporaryFile(mode="w+", suffix=".yml") as f:
+    with _optional_temporary_file(environment) as f:
         if environment:
             for name, options in environment.items():
                 if options:
@@ -37,26 +46,27 @@ def run_conda(cmd, **environment) -> dict:
             f.seek(0)
             cmd = cmd + ["-f", f.name]
         process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
-        if "--json" in cmd:
-            try:
-                response = json.loads(process.stdout)
-            except:
-                response = {}
-        else:
-            response = {"message": process.stdout}
+    if "--json" in cmd:
         try:
-            process.check_returncode()
-        except subprocess.CalledProcessError:
-            msg = "Error locking dependencies\n"
-            if isinstance(response, dict) and not response.get("success", False):
-                if err := response.get("solver_problems", []):
-                    msg += "\n".join(err)
-                elif err := response.get("message", []):
-                    msg += err
-            else:
-                msg += process.stderr
-            msg += str(environment)
-            raise RequirementError(msg)
+            response = json.loads(process.stdout)
+        except:
+            response = {}
+    else:
+        response = {"message": process.stdout}
+    try:
+        process.check_returncode()
+    except subprocess.CalledProcessError as e:
+        msg = "Error locking dependencies\n"
+        if isinstance(response, dict) and not response.get("success", False):
+            if err := response.get("solver_problems", response.get("error", response.get("message", []))):
+                if isinstance(err, str):
+                    err = [err]
+                msg += "\n".join(err)
+        else:
+            msg += process.stderr
+        if environment:
+            msg += f"\n{environment}"
+        raise RequirementError(msg) from e
     return response
 
 
@@ -84,12 +94,18 @@ def _conda_search(
     if channels:
         command.append("--override-channels")
     command.append("--json")
-    result = run_conda(command)
+    try:
+        result = run_conda(command)
+    except RequirementError as e:
+        if "PackagesNotFoundError:" in str(e):
+            result = dict()
+        else:
+            raise
+
     candidates = []
     # sort values per build number (greater first)
     if config.runner != CondaRunner.MICROMAMBA:
-        packages = list(result.values())
-        packages = packages[0] if len(packages) == 1 else []
+        packages = result.get(parse_requirement(f"conda:{requirement}").name, [])
     else:
         packages = result.get("result", dict()).get("pkgs", [])
     _packages: dict[tuple, list] = dict()
@@ -255,11 +271,12 @@ def conda_virtual_packages(project: CondaProject) -> set[CondaRequirement]:
     virtual_packages = set()
     if config.is_initialized:
         info = run_conda(config.command("info") + ["--json"])
-        if config.runner == CondaRunner.CONDA:
+        if config.runner != CondaRunner.MICROMAMBA:
             _virtual_packages = {"=".join(p) for p in info["virtual_pkgs"]}
         else:
             _virtual_packages = set(info["virtual packages"])
-        virtual_packages = {parse_requirement(f"conda:{p}") for p in _virtual_packages}
+
+        virtual_packages = {parse_requirement(f"conda:{p.replace('=', '==', 1)}") for p in _virtual_packages}
     return virtual_packages
 
 
