@@ -28,7 +28,8 @@ def _optional_temporary_file(environment: dict):
     if environment:
         with NamedTemporaryFile(mode="w+", suffix=".yml") as f:
             yield f
-    yield
+    else:
+        yield
 
 
 def run_conda(cmd, **environment) -> dict:
