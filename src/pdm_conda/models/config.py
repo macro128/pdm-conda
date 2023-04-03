@@ -169,7 +169,9 @@ class PluginConfig:
         :param cmd: command, install by default
         :return: args list
         """
-        _command = [self.runner, cmd, "-y"]
+        _command = [self.runner, cmd]
+        if cmd in ("install", "create", "remove"):
+            _command.append("-y")
         if cmd in ("install", "create") or (cmd == "search" and self.runner == CondaRunner.MICROMAMBA):
             _command.append("--strict-channel-priority")
         return _command
