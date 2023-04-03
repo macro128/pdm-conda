@@ -19,4 +19,4 @@ def main(core: Core):
         core.add_config(name, config)
 
 
-__version__ = "0.7.0b0"
+__version__ = "0.7.0b1"
