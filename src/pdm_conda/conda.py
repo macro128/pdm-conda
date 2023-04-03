@@ -6,6 +6,7 @@ from tempfile import NamedTemporaryFile
 from typing import Iterable
 from urllib.parse import urlparse
 
+from packaging.version import Version
 from pdm.exceptions import RequirementError
 from pdm.models.setup import Setup
 
@@ -86,13 +87,14 @@ def _sort_packages(packages: list[dict]) -> Iterable[dict]:
 
     # get most recent version with timestamp
     for p in packages:
-        pkgs = _by_version.setdefault(p["version"], [0, []])
-        if pkgs[0] < (ts := p.get("timestamp", 0)):
-            pkgs[0] = ts
-        pkgs[1].append(p)
+        _by_version.setdefault(p["version"], []).append(p)
 
-    # sort versions by timestamp
-    for _, pkgs in sorted(_by_version.values(), key=lambda x: x[0]):
+    name = packages[0].get("name", "")
+    # sort by version
+    for _, pkgs in sorted(
+        _by_version.items(),
+        key=lambda x: Version(parse_conda_version(x[0], inverse=name != "openssl")),
+    ):
         # sort same version packages using build number
         if len(pkgs) > 1:
             _by_build_number: dict[int, list] = dict()

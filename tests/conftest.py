@@ -79,7 +79,7 @@ CONDA_INFO = [
             "channel": f"{REPO_BASE}/channel",
             "sha256": "this-is-a-hash",
             "build": "another-dep",
-            "timestamp": 1,
+            "timestamp": 3,
         },
         {
             "name": "another-dep",
@@ -90,7 +90,7 @@ CONDA_INFO = [
             "channel": f"{REPO_BASE}/channel",
             "sha256": "this-is-a-hash",
             "build": "another-dep",
-            "timestamp": 2,
+            "timestamp": 1,
         },
         {
             "name": "another-dep",
@@ -101,12 +101,12 @@ CONDA_INFO = [
             "channel": f"{REPO_BASE}/channel",
             "sha256": "this-is-a-hash",
             "build": "another-dep",
-            "timestamp": 3,
+            "timestamp": 2,
         },
         {
             "name": "dep",
             "build_number": 0,
-            "depends": ["python >=3.7", "another-dep ==1!0.0gg|==1!0.0g"],
+            "depends": ["python >=3.7", "another-dep ==1!0.1gg|==1!0.0g"],
             "version": "1.0.0",
             "url": f"{REPO_BASE}/channel/dep",
             "channel": f"{REPO_BASE}/channel",
