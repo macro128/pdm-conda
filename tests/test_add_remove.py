@@ -68,7 +68,7 @@ class TestAddRemove:
             # get working set + get python packages
             cmd_order = (
                 ["list", "list"]
-                + ["search"] * (len({p["name"] for p in PYTHON_REQUIREMENTS}) - 1)
+                + ["search" if runner == "conda" else "repoquery"] * (len({p["name"] for p in PYTHON_REQUIREMENTS}) - 1)
                 + ["remove"] * conda_calls
             )
         assert conda.call_count == len(cmd_order)
@@ -78,12 +78,12 @@ class TestAddRemove:
             assert cmd[0] == (runner or self.default_runner)
             cmd_subcommand = cmd[1]
             assert cmd_subcommand == cmd_order.pop(0)
-            if cmd_subcommand in ("remove", "search"):
-                name = next(filter(lambda x: not x.startswith("-"), cmd[2:]))
+            if cmd_subcommand in ("remove", "search", "repoquery"):
+                name = next(filter(lambda x: not x.startswith("-") and x != "search", cmd[2:]))
                 if cmd_subcommand == "remove":
                     assert name in packages
                     assert "-f" not in cmd
-                elif cmd_subcommand == "search":
+                elif cmd_subcommand in ("search", "repoquery"):
                     assert name in python_packages
 
         assert not cmd_order
