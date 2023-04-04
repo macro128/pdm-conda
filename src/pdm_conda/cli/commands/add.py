@@ -53,7 +53,7 @@ class Command(BaseCommand):
             existing_channels = config.channels
             if options.conda_runner:
                 config.runner = options.conda_runner
-            if channel not in existing_channels:
+            if channel and channel not in existing_channels:
                 existing_channels.append(channel)
                 config.channels = existing_channels
 

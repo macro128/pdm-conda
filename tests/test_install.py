@@ -7,9 +7,8 @@ from tests.utils import format_url
 
 
 class TestInstall:
-    conda_runner = "micromamba"
-
     @pytest.mark.parametrize("conda_response", CONDA_INFO)
+    @pytest.mark.parametrize("runner", ["conda", "micromamba"])
     @pytest.mark.parametrize("empty_conda_list", [True])
     @pytest.mark.parametrize("dry_run", [True, False])
     @pytest.mark.parametrize("conda_mapping", CONDA_MAPPING)
@@ -19,6 +18,7 @@ class TestInstall:
         project,
         conda,
         conda_response,
+        runner,
         dry_run,
         mock_conda_mapping,
     ):
@@ -27,7 +27,7 @@ class TestInstall:
         """
         conda_response = [r for r in conda_response if r not in PYTHON_REQUIREMENTS]
         conf = project.conda_config
-        conf.runner = self.conda_runner
+        conf.runner = runner
         conf.dependencies = [conda_response[-1]["name"]]
         command = ["install", "-v", "--no-self"]
         if dry_run:
@@ -58,7 +58,7 @@ class TestInstall:
             urls[p["name"]] = format_url(p)
         urls = list(urls.values())
         for (cmd,), kwargs in conda.call_args_list:
-            assert cmd[0] == self.conda_runner
+            assert cmd[0] == runner
             cmd_subcommand = cmd[1]
             assert cmd_subcommand == cmd_order.pop(0)
             if cmd_subcommand == "install":

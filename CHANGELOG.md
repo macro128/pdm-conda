@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.0] - 04/04/2023
+
+### Added
+
+- Sort packages following [mamba specification](https://mamba.readthedocs.io/en/latest/advanced_usage/package_resolution.html).
+
+### Fixed
+
+- Improved compatibility with `conda` and `mamba` commands.
+- Better conda error reports.
+- Parse conda packages version fixes.
+
 ## [0.6.0] - 29/03/2023
 
 ### Added

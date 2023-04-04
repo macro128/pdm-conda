@@ -40,6 +40,7 @@ class TestPluginConfig:
         assert subscribed.call_count == 1
         if config_value is not None:
             setattr(config, conda_config_name, config_value)
+            project.pyproject.write(False)
             assert config_value == project.pyproject.settings["conda"][config_name]
 
     @pytest.mark.parametrize("channels", [[], ["conda-forge"]])

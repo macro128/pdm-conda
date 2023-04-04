@@ -138,7 +138,6 @@ class CondaProject(Project):
                     deps.append(req)
                 else:
                     deps[matched_index] = req
-            self.conda_config.reload()
 
         super().add_dependencies(requirements, to_group, dev, show_message)
 

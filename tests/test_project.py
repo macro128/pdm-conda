@@ -16,6 +16,7 @@ DEPENDENCIES = dict(
         ([], ["pytest-conda>1.*"]),
         ([], ["pytest-conda~=1.0.0"]),
         ([], ["pytest-conda~=1.*"]),
+        ([], ["pytest-conda=1"]),
     ],
     ids=[
         "different pkgs",
@@ -29,6 +30,7 @@ DEPENDENCIES = dict(
         "star > specifier",
         "~= specifier",
         "~= star specifier",
+        "= specifier",
     ],
 )
 CONDA_MAPPING = dict(
@@ -65,6 +67,8 @@ class TestProject:
             r = parse_requirement(f"conda:{d}")
             if "::" in d:
                 assert d.endswith(r.as_line())
+            elif re.search(r"\w=\d", d):
+                assert r.as_line() == d.replace("=", "==") + ".*"
             else:
                 assert d.startswith(r.as_line())
             assert isinstance(r, CondaRequirement)
@@ -88,6 +92,7 @@ class TestProject:
         group,
         as_default_manager,
         mock_conda_mapping,
+        test_id,
     ):
         """
         Test get project dependencies with conda dependencies and correct parse requirements

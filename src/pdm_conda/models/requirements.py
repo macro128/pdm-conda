@@ -136,8 +136,15 @@ def parse_conda_version(version, inverse=False):
     return _conda_version_letter_re.sub(correct_conda_version, version)
 
 
-def remove_operator(version):
+def remove_operator(version: str) -> str:
     return _specifier_re.sub(r"\2", version)
+
+
+def comparable_version(version: str) -> Version:
+    version = remove_operator(version)
+    if version.endswith(".*"):
+        version = version[:-2]
+    return Version(version)
 
 
 def parse_requirement(line: str, editable: bool = False) -> Requirement:
@@ -181,13 +188,13 @@ def parse_requirement(line: str, editable: bool = False) -> Requirement:
                             else:
                                 s = "="
                             conda_version_or = f"{s}={conda_version_or}"
-                        _version = parse_conda_version(
-                            _conda_specifier_star_re.sub(correct_specifier_star, conda_version_or),
-                            name != "openssl",
-                        )
+                        _version = conda_version_or
+                        if not _version.startswith("=="):
+                            _version = _conda_specifier_star_re.sub(correct_specifier_star, _version)
+                        _version = parse_conda_version(_version, name != "openssl")
                         version_mapping[remove_operator(_version)] = remove_operator(conda_version_or)
                     version_or[j] = _version
-            version_and[i] = max((v for v in version_or if v), key=lambda v: Version(remove_operator(v)), default="")
+            version_and[i] = max((v for v in version_or if v), key=comparable_version, default="")
         version = ",".join(version_and)
         req = CondaRequirement.create(
             name=strip_extras(name.strip())[0],
