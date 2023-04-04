@@ -84,7 +84,7 @@ class TestLock:
                     packages_to_search.add(d.replace(" ", "").split("|")[0])
 
         if packages_to_search:
-            cmd_order.extend(["search"] * len(packages_to_search))
+            cmd_order.extend(["search" if runner == "conda" else "repoquery"] * len(packages_to_search))
 
         assert conda.call_count == len(cmd_order)
         for (cmd,), kwargs in conda.call_args_list:

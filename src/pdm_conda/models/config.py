@@ -174,6 +174,9 @@ class PluginConfig:
         :return: args list
         """
         _command = [self.runner, cmd]
+        if self.runner != CondaRunner.CONDA and cmd == "search":
+            _command.insert(1, "repoquery")
+
         if cmd in ("install", "create", "remove"):
             _command.append("-y")
         if cmd in ("install", "create") or (cmd == "search" and self.runner == CondaRunner.MICROMAMBA):

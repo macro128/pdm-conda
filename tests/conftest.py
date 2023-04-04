@@ -214,8 +214,8 @@ def mock_conda(mocker, conda_response: dict | list, empty_conda_list: bool):
                     "__archspec=1=aarch64",
                 ],
             }
-        elif subcommand == "search":
-            name = next(filter(lambda x: not x.startswith("-"), cmd[2:]))
+        elif subcommand in ("repoquery", "search"):
+            name = next(filter(lambda x: not x.startswith("-") and x != "search", cmd[2:]))
             name = name.split(">")[0].split("<")[0].split("=")[0].split("~")[0]
             packages = [deepcopy(p) for p in conda_response if p["name"] == name]
             if runner != "micromamba":

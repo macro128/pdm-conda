@@ -45,9 +45,10 @@ class TestInstall:
         else:
             assert f"{num_installs} to add" in result.stdout
 
+        search_cmd = "search" if runner == "conda" else "repoquery"
         cmd_order = (
-            ["list", "info", "search"]
-            + ["search"] * num_installs
+            ["list", "info", search_cmd]
+            + [search_cmd] * num_installs
             + ["list"]
             + ["install"] * (0 if dry_run else num_installs)
         )
