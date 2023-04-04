@@ -12,7 +12,7 @@ from pdm.models.requirements import strip_extras
 from pdm_conda.mapping import conda_to_pypi, pypi_to_conda
 from pdm_conda.utils import normalize_name
 
-_conda_meta_req_re = re.compile(r"conda:([\w\-_]+::)?(.+)$")
+_conda_meta_req_re = re.compile(r"conda:([\w\-_\d/]+::)?(.+)$")
 _prev_spec = ",|<>!~="
 _specifier_re = re.compile(rf"(?<![{_prev_spec}])(=|==|~=|!=|<|>|<=|>=)([^{_prev_spec}\s]+)")
 _conda_specifier_star_re = re.compile(r"([\w.]+)\*")
@@ -191,6 +191,8 @@ def parse_requirement(line: str, editable: bool = False) -> Requirement:
                         _version = conda_version_or
                         if not _version.startswith("=="):
                             _version = _conda_specifier_star_re.sub(correct_specifier_star, _version)
+                            if _version.startswith("~") and "." not in _version:
+                                _version += ".0"
                         _version = parse_conda_version(_version, name != "openssl")
                         version_mapping[remove_operator(_version)] = remove_operator(conda_version_or)
                     version_or[j] = _version
