@@ -79,7 +79,11 @@ class PluginConfig:
             raise ProjectError(f"Invalid Conda runner: {self.runner}")
         if self.installation_method not in ["hard-link", "copy"]:
             raise ProjectError(f"Invalid Conda installation method: {self.installation_method}")
-        to_suscribe = [(self._project.pyproject._data, "update"), (self._project.pyproject, "reload")]
+        to_suscribe = [
+            (self._project.pyproject._data, "update"),
+            (self._project.pyproject, "write"),
+            (self._project.pyproject, "reload"),
+        ]
         for obj, name in to_suscribe:
             func = getattr(obj, name)
             if not is_decorated(func):

@@ -24,7 +24,6 @@ class TestAddRemove:
         conf = project.conda_config
         conf.runner = runner or self.default_runner
         conf.channels = []
-        project.pyproject.write(False)
         command = ["add", "-v", "--no-self", "--no-sync"]
         for package in packages:
             command.extend(["--conda", package])
