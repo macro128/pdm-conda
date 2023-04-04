@@ -149,8 +149,7 @@ def _conda_search(
             raise
 
     candidates = []
-    # sort values per build number (greater first)
-    if config.runner != CondaRunner.MICROMAMBA:
+    if config.runner == CondaRunner.CONDA:
         packages = result.get(parse_requirement(f"conda:{requirement}").name, [])
     else:
         packages = result.get("result", dict()).get("pkgs", [])
