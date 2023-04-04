@@ -32,13 +32,6 @@ dev = [
     "responses>=0.22.0",
 ]
 
-[project.urls]
-Homepage = "https://github.com/macro128/pdm-conda"
-Changelog = "https://github.com/macro128/pdm-conda/blob/main/CHANGELOG.md"
-
-[project.entry-points.pdm]
-conda = "pdm_conda:main"
-
 [tool.pdm.version]
 source = "file"
 path = "src/pdm_conda/__init__.py"
@@ -50,6 +43,13 @@ excludes = ["tests"]
 
 [tool.pdm.scripts]
 test = "pytest --cov=src/pdm_conda/ tests/"
+
+[project.urls]
+Homepage = "https://github.com/macro128/pdm-conda"
+Changelog = "https://github.com/macro128/pdm-conda/blob/main/CHANGELOG.md"
+
+[project.entry-points.pdm]
+conda = "pdm_conda:main"
 
 [tool.pytest.ini_options]
 addopts = "--random-order"

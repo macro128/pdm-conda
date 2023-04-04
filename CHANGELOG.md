@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.7.1] - 04/04/2023
+
+### Changed
+
+- Use `repoquery search` instead of `search` when runner is `mamba` or `micromamba`.
+
+### Fixed
+
+- Parse conda packages version fixes.
+
 ## [0.7.0] - 04/04/2023
 
 ### Added
