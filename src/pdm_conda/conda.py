@@ -267,10 +267,11 @@ def conda_uninstall(
     config = project.conda_config
     command = config.command("remove")
     if no_deps:
-        _prune = "no-prune"
-        if config.runner != CondaRunner.MICROMAMBA:
-            _prune = "force-remove"
-        command.append(f"--{_prune}")
+        if config.runner == CondaRunner.MICROMAMBA:
+            command.append("--no-prune")
+        elif config.runner == CondaRunner.MAMBA:
+            command[0] = "conda"
+        command.append("--force")
     if dry_run:
         command.append("--dry-run")
     if isinstance(packages, str):
