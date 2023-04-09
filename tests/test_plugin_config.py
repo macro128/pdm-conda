@@ -10,6 +10,8 @@ class TestPluginConfig:
             ("channels", ["defaults"]),
             ("channels", ["other"]),
             ("channels", None),
+            ("batched", True),
+            ("batched", False),
             ("dependencies", ["package"]),
             ("dev-dependencies", {"dev": ["package"]}),
             ("optional-dependencies", {"other": ["package"]}),
@@ -22,7 +24,10 @@ class TestPluginConfig:
 
         config = project.conda_config
         subscribed = mocker.spy(project.pyproject._data, "update")
-        assert_value = config_value or []
+        if config_value is None:
+            assert_value = []
+        else:
+            assert_value = config_value
         project.pyproject._data.update(
             {
                 "tool": {

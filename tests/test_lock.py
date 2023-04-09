@@ -5,6 +5,7 @@ import pytest
 from tests.conftest import (
     CONDA_INFO,
     CONDA_MAPPING,
+    PREFERRED_VERSIONS,
     PYTHON_PACKAGE,
     PYTHON_REQUIREMENTS,
     PYTHON_VERSION,
@@ -83,23 +84,28 @@ class TestLock:
                 if not d.startswith("python "):
                     packages_to_search.add(d.replace(" ", "").split("|")[0])
 
+        search_command = "search" if runner == "conda" else "repoquery"
         if packages_to_search:
-            cmd_order.extend(["search" if runner == "conda" else "repoquery"] * len(packages_to_search))
+            cmd_order.extend([search_command] * len(packages_to_search))
 
         assert conda.call_count == len(cmd_order)
         for (cmd,), kwargs in conda.call_args_list:
             assert cmd[0] == runner
             assert (cmd_subcommand := cmd[1]) == cmd_order.pop(0)
-            if cmd_subcommand == "search":
+            if cmd_subcommand == search_command:
                 # assert packaged is search
-                assert next(filter(lambda x: not x.startswith("-"), cmd[2:])) in packages_to_search
+                assert next(filter(lambda x: not x.startswith("-") and x != "search", cmd[2:])) in packages_to_search
 
         packages_to_search = {p.split("=")[0] for p in packages_to_search}
         assert not cmd_order
         lockfile = project.lockfile
         packages = lockfile["package"]
         for p in packages:
-            assert p["name"] in packages_to_search
+            name = p["name"]
+            preferred_package = PREFERRED_VERSIONS[name]
+            assert name in packages_to_search
+            assert p["version"] == preferred_package["version"]
+            assert p["build_string"] == preferred_package["build_string"]
 
     def test_lock_refresh(self, pdm, project, conda, conda_response, runner, pypi, group, mock_conda_mapping):
         self.test_lock(pdm, project, conda, conda_response, runner, pypi, group, False, mock_conda_mapping)
