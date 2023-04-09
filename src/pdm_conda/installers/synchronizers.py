@@ -3,8 +3,8 @@ from typing import Collection, cast
 from pdm.installers import Synchronizer
 from pdm.models.candidates import Candidate
 
+from pdm_conda.models.candidates import CondaCandidate
 from pdm_conda.models.environment import CondaEnvironment, Environment
-from pdm_conda.models.setup import CondaSetupDistribution
 
 
 class CondaSynchronizer(Synchronizer):
@@ -41,12 +41,19 @@ class CondaSynchronizer(Synchronizer):
 
         # deactivate parallel execution if uninstall
         self.parallel = self.environment.project.config["install.parallel"]
-        if to_remove or to_update:
-            if to_remove:
-                to_remove = [p for p in to_remove if p not in self.environment.python_dependencies]
+        if to_remove:
+            to_remove = [p for p in to_remove if p not in self.environment.python_dependencies]
 
-            if self.parallel and any(True for d in to_remove + to_update if isinstance(d, CondaSetupDistribution)):
-                self.environment.project.core.ui.echo("Deactivating parallel uninstall.")
-                self.parallel = False
+        if self.parallel and any(True for d in to_remove + to_update if isinstance(self.candidates[d], CondaCandidate)):
+            self.environment.project.core.ui.echo("Deactivating parallel uninstall.")
+            self.parallel = False
+
+        if self.environment.project.conda_config.batched_commands:
+            self.manager.prepare_batch_operations(
+                *(
+                    len([p for p in pkgs if isinstance(self.candidates[p], CondaCandidate)])
+                    for pkgs in (to_add + to_update, to_remove + to_update)
+                )
+            )
 
         return to_add, to_update, to_remove

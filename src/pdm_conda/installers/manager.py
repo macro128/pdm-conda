@@ -15,6 +15,14 @@ class CondaInstallManager(InstallManager):
     def __init__(self, environment: Environment, *, use_install_cache: bool = False) -> None:
         super().__init__(environment, use_install_cache=use_install_cache)
         self.environment = cast(CondaEnvironment, environment)
+        self._num_install = 0
+        self._num_remove = 0
+        self._batch_install: list[CondaCandidate] = []
+        self._batch_remove: list[CondaSetupDistribution] = []
+
+    def prepare_batch_operations(self, num_install: int, num_remove: int):
+        self._num_install = num_install
+        self._num_remove = num_remove
 
     def install(self, candidate: Candidate) -> None:
         """
@@ -23,7 +31,10 @@ class CondaInstallManager(InstallManager):
         """
         if isinstance(candidate, CondaCandidate):
             try:
-                conda_install(self.environment.project, candidate.link.url, no_deps=True)
+                self._batch_install.append(candidate)
+                if len(self._batch_install) >= self._num_install:
+                    conda_install(self.environment.project, [c.link.url for c in self._batch_install], no_deps=True)
+                    self._batch_install.clear()
             except (RequirementError, ValueError) as e:
                 raise InstallerError(e) from e
         else:
@@ -36,7 +47,10 @@ class CondaInstallManager(InstallManager):
         """
         if isinstance(dist, CondaSetupDistribution):
             try:
-                conda_uninstall(self.environment.project, dist.name, no_deps=True)
+                self._batch_remove.append(dist)
+                if len(self._batch_remove) >= self._num_remove:
+                    conda_uninstall(self.environment.project, [d.name for d in self._batch_remove], no_deps=True)
+                    self._batch_remove.clear()
             except RequirementError as e:
                 raise UninstallError(e) from e
         else:

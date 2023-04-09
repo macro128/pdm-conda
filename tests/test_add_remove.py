@@ -12,7 +12,7 @@ from tests.conftest import CONDA_INFO, CONDA_MAPPING, PYTHON_REQUIREMENTS
 class TestAddRemove:
     default_runner = "micromamba"
 
-    @pytest.mark.parametrize("packages", [["dep"], ["dep", "another-dep"], ["channel::dep", "another-dep"]])
+    @pytest.mark.parametrize("packages", [["'dep'"], ['"dep"', "another-dep"], ["'channel::dep'", "another-dep"]])
     @pytest.mark.parametrize("channel", [None, "another_channel"])
     def test_add(self, pdm, project, conda, conda_response, packages, channel, runner, mock_conda_mapping):
         """
@@ -33,9 +33,11 @@ class TestAddRemove:
             command += ["--runner", runner]
         else:
             runner = self.default_runner
-        pdm(command, obj=project)
+        result = pdm(command, obj=project)
+        assert result.exception is None
 
         project.pyproject.reload()
+        packages = [p.replace("'", "").replace('"', "") for p in packages]
         channels = set(p.split("::")[0] for p in packages if "::" in p)
         if channel:
             channels.add(channel)
@@ -61,7 +63,8 @@ class TestAddRemove:
     def test_remove(self, pdm, project, conda, conda_response, packages, runner, mock_conda_mapping):
         self.test_add(pdm, project, conda, conda_response, packages, None, runner, mock_conda_mapping)
         conda.reset_mock()
-        pdm(["remove", "--no-self"] + packages, obj=project)
+        result = pdm(["remove", "--no-self"] + packages, obj=project)
+        assert result.exception is None
         conda_calls = len({p["name"] for p in conda_response}) - len(PYTHON_REQUIREMENTS)
         cmd_order = []
         if conda_calls:

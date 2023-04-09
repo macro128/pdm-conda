@@ -58,7 +58,7 @@ class CondaCandidate(Candidate):
         self.build_string = build_string
         self.channel = channel
         self.conda_version = version
-        self.version = parse_conda_version(version, name != "openssl")
+        self.version = parse_conda_version(version, name == "openssl")
 
     @property
     def req(self):
@@ -160,6 +160,15 @@ class CondaCandidate(Candidate):
             constrains=package.get("constrains", []),
             build_string=build_string,
         )
+
+    def __str__(self) -> str:
+        if self.req.is_named:
+            return f"{self.name}@{self.conda_version}"
+        return super().__str__()
+
+    def format(self) -> str:
+        """Format for output."""
+        return f"[req]{self.name}[/] [warning]{self.conda_version}[/]"
 
 
 def wrap_as_lockfile_entry(func):

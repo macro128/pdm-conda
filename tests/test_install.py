@@ -2,7 +2,7 @@ import re
 
 import pytest
 
-from tests.conftest import CONDA_INFO, CONDA_MAPPING, PYTHON_REQUIREMENTS
+from tests.conftest import BUILD_BACKEND, CONDA_INFO, CONDA_MAPPING, PYTHON_REQUIREMENTS
 from tests.utils import format_url
 
 
@@ -11,6 +11,8 @@ class TestInstall:
     @pytest.mark.parametrize("runner", ["conda", "micromamba"])
     @pytest.mark.parametrize("empty_conda_list", [True])
     @pytest.mark.parametrize("dry_run", [True, False])
+    @pytest.mark.parametrize("conda_batched", [True, False, None])
+    @pytest.mark.parametrize("install_self", [True, False])
     @pytest.mark.parametrize("conda_mapping", CONDA_MAPPING)
     def test_install(
         self,
@@ -21,6 +23,9 @@ class TestInstall:
         runner,
         dry_run,
         mock_conda_mapping,
+        conda_batched,
+        install_self,
+        build_backend,
     ):
         """
         Test `install` command work as expected
@@ -29,7 +34,14 @@ class TestInstall:
         conf = project.conda_config
         conf.runner = runner
         conf.dependencies = [conda_response[-1]["name"]]
-        command = ["install", "-v", "--no-self"]
+        if conda_batched is None:
+            conda_batched = False
+        else:
+            conf.batched_commands = conda_batched
+        command = ["install", "-vv"]
+        if not install_self:
+            command.append("--no-self")
+
         if dry_run:
             command.append("--dry-run")
         result = pdm(command, obj=project)
@@ -43,6 +55,9 @@ class TestInstall:
                 out += f"\\s+- {p} [^\n]+\n"
             assert re.search(out, result.stdout)
         else:
+            if install_self:
+                assert f"Install {project.name} {project.pyproject.metadata.get('version')} successful" in result.output
+                assert f"Installing {BUILD_BACKEND['name']} {BUILD_BACKEND['version']}" in result.outputs
             assert f"{num_installs} to add" in result.stdout
 
         search_cmd = "search" if runner == "conda" else "repoquery"
@@ -50,7 +65,7 @@ class TestInstall:
             ["list", "info", search_cmd]
             + [search_cmd] * num_installs
             + ["list"]
-            + ["install"] * (0 if dry_run else num_installs)
+            + ["install"] * (0 if dry_run else (1 if conda_batched else num_installs))
         )
         assert conda.call_count == len(cmd_order)
 
@@ -64,8 +79,12 @@ class TestInstall:
             assert cmd_subcommand == cmd_order.pop(0)
             if cmd_subcommand == "install":
                 deps = kwargs["dependencies"]
-                assert len(deps) == 1
-                urls.remove(deps[0])
+                if conda_batched:
+                    assert len(deps) == num_installs
+                else:
+                    assert len(deps) == 1
+                for u in deps:
+                    urls.remove(u)
 
         if not dry_run:
             assert not urls

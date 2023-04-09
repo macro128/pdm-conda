@@ -27,11 +27,13 @@ class CondaRepository(BaseRepository):
         and conda as default manager or used by another conda requirement)
         :param requirement: requirement to evaluate
         """
+        if not isinstance(self.environment, CondaEnvironment):
+            return False
         conda_config = self.environment.project.conda_config
         return isinstance(requirement, CondaRequirement) or (
             isinstance(requirement, NamedRequirement)
             and conda_config.as_default_manager
-            and requirement.name not in conda_config.excluded
+            and requirement.name not in conda_config.excludes
         )
 
     def get_dependencies(self, candidate: Candidate) -> tuple[list[Requirement], PySpecSet, str]:

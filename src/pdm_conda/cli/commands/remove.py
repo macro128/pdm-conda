@@ -3,6 +3,7 @@ from typing import cast
 
 from pdm.cli.commands.remove import Command as BaseCommand
 
+from pdm_conda.cli.utils import remove_quotes
 from pdm_conda.models.requirements import parse_requirement
 from pdm_conda.project import CondaProject, Project
 
@@ -20,9 +21,9 @@ class Command(BaseCommand):
         dependencies, _ = project.get_pyproject_dependencies(options.group, options.dev)
         _dependencies = [parse_requirement(d).conda_name for d in dependencies]
         # add conda dependencies to common dependencies if going to remove it
-        for i in range(len(options.packages)):
+        for i, pkg in enumerate(options.packages):
             # parse it as conda, if found add it to dependencies
-            conda_package = f"conda:{options.packages[i]}"
+            conda_package = f"conda:{remove_quotes(pkg)}"
             package = parse_requirement(conda_package)
             idx = None
             for dep_idx, dep in enumerate(conda_dependencies):

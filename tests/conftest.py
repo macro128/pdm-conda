@@ -2,130 +2,73 @@
 import os
 import sys
 from copy import deepcopy
+from unittest import mock
 
 import pytest
 import responses
 from pdm.cli.actions import do_init
 from pdm.core import Core
+from pdm.models.backends import PDMBackend
 from pdm.project import Config, Project
+from pytest_mock import MockerFixture
+
+from tests.utils import REPO_BASE, generate_package_info
 
 pytest_plugins = "pdm.pytest"
 
 PYTHON_VERSION = sys.version.split(" ")[0]
-REPO_BASE = "https://anaconda.org"
+
+PYTHON_PACKAGE = generate_package_info("python", PYTHON_VERSION, ["lib 1.0"])
 PYTHON_REQUIREMENTS = [
-    {
-        "name": "lib2",
-        "depends": [],
-        "version": "1.0.0g",
-        "build_number": 0,
-        "url": f"{REPO_BASE}/channel/lib2",
-        "channel": f"{REPO_BASE}/channel",
-        "sha256": "this-is-a-hash",
-        "build": "lib2",
-    },
-    {
-        "name": "openssl",
-        "depends": [],
-        "version": "1.1.1s",
-        "build_number": 0,
-        "url": f"{REPO_BASE}/channel/lib2",
-        "channel": f"{REPO_BASE}/channel",
-        "sha256": "this-is-a-hash",
-        "build": "lib2",
-    },
-    {
-        "name": "lib",
-        "depends": ["lib2 ==1.0.0g", "openssl >=1.1.1s,<1.1.2a"],
-        "version": "1.0.0",
-        "build_number": 0,
-        "url": f"{REPO_BASE}/channel/lib",
-        "channel": f"{REPO_BASE}/channel",
-        "sha256": "this-is-a-hash",
-        "build": "lib",
-    },
-    {
-        "name": "python",
-        "depends": ["lib ==1.0.0"],
-        "build_number": 0,
-        "version": PYTHON_VERSION,
-        "url": f"{REPO_BASE}/channel/python",
-        "channel": f"{REPO_BASE}/channel",
-        "sha256": "this-is-a-hash",
-        "build": "python",
-    },
-]
-PYTHON_PACKAGE = PYTHON_REQUIREMENTS[-1]
-CONDA_INFO = [
-    [
-        *PYTHON_REQUIREMENTS,
-        {
-            "name": "another-dep",
-            "depends": [],
-            "version": "1!0.0gg",
-            "build_number": 0,
-            "url": f"{REPO_BASE}/channel/another-dep",
-            "channel": f"{REPO_BASE}/channel",
-            "sha256": "this-is-a-hash",
-            "build": "another-dep",
-            "timestamp": 0,
-        },
-        {
-            "name": "another-dep",
-            "depends": [],
-            "version": "1!0.1gg",
-            "build_number": 0,
-            "url": f"{REPO_BASE}/channel/another-dep",
-            "channel": f"{REPO_BASE}/channel",
-            "sha256": "this-is-a-hash",
-            "build": "another-dep",
-            "timestamp": 3,
-        },
-        {
-            "name": "another-dep",
-            "depends": [],
-            "version": "1!0.1gg",
-            "build_number": 0,
-            "url": f"{REPO_BASE}/channel/another-dep",
-            "channel": f"{REPO_BASE}/channel",
-            "sha256": "this-is-a-hash",
-            "build": "another-dep",
-            "timestamp": 1,
-        },
-        {
-            "name": "another-dep",
-            "depends": [],
-            "build_number": 1,
-            "version": "1!0.1gg",
-            "url": f"{REPO_BASE}/channel/another-dep",
-            "channel": f"{REPO_BASE}/channel",
-            "sha256": "this-is-a-hash",
-            "build": "another-dep",
-            "timestamp": 2,
-        },
-        {
-            "name": "dep",
-            "build_number": 0,
-            "depends": ["python >=3.7", "another-dep ==1!0.1gg|==1!0.0g"],
-            "version": "1.0.0",
-            "url": f"{REPO_BASE}/channel/dep",
-            "channel": f"{REPO_BASE}/channel",
-            "sha256": "this-is-a-hash",
-            "build": "dep",
-        },
-    ],
+    generate_package_info("openssl", "1.1.1a"),
+    generate_package_info("openssl", "1.1.1c"),
+    PYTHON_PACKAGE,
 ]
 
-CONDA_MAPPING = [{f"{p['name']}-pip": p["name"] for p in CONDA_INFO[0] if p not in PYTHON_REQUIREMENTS}]
+PREFERRED_VERSIONS = dict()
+_packages = [
+    generate_package_info("openssl", "1.1.1b"),
+    generate_package_info("lib2", "1.0.0g"),
+    generate_package_info("lib", "1.0", ["lib2 ==1.0.0g", "openssl >=1.1.1c,<1.1.2a"]),
+]
+for _p in _packages:
+    PREFERRED_VERSIONS[_p["name"]] = _p
+    PYTHON_REQUIREMENTS.append(_p)
+PYTHON_REQUIREMENTS.extend(PREFERRED_VERSIONS.values())
+
+_CONDA_INFO = [
+    *PYTHON_REQUIREMENTS,
+    generate_package_info("another-dep", "1!0.0gg"),
+    generate_package_info("another-dep", "1!0.1gg", timestamp=3),
+    generate_package_info("another-dep", "1!0.1gg", timestamp=1),
+]
+
+_packages = [
+    generate_package_info("another-dep", "1!0.1gg", timestamp=2, build_number=1),
+    generate_package_info(
+        "dep",
+        "1.0.0",
+        depends=[f"python >={PYTHON_VERSION}", "another-dep ==1!0.1gg|==1!0.0g"],
+        timestamp=2,
+        build_number=1,
+    ),
+]
+for _p in _packages:
+    PREFERRED_VERSIONS[_p["name"]] = _p
+    _CONDA_INFO.append(_p)
+
+CONDA_MAPPING = [{f"{p['name']}-pip": p["name"] for p in _CONDA_INFO}]
+CONDA_INFO = [[*PYTHON_REQUIREMENTS, *_CONDA_INFO]]
+BUILD_BACKEND = generate_package_info("pdm-backend", "2.0")
 
 
-@pytest.fixture(autouse=True)
-def test_name():
+@pytest.fixture(autouse=True, name="test_name")
+def _test_name():
     yield os.getenv("PYTEST_CURRENT_TEST").split(":")[-1]
 
 
-@pytest.fixture()
-def test_id(test_name):
+@pytest.fixture(name="test_id")
+def _test_id(test_name):
     yield test_name.split("[")[-1].split("]")[0]
 
 
@@ -137,11 +80,6 @@ def core_with_plugin(core, monkeypatch) -> Core:
     monkeypatch.setenv("_CONDA_PREFIX", os.getenv("CONDA_PREFIX"))
     main(core)
     yield core
-
-
-@pytest.fixture
-def distributions(mocker):
-    mocker.patch("pdm.models.working_set.distributions", return_value=[])
 
 
 @pytest.fixture
@@ -157,6 +95,7 @@ def project(core, project_no_init, monkeypatch) -> Project:
         python_requires=f"=={PYTHON_VERSION}",
         author="test",
         email="test@test.com",
+        build_backend=PDMBackend,
     )
     monkeypatch.setenv("CONDA_PREFIX", os.getenv("_CONDA_PREFIX"))
     yield _project
@@ -168,7 +107,7 @@ def pdm_run(core, pdm):
 
 
 @pytest.fixture(name="conda")
-def mock_conda(mocker, conda_response: dict | list, empty_conda_list: bool):
+def mock_conda(mocker: MockerFixture, conda_response: dict | list, empty_conda_list: bool):
     if isinstance(conda_response, dict):
         conda_response = [conda_response]
     install_response = {
@@ -288,13 +227,35 @@ def mock_pypi(mocked_responses):
 
 
 @pytest.fixture
+def install_manager(mocker: MockerFixture):
+    from pdm.installers.core import install_requirements
+
+    def _install_requirements(*args, **kwargs):
+        from pdm.installers.core import InstallManager
+
+        with mock.patch.object(InstallManager, "install"), mock.patch.object(InstallManager, "uninstall"):
+            return install_requirements(*args, **kwargs)
+
+    mocker.patch("pdm.installers.core.install_requirements", side_effect=_install_requirements)
+    mocker.patch("pdm.installers.manager.install_wheel")
+    mocker.patch("pdm.installers.manager.install_wheel_with_cache")
+    mocker.patch("pdm.builders.base.BuildBackendHookCaller")
+    yield
+
+
+@pytest.fixture
+def build_backend(pypi, install_manager):
+    return pypi([BUILD_BACKEND], with_dependencies=True)
+
+
+@pytest.fixture
 def mocked_responses():
     with responses.RequestsMock(assert_all_requests_are_fired=False) as rsps:
         yield rsps
 
 
 @pytest.fixture
-def mock_conda_mapping(mocker, mocked_responses, conda_mapping):
+def mock_conda_mapping(mocker: MockerFixture, mocked_responses, conda_mapping):
     yield mocker.patch("pdm_conda.mapping.download_mapping", return_value=conda_mapping)
     from pdm_conda.mapping import get_pypi_mapping
 

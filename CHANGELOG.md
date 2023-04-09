@@ -1,55 +1,78 @@
 # Changelog
 
+## [0.8.0] - 09/04/2023
+
+### Added
+
+* Config `conda.batched-commands` to use `conda` `install` and `remove` batched commands.
+* Show runner commands when using flag `-vv`.
+* Show informative logs when using flag `-vv`.
+
+### Changed
+
+* Avoid using Conda for file requirements resolutions and self building.
+* Config `conda.excluded` changed to `conda.excludes`.
+
+### Fixed
+
+* `pdm add` doesn't fail when using with a conda specifier.
+* `pdm add/remove` doesn't fail when using quited specifiers.
+* More Conda specifiers displayed correctly.
+* Adding dependencies to pyproject with a conda specifier works correctly.
+* `micromamba` and `mamba` now remove only specified dependency.
+* `pdm info` shows correct packages location.
+* Avoid adding conda dependencies tables to pyproject.toml when not needed.
+
 ## [0.7.1] - 04/04/2023
 
 ### Changed
 
-- Use `repoquery search` instead of `search` when runner is `mamba` or `micromamba`.
+* Use `repoquery search` instead of `search` when runner is `mamba` or `micromamba`.
 
 ### Fixed
 
-- Parse conda packages version fixes.
+* Parse conda packages version fixes.
 
 ## [0.7.0] - 04/04/2023
 
 ### Added
 
-- Sort packages following [mamba specification](https://mamba.readthedocs.io/en/latest/advanced_usage/package_resolution.html).
+* Sort packages following [mamba specification](https://mamba.readthedocs.io/en/latest/advanced_usage/package_resolution.html).
 
 ### Fixed
 
-- Improved compatibility with `conda` and `mamba` commands.
-- Better conda error reports.
-- Parse conda packages version fixes.
+* Improved compatibility with `conda` and `mamba` commands.
+* Better conda error reports.
+* Parse conda packages version fixes.
 
 ## [0.6.0] - 29/03/2023
 
 ### Added
 
-- New Provider classes to override packages search preference.
+* New Provider classes to override packages search preference.
 
 ### Changed
 
-- Now project `python_requires` matches the installed python version.
-- Avoid using `conda lock`.
+* Now project `python_requires` matches the installed python version.
+* Avoid using `conda lock`.
 
 ### Fixed
 
-- Duplicated channels on `pdm add`.
-- Virtual packages are parsed as any other requirement.
-- `CondaProject.iter_groups` includes conda dependency groups.
+* Duplicated channels on `pdm add`.
+* Virtual packages are parsed as any other requirement.
+* `CondaProject.iter_groups` includes conda dependency groups.
 
 ## [0.5.3] - 25/01/2023
 
 ### Fixed
 
-- Incorrect constrains update on resolution.
+* Incorrect constrains update on resolution.
 
 ## [0.5.2] - 25/01/2023
 
 ### Fixed
 
-- Incorrect building fix and use of `pdm-backend` as backend.
+* Incorrect building fix and use of `pdm-backend` as backend.
 
 ## [0.5.0] - 25/01/2023
 

@@ -7,8 +7,10 @@ from typing import Iterable
 from urllib.parse import urlparse
 
 from packaging.version import Version
+from pdm import termui
 from pdm.exceptions import RequirementError
 from pdm.models.setup import Setup
+from pdm.termui import Verbosity
 
 from pdm_conda.models.candidates import CondaCandidate
 from pdm_conda.models.config import CondaRunner
@@ -21,6 +23,8 @@ from pdm_conda.models.requirements import (
 from pdm_conda.models.setup import CondaSetupDistribution
 from pdm_conda.project import CondaProject
 from pdm_conda.utils import normalize_name
+
+logger = termui.logger
 
 
 @contextlib.contextmanager
@@ -48,6 +52,9 @@ def run_conda(cmd, **environment) -> dict:
                         f.write(f"  - {v}\n")
             f.seek(0)
             cmd = cmd + ["-f", f.name]
+        logger.debug(f"cmd: {' '.join(cmd)}")
+        if environment:
+            logger.debug(f"env: {environment}")
         process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
     if "--json" in cmd:
         try:
@@ -82,38 +89,16 @@ def _sort_packages(packages: list[dict]) -> Iterable[dict]:
     """
     if len(packages) <= 1:
         return packages
-    _with_track_features = []
-    _sorted = []
-    _by_version: dict[str, list] = dict()
 
-    # get most recent version with timestamp
-    for p in packages:
-        _by_version.setdefault(p["version"], []).append(p)
+    def get_preference(package):
+        return (
+            not package.get("track_feature", ""),
+            Version(parse_conda_version(package["version"], inverse=package.get("name", "") == "openssl")),
+            package.get("build_number", 0),
+            package.get("timestamp", 0),
+        )
 
-    name = packages[0].get("name", "")
-    # sort by version
-    for _, pkgs in sorted(
-        _by_version.items(),
-        key=lambda x: Version(parse_conda_version(x[0], inverse=name != "openssl")),
-    ):
-        # sort same version packages using build number
-        if len(pkgs) > 1:
-            _by_build_number: dict[int, list] = dict()
-            for p in pkgs:
-                _by_build_number.setdefault(p.get("build_number", 0), []).append(p)
-            pkgs.clear()
-            # sort same build number by timestamp
-            for n in sorted(_by_build_number.keys()):
-                pkgs.extend(sorted(_by_build_number[n], key=lambda p: p.get("timestamp", 0)))
-
-        # track_feature to bottom
-        for p in pkgs:
-            if p.get("track_feature", ""):
-                _with_track_features.append(p)
-            else:
-                _sorted.append(p)
-
-    return reversed(_with_track_features + _sorted)
+    return sorted(packages, key=get_preference, reverse=True)
 
 
 @lru_cache(maxsize=None)
@@ -195,6 +180,8 @@ def conda_search(
     if "::" in requirement:
         channel, requirement = requirement.split("::", maxsplit=1)
     channels = [channel] if channel else project.conda_config.channels
+    if not channels:
+        project.core.ui.echo(f"No channel specified for searching [success]{requirement}[/]", verbosity=Verbosity.DEBUG)
     return _conda_search(requirement, project, tuple(channels))
 
 
@@ -283,10 +270,11 @@ def conda_uninstall(
     config = project.conda_config
     command = config.command("remove")
     if no_deps:
-        _prune = "no-prune"
-        if config.runner != CondaRunner.MICROMAMBA:
-            _prune = "force-remove"
-        command.append(f"--{_prune}")
+        if config.runner == CondaRunner.MICROMAMBA:
+            command.append("--no-prune")
+        elif config.runner == CondaRunner.MAMBA:
+            command[0] = "conda"
+        command.append("--force")
     if dry_run:
         command.append("--dry-run")
     if isinstance(packages, str):
@@ -295,6 +283,12 @@ def conda_uninstall(
     command.append("--json")
 
     _conda_install(project, command, verbose=verbose)
+
+
+def not_initialized_warning(project):
+    project.core.ui.echo(
+        "[warning]Tried to execute a conda command but no pdm-conda configs were found on pyproject.toml.[/]",
+    )
 
 
 def conda_virtual_packages(project: CondaProject) -> set[CondaRequirement]:
@@ -313,6 +307,8 @@ def conda_virtual_packages(project: CondaProject) -> set[CondaRequirement]:
             _virtual_packages = set(info["virtual packages"])
 
         virtual_packages = {parse_requirement(f"conda:{p.replace('=', '==', 1)}") for p in _virtual_packages}
+    else:
+        not_initialized_warning(project)
     return virtual_packages
 
 
@@ -336,5 +332,6 @@ def conda_list(project: CondaProject) -> dict[str, CondaSetupDistribution]:
                 ),
                 package=package,
             )
-
+    else:
+        not_initialized_warning(project)
     return distributions
