@@ -7,6 +7,7 @@ from typing import Iterable
 from urllib.parse import urlparse
 
 from packaging.version import Version
+from pdm import termui
 from pdm.exceptions import RequirementError
 from pdm.models.setup import Setup
 
@@ -21,6 +22,8 @@ from pdm_conda.models.requirements import (
 from pdm_conda.models.setup import CondaSetupDistribution
 from pdm_conda.project import CondaProject
 from pdm_conda.utils import normalize_name
+
+logger = termui.logger
 
 
 @contextlib.contextmanager
@@ -48,6 +51,9 @@ def run_conda(cmd, **environment) -> dict:
                         f.write(f"  - {v}\n")
             f.seek(0)
             cmd = cmd + ["-f", f.name]
+        logger.debug(f"cmd: {' '.join(cmd)}")
+        if environment:
+            logger.debug(f"env: {environment}")
         process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
     if "--json" in cmd:
         try:
