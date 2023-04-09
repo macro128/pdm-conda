@@ -52,7 +52,7 @@ class CondaResolution(Resolution):
                     _req.channel = requirement.channel
             identifier = self._p.identify(_req)
             if criterion := criteria.get(identifier):
-                excluded = self._p.repository.environment.project.conda_config.excluded
+                excluded = self._p.repository.environment.project.conda_config.excludes
                 if isinstance(_req, CondaRequirement):
                     # if conda requirement but other not conda requirement and excluded
                     # then transform to named requirement

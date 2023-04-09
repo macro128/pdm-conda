@@ -20,7 +20,10 @@ CONFIGS = [
         "as-default-manager",
         ConfigItem("Use Conda to install all possible requirements", False, env_var="CONDA_AS_DEFAULT_MANAGER"),
     ),
-    ("batched", ConfigItem("Execute batched install and remove commands", False, env_var="CONDA_BATCHED")),
+    (
+        "batched-commands",
+        ConfigItem("Execute batched install and remove commands", False, env_var="CONDA_BATCHED_COMMANDS"),
+    ),
     (
         "installation-method",
         ConfigItem(
@@ -32,7 +35,7 @@ CONFIGS = [
     ("dependencies", ConfigItem("Dependencies to install with Conda")),
     ("optional-dependencies", ConfigItem("Optional dependencies to install with Conda")),
     ("dev-dependencies", ConfigItem("Development dependencies to install with Conda")),
-    ("excluded", ConfigItem("Excluded dependencies from Conda")),
+    ("excludes", ConfigItem("Excluded dependencies from Conda")),
     (
         "pypi-mapping.download-dir",
         ConfigItem(
@@ -68,9 +71,9 @@ class PluginConfig:
     channels: list[str] = field(default_factory=list)
     runner: str = "conda"
     as_default_manager: bool = False
-    batched: bool = False
+    batched_commands: bool = False
     installation_method: str = "hard-link"
-    excluded: list[str] = field(default_factory=list, repr=False)
+    excludes: list[str] = field(default_factory=list, repr=False)
     dependencies: list[str] = field(default_factory=list, repr=False)
     optional_dependencies: dict[str, list] = field(default_factory=dict)
     dev_dependencies: dict[str, list] = field(default_factory=dict)
@@ -165,7 +168,7 @@ class PluginConfig:
                 value = project.config[f"conda.{n}"]
                 if prop_name == "mapping_download_dir":
                     value = Path(value)
-                elif prop_name == "as-default-manager":
+                elif prop_name in ("as-default-manager", "batched-commands"):
                     value = str(value).lower() in ("true", "1")
                 config[prop_name] = value
         config = {k.replace("-", "_"): v for k, v in config.items()}

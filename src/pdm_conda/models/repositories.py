@@ -33,7 +33,7 @@ class CondaRepository(BaseRepository):
         return isinstance(requirement, CondaRequirement) or (
             isinstance(requirement, NamedRequirement)
             and conda_config.as_default_manager
-            and requirement.name not in conda_config.excluded
+            and requirement.name not in conda_config.excludes
         )
 
     def get_dependencies(self, candidate: Candidate) -> tuple[list[Requirement], PySpecSet, str]:
