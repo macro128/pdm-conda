@@ -10,6 +10,7 @@ from packaging.version import Version
 from pdm import termui
 from pdm.exceptions import RequirementError
 from pdm.models.setup import Setup
+from pdm.termui import Verbosity
 
 from pdm_conda.models.candidates import CondaCandidate
 from pdm_conda.models.config import CondaRunner
@@ -179,6 +180,8 @@ def conda_search(
     if "::" in requirement:
         channel, requirement = requirement.split("::", maxsplit=1)
     channels = [channel] if channel else project.conda_config.channels
+    if not channels:
+        project.core.ui.echo(f"No channel specified for searching [success]{requirement}[/]", verbosity=Verbosity.DEBUG)
     return _conda_search(requirement, project, tuple(channels))
 
 
@@ -282,6 +285,12 @@ def conda_uninstall(
     _conda_install(project, command, verbose=verbose)
 
 
+def not_initialized_warning(project):
+    project.core.ui.echo(
+        "[warning]Tried to execute a conda command but no pdm-conda configs were found on pyproject.toml.[/]",
+    )
+
+
 def conda_virtual_packages(project: CondaProject) -> set[CondaRequirement]:
     """
     Get conda virtual packages
@@ -298,6 +307,8 @@ def conda_virtual_packages(project: CondaProject) -> set[CondaRequirement]:
             _virtual_packages = set(info["virtual packages"])
 
         virtual_packages = {parse_requirement(f"conda:{p.replace('=', '==', 1)}") for p in _virtual_packages}
+    else:
+        not_initialized_warning(project)
     return virtual_packages
 
 
@@ -321,5 +332,6 @@ def conda_list(project: CondaProject) -> dict[str, CondaSetupDistribution]:
                 ),
                 package=package,
             )
-
+    else:
+        not_initialized_warning(project)
     return distributions
