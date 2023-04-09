@@ -11,7 +11,7 @@ class TestInstall:
     @pytest.mark.parametrize("runner", ["conda", "micromamba"])
     @pytest.mark.parametrize("empty_conda_list", [True])
     @pytest.mark.parametrize("dry_run", [True, False])
-    @pytest.mark.parametrize("conda_batched", [True, False])
+    @pytest.mark.parametrize("conda_batched", [True, False, None])
     @pytest.mark.parametrize("install_self", [True, False])
     @pytest.mark.parametrize("conda_mapping", CONDA_MAPPING)
     def test_install(
@@ -34,7 +34,10 @@ class TestInstall:
         conf = project.conda_config
         conf.runner = runner
         conf.dependencies = [conda_response[-1]["name"]]
-        conf.batched = conda_batched
+        if conda_batched is None:
+            conda_batched = False
+        else:
+            conf.batched_commands = conda_batched
         command = ["install", "-vv"]
         if not install_self:
             command.append("--no-self")
