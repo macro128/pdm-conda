@@ -20,6 +20,7 @@ CONFIGS = [
         "as-default-manager",
         ConfigItem("Use Conda to install all possible requirements", False, env_var="CONDA_AS_DEFAULT_MANAGER"),
     ),
+    ("batched", ConfigItem("Execute batched install and remove commands", False, env_var="CONDA_BATCHED")),
     (
         "installation-method",
         ConfigItem(
@@ -67,6 +68,7 @@ class PluginConfig:
     channels: list[str] = field(default_factory=list)
     runner: str = "conda"
     as_default_manager: bool = False
+    batched: bool = False
     installation_method: str = "hard-link"
     excluded: list[str] = field(default_factory=list, repr=False)
     dependencies: list[str] = field(default_factory=list, repr=False)
@@ -138,8 +140,10 @@ class PluginConfig:
         """
         old_value = self._set_project_config
         self._set_project_config = False
-        yield
-        self._set_project_config = old_value
+        try:
+            yield
+        finally:
+            self._set_project_config = old_value
 
     @property
     def is_initialized(self):
