@@ -49,17 +49,21 @@ class CondaProject(Project):
         self._pypi_mapping: dict[str, str] = dict()
         self.conda_config = PluginConfig.load_config(self)
 
-    def get_conda_pyproject_dependencies(self, group: str, dev: bool = False) -> list[str]:
+    def get_conda_pyproject_dependencies(self, group: str, dev: bool = False, set_defaults=False) -> list[str]:
         """
         Get the conda dependencies array in the pyproject.toml
         """
-        settings = self.pyproject.settings.setdefault("conda", dict())
+
+        def _getter(conf, name, default, set_defaults=False):
+            return (conf.setdefault if set_defaults else conf.get)(name, default)
+
+        settings = _getter(self.pyproject.settings, "conda", dict(), set_defaults)
         if group == "default":
-            deps = settings.setdefault("dependencies", [])
+            group = "dependencies"
         else:
             name = "optional" if not dev else "dev"
-            deps = settings.setdefault(f"{name}-dependencies", dict()).setdefault(group, [])
-        return deps
+            settings = _getter(settings, f"{name}-dependencies", dict(), set_defaults)
+        return _getter(settings, group, [], set_defaults)
 
     def iter_groups(self) -> Iterable[str]:
         groups = set(super().iter_groups())
@@ -129,7 +133,7 @@ class CondaProject(Project):
         if self.conda_config.as_default_manager:
             conda_requirements = {n: r for n, r in conda_requirements.items() if not r.is_python_package}
         if conda_requirements:
-            deps = self.get_conda_pyproject_dependencies(to_group, dev)
+            deps = self.get_conda_pyproject_dependencies(to_group, dev, set_defaults=True)
             cast(Array, deps).multiline(True)
             for _, dep in conda_requirements.items():
                 matched_index = next((i for i, r in enumerate(deps) if dep.matches(f"conda:{r}")), None)
