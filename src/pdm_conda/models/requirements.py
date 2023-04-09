@@ -26,7 +26,6 @@ class CondaRequirement(NamedRequirement):
     channel: str | None = None
     _is_python_package: bool = dataclasses.field(default=True, repr=False, init=False)
     version_mapping: dict = dataclasses.field(default_factory=dict, repr=False)
-    mapping_excluded: bool = dataclasses.field(default=False, repr=False)
     build_string: str | None = None
 
     @property
@@ -40,7 +39,6 @@ class CondaRequirement(NamedRequirement):
     @is_python_package.setter
     def is_python_package(self, value):
         self._is_python_package = value
-        self.mapping_excluded = not value
 
     @classmethod
     def create(cls: type[T], **kwargs: Any) -> T:
@@ -193,7 +191,7 @@ def parse_requirement(line: str, editable: bool = False) -> Requirement:
                             _version = _conda_specifier_star_re.sub(correct_specifier_star, _version)
                             if _version.startswith("~") and "." not in _version:
                                 _version += ".0"
-                        _version = parse_conda_version(_version, name != "openssl")
+                        _version = parse_conda_version(_version, name == "openssl")
                         version_mapping[remove_operator(_version)] = remove_operator(conda_version_or)
                     version_or[j] = _version
             version_and[i] = max((v for v in version_or if v), key=comparable_version, default="")

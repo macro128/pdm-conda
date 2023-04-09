@@ -58,7 +58,7 @@ class CondaCandidate(Candidate):
         self.build_string = build_string
         self.channel = channel
         self.conda_version = version
-        self.version = parse_conda_version(version, name != "openssl")
+        self.version = parse_conda_version(version, name == "openssl")
 
     @property
     def req(self):
