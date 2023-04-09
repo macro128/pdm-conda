@@ -3,6 +3,7 @@ from typing import cast
 
 from pdm.cli.commands.add import Command as BaseCommand
 from pdm.cli.options import ArgumentGroup
+from pdm.exceptions import RequirementError
 
 from pdm_conda.cli.utils import remove_quotes
 from pdm_conda.models.requirements import CondaRequirement, parse_requirement
@@ -65,12 +66,16 @@ class Command(BaseCommand):
                 if "::" in package:
                     package_channel, package = package.split("conda:", maxsplit=1)[-1].split("::", maxsplit=1)
 
-                _p = parse_requirement(package)
-                if isinstance(_p, CondaRequirement):
-                    _p = _p.as_named_requirement()
+                try:
+                    _p = parse_requirement(package)
+                    if isinstance(_p, CondaRequirement):
+                        _p = _p.as_named_requirement()
+                except RequirementError:
+                    # if requirement error it can have an unparsable version
+                    _p = None
 
                 # if not named we can't use Conda
-                if _p.is_named and _p.name not in config.excluded:
+                if _p is None or (_p.is_named and _p.name not in config.excluded):
                     if package.startswith("conda:"):
                         package = package[len("conda:") :]
                     if not package_channel and channel:
