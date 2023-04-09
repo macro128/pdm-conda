@@ -161,6 +161,15 @@ class CondaCandidate(Candidate):
             build_string=build_string,
         )
 
+    def __str__(self) -> str:
+        if self.req.is_named:
+            return f"{self.name}@{self.conda_version}"
+        return super().__str__()
+
+    def format(self) -> str:
+        """Format for output."""
+        return f"[req]{self.name}[/] [warning]{self.conda_version}[/]"
+
 
 def wrap_as_lockfile_entry(func):
     @functools.wraps(func)
