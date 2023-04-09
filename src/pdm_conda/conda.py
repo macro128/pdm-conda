@@ -88,38 +88,16 @@ def _sort_packages(packages: list[dict]) -> Iterable[dict]:
     """
     if len(packages) <= 1:
         return packages
-    _with_track_features = []
-    _sorted = []
-    _by_version: dict[str, list] = dict()
 
-    # get most recent version with timestamp
-    for p in packages:
-        _by_version.setdefault(p["version"], []).append(p)
+    def get_preference(package):
+        return (
+            not package.get("track_feature", ""),
+            Version(parse_conda_version(package["version"], inverse=package.get("name", "") == "openssl")),
+            package.get("build_number", 0),
+            package.get("timestamp", 0),
+        )
 
-    name = packages[0].get("name", "")
-    # sort by version
-    for _, pkgs in sorted(
-        _by_version.items(),
-        key=lambda x: Version(parse_conda_version(x[0], inverse=name != "openssl")),
-    ):
-        # sort same version packages using build number
-        if len(pkgs) > 1:
-            _by_build_number: dict[int, list] = dict()
-            for p in pkgs:
-                _by_build_number.setdefault(p.get("build_number", 0), []).append(p)
-            pkgs.clear()
-            # sort same build number by timestamp
-            for n in sorted(_by_build_number.keys()):
-                pkgs.extend(sorted(_by_build_number[n], key=lambda p: p.get("timestamp", 0)))
-
-        # track_feature to bottom
-        for p in pkgs:
-            if p.get("track_feature", ""):
-                _with_track_features.append(p)
-            else:
-                _sorted.append(p)
-
-    return reversed(_with_track_features + _sorted)
+    return sorted(packages, key=get_preference, reverse=True)
 
 
 @lru_cache(maxsize=None)
