@@ -27,6 +27,8 @@ class CondaRepository(BaseRepository):
         and conda as default manager or used by another conda requirement)
         :param requirement: requirement to evaluate
         """
+        if not isinstance(self.environment, CondaEnvironment):
+            return False
         conda_config = self.environment.project.conda_config
         return isinstance(requirement, CondaRequirement) or (
             isinstance(requirement, NamedRequirement)
