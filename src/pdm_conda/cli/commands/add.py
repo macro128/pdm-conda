@@ -4,6 +4,7 @@ from typing import cast
 from pdm.cli.commands.add import Command as BaseCommand
 from pdm.cli.options import ArgumentGroup
 
+from pdm_conda.cli.utils import remove_quotes
 from pdm_conda.models.requirements import CondaRequirement, parse_requirement
 from pdm_conda.project import CondaProject, Project
 
@@ -59,6 +60,8 @@ class Command(BaseCommand):
 
             for package in conda_packages:
                 package_channel = None
+                package = remove_quotes(package)
+
                 if "::" in package:
                     package_channel, package = package.split("conda:", maxsplit=1)[-1].split("::", maxsplit=1)
 

@@ -9,6 +9,13 @@ from pdm_conda.models.requirements import CondaRequirement
 _patched = False
 
 
+def remove_quotes(req: str) -> str:
+    for quote in ("'", '"'):
+        if req.startswith(quote) and req.endswith(quote):
+            req = req[1:-1]
+    return req
+
+
 def wrap_save_version_specifiers(func):
     @functools.wraps(func)
     def wrapper(
