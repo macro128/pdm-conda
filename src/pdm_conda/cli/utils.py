@@ -27,7 +27,7 @@ def wrap_save_version_specifiers(func):
         for reqs in requirements.values():
             for name, r in reqs.items():
                 if isinstance(r, CondaRequirement):
-                    r.version_mapping = resolved[name].req.version_mapping
+                    r.version_mapping.update(resolved[name].req.version_mapping)
                     r.is_python_package = resolved[name].req.is_python_package
 
     return wrapper
