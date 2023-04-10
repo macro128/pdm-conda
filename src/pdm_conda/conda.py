@@ -102,6 +102,19 @@ def _sort_packages(packages: list[dict]) -> Iterable[dict]:
 
 
 @lru_cache(maxsize=None)
+def _parse_channel(channel_url: str) -> str:
+    """
+    Parse channel from channel url
+    :param channel_url: channel url from package
+    :return: channel
+    """
+    channel = urlparse(channel_url).path
+    if channel.startswith("/"):
+        channel = channel[1:]
+    return channel
+
+
+@lru_cache(maxsize=None)
 def _conda_search(
     requirement: str,
     project: CondaProject,
@@ -116,12 +129,14 @@ def _conda_search(
     """
     config = project.conda_config
     command = config.command("search")
-    if not project.virtual_packages or project.platform is None:
+    if project.virtual_packages is None or project.platform is None or project.default_channels is None:
         info = conda_info(project)
         project.virtual_packages = info["virtual_packages"]
         project.platform = info["platform"]
+        project.default_channels = info["channels"]
 
     command.append(requirement)
+    channels = channels or project.default_channels
     for c in channels:
         command.extend(["-c", c])
     if channels:
@@ -147,7 +162,7 @@ def _conda_search(
         for d in dependencies:
             if d.startswith("__"):
                 d = parse_requirement(f"conda:{d}")
-                if not any(d.is_compatible(v) for v in project.virtual_packages):
+                if not any(d.is_compatible(v) for v in project.virtual_packages):  # type: ignore
                     valid_candidate = False
                     break
         if valid_candidate:
@@ -183,7 +198,10 @@ def conda_search(
         channel, requirement = requirement.split("::", maxsplit=1)
     channels = [channel] if channel else project.conda_config.channels
     if not channels:
-        project.core.ui.echo(f"No channel specified for searching [success]{requirement}[/]", verbosity=Verbosity.DEBUG)
+        project.core.ui.echo(
+            f"No channel specified for searching [success]{requirement}[/] using defaults if exist.",
+            verbosity=Verbosity.DEBUG,
+        )
     return _conda_search(requirement, project, tuple(channels))
 
 
@@ -295,12 +313,12 @@ def not_initialized_warning(project):
 
 def conda_info(project: CondaProject) -> dict:
     """
-    Get conda info containing virtual packages and packages
+    Get conda info containing virtual packages, default channels and packages
     :param project: PDM project
     :return: dict with conda info
     """
     config = project.conda_config
-    res: dict = dict(virtual_packages=set(), platform=None)
+    res: dict = dict(virtual_packages=set(), platform=None, channels=[])
     if config.is_initialized:
         info = run_conda(config.command("info") + ["--json"])
         if config.runner != CondaRunner.MICROMAMBA:
@@ -310,6 +328,7 @@ def conda_info(project: CondaProject) -> dict:
 
         res["virtual_packages"] = {parse_requirement(f"conda:{p.replace('=', '==', 1)}") for p in virtual_packages}
         res["platform"] = info["platform"]
+        res["channels"] = [_parse_channel(channel) for channel in (info["channels"] or [])]
     else:
         not_initialized_warning(project)
     return res
