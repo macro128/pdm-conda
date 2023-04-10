@@ -45,6 +45,7 @@ class CondaProject(Project):
         self.locked_repository_class = LockedCondaRepository
         self.environment_class = CondaEnvironment
         self.virtual_packages: set[CondaRequirement] = set()
+        self.platform: str | None = None
         self._conda_mapping: dict[str, str] = dict()
         self._pypi_mapping: dict[str, str] = dict()
         self.conda_config = PluginConfig.load_config(self)

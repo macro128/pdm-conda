@@ -116,8 +116,10 @@ def _conda_search(
     """
     config = project.conda_config
     command = config.command("search")
-    if not project.virtual_packages:
-        project.virtual_packages = conda_virtual_packages(project)
+    if not project.virtual_packages or project.platform is None:
+        info = conda_info(project)
+        project.virtual_packages = info["virtual_packages"]
+        project.platform = info["platform"]
 
     command.append(requirement)
     for c in channels:
@@ -291,25 +293,26 @@ def not_initialized_warning(project):
     )
 
 
-def conda_virtual_packages(project: CondaProject) -> set[CondaRequirement]:
+def conda_info(project: CondaProject) -> dict:
     """
-    Get conda virtual packages
+    Get conda info containing virtual packages and packages
     :param project: PDM project
-    :return: set of virtual packages
+    :return: dict with conda info
     """
     config = project.conda_config
-    virtual_packages = set()
+    res: dict = dict(virtual_packages=set(), platform=None)
     if config.is_initialized:
         info = run_conda(config.command("info") + ["--json"])
         if config.runner != CondaRunner.MICROMAMBA:
-            _virtual_packages = {"=".join(p) for p in info["virtual_pkgs"]}
+            virtual_packages = {"=".join(p) for p in info["virtual_pkgs"]}
         else:
-            _virtual_packages = set(info["virtual packages"])
+            virtual_packages = set(info["virtual packages"])
 
-        virtual_packages = {parse_requirement(f"conda:{p.replace('=', '==', 1)}") for p in _virtual_packages}
+        res["virtual_packages"] = {parse_requirement(f"conda:{p.replace('=', '==', 1)}") for p in virtual_packages}
+        res["platform"] = info["platform"]
     else:
         not_initialized_warning(project)
-    return virtual_packages
+    return res
 
 
 def conda_list(project: CondaProject) -> dict[str, CondaSetupDistribution]:
