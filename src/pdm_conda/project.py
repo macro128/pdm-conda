@@ -44,12 +44,53 @@ class CondaProject(Project):
         self.core.resolver_class = CondaResolver
         self.locked_repository_class = LockedCondaRepository
         self.environment_class = CondaEnvironment
-        self.virtual_packages: set[CondaRequirement] | None = None
-        self.platform: str | None = None
-        self.default_channels: list[str] | None = None
+        self._virtual_packages: set[CondaRequirement] | None = None
+        self._platform: str | None = None
+        self._default_channels: list[str] | None = None
         self._conda_mapping: dict[str, str] = dict()
         self._pypi_mapping: dict[str, str] = dict()
         self.conda_config = PluginConfig.load_config(self)
+
+    @property
+    def virtual_packages(self) -> set[CondaRequirement]:
+        if self._virtual_packages is None:
+            self._get_conda_info()
+        return self._virtual_packages  # type: ignore
+
+    @property
+    def platform(self) -> str:
+        if self._platform is None:
+            self._get_conda_info()
+        return self._platform  # type: ignore
+
+    @property
+    def default_channels(self) -> list[str]:
+        if self._default_channels is None:
+            self._get_conda_info()
+        return self._default_channels  # type: ignore
+
+    @property
+    def locked_repository(self) -> LockedRepository:
+        try:
+            lockfile = self.lockfile._data.unwrap()
+        except ProjectError:
+            lockfile = {}
+
+        return self.locked_repository_class(lockfile, self.sources, self.environment)
+
+    @property
+    def python_requires(self) -> PySpecSet:
+        if not self._python:
+            return super().python_requires
+        return PySpecSet(f"=={self.python.version}")
+
+    def _get_conda_info(self):
+        from pdm_conda.conda import conda_info
+
+        info = conda_info(self)
+        self._virtual_packages = info["virtual_packages"]
+        self._platform = info["platform"]
+        self._default_channels = info["channels"]
 
     def get_conda_pyproject_dependencies(self, group: str, dev: bool = False, set_defaults=False) -> list[str]:
         """
@@ -112,15 +153,6 @@ class CondaProject(Project):
 
         return result
 
-    @property
-    def locked_repository(self) -> LockedRepository:
-        try:
-            lockfile = self.lockfile._data.unwrap()
-        except ProjectError:
-            lockfile = {}
-
-        return self.locked_repository_class(lockfile, self.sources, self.environment)
-
     def add_dependencies(
         self,
         requirements: dict[str, Requirement],
@@ -146,12 +178,6 @@ class CondaProject(Project):
                     deps[matched_index] = req
 
         super().add_dependencies(requirements, to_group, dev, show_message)
-
-    @property
-    def python_requires(self) -> PySpecSet:
-        if not self._python:
-            return super().python_requires
-        return PySpecSet(f"=={self.python.version}")
 
     def get_environment(self) -> Environment:
         if not self.config["python.use_venv"]:
