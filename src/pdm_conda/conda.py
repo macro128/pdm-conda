@@ -81,7 +81,7 @@ def run_conda(cmd, **environment) -> dict:
     return response
 
 
-def _sort_packages(packages: list[dict], channels: Iterable[str], platform: str | None) -> Iterable[dict]:
+def _sort_packages(packages: list[dict], channels: Iterable[str], platform: str) -> Iterable[dict]:
     """
     Sort packages following mamba specification
     (https://mamba.readthedocs.io/en/latest/advanced_usage/package_resolution.html).
@@ -164,14 +164,8 @@ def _conda_search(
     """
     config = project.conda_config
     command = config.command("search")
-    if project.virtual_packages is None or project.platform is None or project.default_channels is None:
-        info = conda_info(project)
-        project.virtual_packages = info["virtual_packages"]
-        project.platform = info["platform"]
-        project.default_channels = info["channels"]
-
     command.append(requirement)
-    channels = channels or project.default_channels
+
     for c in channels:
         command.extend(["-c", c])
     if channels:
@@ -200,7 +194,7 @@ def _conda_search(
         for d in dependencies:
             if d.startswith("__"):
                 d = parse_requirement(f"conda:{d}")
-                if not any(d.is_compatible(v) for v in project.virtual_packages):  # type: ignore
+                if not any(d.is_compatible(v) for v in project.virtual_packages):
                     valid_candidate = False
                     break
         if valid_candidate:
@@ -232,6 +226,15 @@ def conda_search(
             f"No channel specified for searching [success]{requirement}[/] using defaults if exist.",
             verbosity=Verbosity.DEBUG,
         )
+        channels.append("defaults")
+
+    # set defaults if exist
+    try:
+        idx = channels.index("defaults")
+        channels = channels[:idx] + project.default_channels + channels[idx + 1 :]
+    except ValueError:
+        pass
+
     return _conda_search(requirement, project, tuple(channels))
 
 
@@ -348,7 +351,7 @@ def conda_info(project: CondaProject) -> dict:
     :return: dict with conda info
     """
     config = project.conda_config
-    res: dict = dict(virtual_packages=set(), platform=None, channels=[])
+    res: dict = dict(virtual_packages=set(), platform="", channels=[])
     if config.is_initialized:
         info = run_conda(config.command("info") + ["--json"])
         if config.runner != CondaRunner.MICROMAMBA:
