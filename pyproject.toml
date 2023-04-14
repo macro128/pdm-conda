@@ -42,7 +42,7 @@ includes = ["src"]
 excludes = ["tests"]
 
 [tool.pdm.scripts]
-test = "pytest --cov=src/pdm_conda/ tests/"
+test = "pytest --cov=src/pdm_conda/ tests/ --cov-report xml --cov-report term"
 
 [project.urls]
 Homepage = "https://github.com/macro128/pdm-conda"
