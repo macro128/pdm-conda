@@ -5,7 +5,7 @@
 ### Changed
 
 * Use Conda channels priority in package sorting.
-* `PyProject` now contains info from default_channels, virtual_packages and platform.
+* `CondaProject` now contains info from default_channels, virtual_packages and platform.
 
 ## [0.8.0] - 09/04/2023
 
