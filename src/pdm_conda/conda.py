@@ -1,6 +1,5 @@
 import contextlib
 import json
-import re
 import subprocess
 from functools import lru_cache
 from tempfile import NamedTemporaryFile
@@ -14,6 +13,7 @@ from pdm.models.setup import Setup
 from pdm.termui import Verbosity
 
 from pdm_conda.models.candidates import CondaCandidate
+from pdm_conda.models.conda import ChannelSorter
 from pdm_conda.models.config import CondaRunner
 from pdm_conda.models.requirements import (
     CondaRequirement,
@@ -93,41 +93,12 @@ def _sort_packages(packages: list[dict], channels: Iterable[str], platform: str)
     if len(packages) <= 1:
         return packages
 
-    if not channels:
-        channels = list(dict.fromkeys([p["channel"] for p in packages]))
-
-    channels_priority: dict[str, tuple[list, list]] = dict()
-    for channel in channels:
-        parent_channel = channel.split("/")[0]
-        _channels, _ = channels_priority.setdefault(parent_channel, ([], []))
-        if not _channels and platform:
-            _channels.append(f"{parent_channel}/{platform}")
-        if "/" in channel and channel not in _channels:
-            _channels.append(channel)
-
-    max_priority = 0
-    for parent_channel, (_channels, priority) in channels_priority.items():
-        for channel in [rf"{parent_channel}/.*", f"{parent_channel}/noarch"]:
-            if channel not in _channels:
-                _channels.append(channel)
-        priority.extend([max_priority + i * 100 for i in range(len(_channels))])
-        max_priority += 1000
-    channels_priority_cache = dict()
+    channels_sorter = ChannelSorter(platform, channels)
 
     def get_preference(package):
-        channel = package["channel"]
-        if channel not in channels_priority_cache:
-            parent_channel = channel.split("/")[0]
-            _channels, priority = channels_priority[parent_channel]
-            for i, c in enumerate(_channels):
-                if c == channel or re.match(c, channel):
-                    channels_priority_cache[channel] = priority[i]
-                    if c != channel:
-                        priority[i] += 1
-                    break
         return (
             not package.get("track_feature", ""),
-            -channels_priority_cache.get(channel, 0),
+            -channels_sorter.get_priority(package["channel"]),
             Version(parse_conda_version(package["version"], inverse=package.get("name", "") == "openssl")),
             package.get("build_number", 0),
             package.get("timestamp", 0),
