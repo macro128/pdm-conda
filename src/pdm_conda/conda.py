@@ -17,7 +17,6 @@ from pdm_conda.models.conda import ChannelSorter
 from pdm_conda.models.config import CondaRunner
 from pdm_conda.models.requirements import (
     CondaRequirement,
-    Requirement,
     parse_conda_version,
     parse_requirement,
 )
@@ -207,27 +206,6 @@ def conda_search(
         pass
 
     return _conda_search(requirement, project, tuple(channels))
-
-
-def update_requirements(requirements: list[Requirement], conda_packages: dict[str, CondaCandidate]):
-    """
-    Update requirements list with conda_packages
-    :param requirements: requirements list
-    :param conda_packages: conda packages
-    """
-    repeated_packages: dict[str, int] = dict()
-    for i, requirement in enumerate(requirements):
-        if (name := requirement.conda_name) in conda_packages and not isinstance(requirement, CondaRequirement):
-            requirement.name = requirement.conda_name
-            requirements[i] = parse_requirement(f"conda:{requirement.as_line()}")
-        repeated_packages[name] = repeated_packages.get(name, 0) + 1
-    to_remove = []
-    for r in requirements:
-        if repeated_packages.get(r.name, 1) > 1:
-            to_remove.append(r)
-            repeated_packages.pop(r.name)
-    for r in to_remove:
-        requirements.remove(r)
 
 
 def _conda_install(
