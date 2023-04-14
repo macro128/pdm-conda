@@ -51,23 +51,22 @@ class CondaProject(Project):
         self._pypi_mapping: dict[str, str] = dict()
         self.conda_config = PluginConfig.load_config(self)
 
+    def _check_update_info(self, prop):
+        if prop is None:
+            self._get_conda_info()
+        return prop
+
     @property
     def virtual_packages(self) -> set[CondaRequirement]:
-        if self._virtual_packages is None:
-            self._get_conda_info()
-        return self._virtual_packages  # type: ignore
+        return self._check_update_info(self._virtual_packages)  # type: ignore
 
     @property
     def platform(self) -> str:
-        if self._platform is None:
-            self._get_conda_info()
-        return self._platform  # type: ignore
+        return self._check_update_info(self._platform)  # type: ignore
 
     @property
     def default_channels(self) -> list[str]:
-        if self._default_channels is None:
-            self._get_conda_info()
-        return self._default_channels  # type: ignore
+        return self._check_update_info(self._default_channels)  # type: ignore
 
     @property
     def locked_repository(self) -> LockedRepository:
