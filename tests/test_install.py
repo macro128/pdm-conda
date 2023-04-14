@@ -9,7 +9,6 @@ from tests.utils import format_url
 class TestInstall:
     @pytest.mark.parametrize("conda_response", CONDA_INFO)
     @pytest.mark.parametrize("runner", ["conda", "micromamba"])
-    @pytest.mark.parametrize("empty_conda_list", [True])
     @pytest.mark.parametrize("dry_run", [True, False])
     @pytest.mark.parametrize("conda_batched", [True, False, None])
     @pytest.mark.parametrize("install_self", [True, False])
@@ -62,7 +61,7 @@ class TestInstall:
 
         search_cmd = "search" if runner == "conda" else "repoquery"
         cmd_order = (
-            ["list", "info", search_cmd]
+            ["list", search_cmd, "info"]
             + [search_cmd] * num_installs
             + ["list"]
             + ["install"] * (0 if dry_run else (1 if conda_batched else num_installs))

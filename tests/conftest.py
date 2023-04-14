@@ -12,7 +12,13 @@ from pdm.models.backends import PDMBackend
 from pdm.project import Config, Project
 from pytest_mock import MockerFixture
 
-from tests.utils import REPO_BASE, generate_package_info
+from tests.utils import (
+    DEFAULT_CHANNEL,
+    PLATFORM,
+    REPO_BASE,
+    channel_url,
+    generate_package_info,
+)
 
 pytest_plugins = "pdm.pytest"
 
@@ -25,7 +31,7 @@ PYTHON_REQUIREMENTS = [
     PYTHON_PACKAGE,
 ]
 
-PREFERRED_VERSIONS = dict()
+PREFERRED_VERSIONS = dict(python=PYTHON_PACKAGE)
 _packages = [
     generate_package_info("openssl", "1.1.1b"),
     generate_package_info("lib2", "1.0.0g"),
@@ -40,6 +46,7 @@ _CONDA_INFO = [
     *PYTHON_REQUIREMENTS,
     generate_package_info("another-dep", "1!0.0gg"),
     generate_package_info("another-dep", "1!0.1gg", timestamp=3),
+    generate_package_info("another-dep", "1!0.1gg", build_number=1, timestamp=4, channel=f"{DEFAULT_CHANNEL}/noarch"),
     generate_package_info("another-dep", "1!0.1gg", timestamp=1),
 ]
 
@@ -106,8 +113,14 @@ def pdm_run(core, pdm):
     yield pdm
 
 
+@pytest.fixture(name="installed_packages")
+def mock_installed():
+    pkgs = {n["name"] for n in PYTHON_REQUIREMENTS}
+    return [PREFERRED_VERSIONS[n] for n in pkgs]
+
+
 @pytest.fixture(name="conda")
-def mock_conda(mocker: MockerFixture, conda_response: dict | list, empty_conda_list: bool):
+def mock_conda(mocker: MockerFixture, conda_response: dict | list, installed_packages):
     if isinstance(conda_response, dict):
         conda_response = [conda_response]
     install_response = {
@@ -119,40 +132,43 @@ def mock_conda(mocker: MockerFixture, conda_response: dict | list, empty_conda_l
     def _mock(cmd, **kwargs):
         runner, subcommand, *_ = cmd
         if subcommand == "install":
+            for url in kwargs.get("dependencies", []):
+                installed_packages.extend(
+                    [p for p in PREFERRED_VERSIONS.values() if url.startswith(p["url"])],
+                )
+
             return deepcopy(install_response)
+        elif subcommand == "remove":
+            for name in (arg for arg in cmd[2:] if not arg.startswith("-")):
+                installed_packages.pop(installed_packages.index(PREFERRED_VERSIONS[name]))
+            return {"message": "ok"}
         elif subcommand == "list":
-            python_packages = {p["name"] for p in PYTHON_REQUIREMENTS}
-            res = []
-            listed_packages = set()
-            for p in conda_response:
-                if p["name"] not in listed_packages:
-                    listed_packages.add(p["name"])
-                    res.append(deepcopy(p))
-            if empty_conda_list:
-                res = [c for c in res if c["name"] in python_packages]
+            res = [deepcopy(p) for p in installed_packages]
             for p in res:
                 if p["channel"].startswith("http"):
-                    p["channel"] = p["channel"].split("/")[-1]
+                    p["channel"] = p["channel"].split(f"{REPO_BASE}/")[-1]
             return res
         elif subcommand == "info":
-            if runner != "micromamba":
-                return {
-                    "virtual_pkgs": [
-                        ["__unix", "0", "0"],
-                        ["__linux", "5.10.109", "0"],
-                        ["__glibc", "2.35", "0"],
-                        ["__archspec", "1", "aarch64"],
-                    ],
-                }
-
-            return {
-                "virtual packages": [
-                    "__unix=0=0",
-                    "__linux=5.10.109=0",
-                    "__glibc=2.35=0",
-                    "__archspec=1=aarch64",
+            virtual_packages = [
+                ["__unix", "0", "0"],
+                ["__linux", "5.10.109", "0"],
+                ["__glibc", "2.35", "0"],
+                ["__archspec", "1", PLATFORM],
+            ]
+            info = dict(
+                platform=PLATFORM,
+                channels=[
+                    channel_url(f"{DEFAULT_CHANNEL}/{PLATFORM}"),
+                    channel_url(f"{DEFAULT_CHANNEL}/noarch"),
                 ],
-            }
+            )
+
+            if runner != "micromamba":
+                info["virtual_pkgs"] = virtual_packages
+            else:
+                info["virtual packages"] = ["=".join(p) for p in virtual_packages]
+
+            return info
         elif subcommand in ("repoquery", "search"):
             name = next(filter(lambda x: not x.startswith("-") and x != "search", cmd[2:]))
             name = name.split(">")[0].split("<")[0].split("=")[0].split("~")[0]
@@ -227,7 +243,7 @@ def mock_pypi(mocked_responses):
 
 
 @pytest.fixture
-def install_manager(mocker: MockerFixture):
+def install_manager(mocker: MockerFixture, installed_packages):
     from pdm.installers.core import install_requirements
 
     def _install_requirements(*args, **kwargs):

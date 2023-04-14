@@ -1,4 +1,10 @@
 REPO_BASE = "https://anaconda.org"
+DEFAULT_CHANNEL = "channel"
+PLATFORM = "platform"
+
+
+def channel_url(channel: str) -> str:
+    return f"{REPO_BASE}/{channel}"
 
 
 def format_url(package):
@@ -15,8 +21,9 @@ def generate_package_info(
     depends: list | None = None,
     build_number: int = 0,
     timestamp: int = 0,
+    channel: str = f"{DEFAULT_CHANNEL}/{PLATFORM}",
 ) -> dict:
-    channel = f"{REPO_BASE}/channel"
+    channel = channel_url(channel)
     build_string = f"{name}_{build_number}"
     return {
         "name": name,
