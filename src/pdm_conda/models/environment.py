@@ -38,8 +38,10 @@ class CondaEnvironment(Environment):
         return Path(ensure_conda_env())
 
     def get_paths(self) -> dict[str, str]:
-        ensure_conda_env()
-        return sysconfig.get_paths(expand=True)
+        prefix = ensure_conda_env()
+        paths = sysconfig.get_paths(expand=True)
+        paths.setdefault("prefix", prefix)
+        return paths
 
     def get_working_set(self) -> WorkingSet:
         """

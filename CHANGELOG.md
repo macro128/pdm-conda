@@ -7,6 +7,10 @@
 * Use Conda channels priority in package sorting.
 * `CondaProject` now contains info from default_channels, virtual_packages and platform.
 
+### Fixed
+
+* Non-conda packages now get installed in the correct directory for python to find them.
+
 ## [0.8.0] - 09/04/2023
 
 ### Added
