@@ -18,7 +18,7 @@ class ChannelSorter:
 
     def add_defaults(self, root: str):
         for channel in [f"{root}/{self.platform}", rf"{root}/.*", f"{root}/noarch"]:
-            self.add_channel(channel)
+            self.add_channel(channel, allow_fuzzy=not channel.endswith("noarch"))
 
     def get_variants(self, root: str):
         # add parent channel priority
@@ -28,11 +28,11 @@ class ChannelSorter:
 
         return self._tree[root]
 
-    def add_channel(self, channel: str):
+    def add_channel(self, channel: str, allow_fuzzy=True):
         root = self.get_root(channel)
         if channel not in self._priority:
             for c in (variants := self.get_variants(root)):
-                if re.match(c, channel):
+                if c == channel or (allow_fuzzy and re.match(c, channel)):
                     self._priority[channel] = self._priority[c]
                     # then fuzzy match
                     if c != channel:
@@ -40,7 +40,7 @@ class ChannelSorter:
                     break
             # couldn't find priority in saved variant
             if channel not in self._priority:
-                self._priority[channel] = self._priority[root] + len(variants)
+                self._priority[channel] = self._priority[root] + len(variants) * 10
                 variants.append(channel)
 
     def get_priority(self, channel: str) -> int:
