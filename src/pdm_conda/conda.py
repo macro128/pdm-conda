@@ -80,6 +80,17 @@ def run_conda(cmd, **environment) -> dict:
     return response
 
 
+@lru_cache(maxsize=None)
+def _get_channel_sorter(platform: str, channels: tuple[str]) -> ChannelSorter:
+    """
+    Get channel sorter
+    :param channels: list of conda channels used to determine priority
+    :param platform: env platform
+    :return: channel sorter
+    """
+    return ChannelSorter(platform, channels)
+
+
 def _sort_packages(packages: list[dict], channels: Iterable[str], platform: str) -> Iterable[dict]:
     """
     Sort packages following mamba specification
@@ -92,7 +103,7 @@ def _sort_packages(packages: list[dict], channels: Iterable[str], platform: str)
     if len(packages) <= 1:
         return packages
 
-    channels_sorter = ChannelSorter(platform, channels)
+    channels_sorter = _get_channel_sorter(platform, tuple(channels))
 
     def get_preference(package):
         return (
