@@ -10,9 +10,10 @@ from tests.conftest import (
 )
 
 
-@pytest.mark.parametrize("conda_response", CONDA_INFO)
+@pytest.mark.parametrize("conda_info", CONDA_INFO)
 @pytest.mark.parametrize("conda_mapping", CONDA_MAPPING)
 @pytest.mark.parametrize("runner", [None, "micromamba", "conda"])
+@pytest.mark.usefixtures("working_set")
 class TestAddRemove:
     default_runner = "micromamba"
 
@@ -80,7 +81,7 @@ class TestAddRemove:
         pdm,
         project,
         conda,
-        conda_response,
+        conda_info,
         packages,
         runner,
         mock_conda_mapping,
@@ -107,7 +108,7 @@ class TestAddRemove:
                 + ["remove"] * len(packages_to_remove)
             )
         assert conda.call_count == len(cmd_order)
-        packages = [p["name"] for p in conda_response]
+        packages = [p["name"] for p in conda_info]
         python_packages = [f"{p['name']}=={p['version']}={p['build']}" for p in PYTHON_REQUIREMENTS]
         for (cmd,), kwargs in conda.call_args_list:
             assert cmd[0] == (runner or self.default_runner)

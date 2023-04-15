@@ -2,7 +2,6 @@
 import os
 import sys
 from copy import deepcopy
-from unittest import mock
 
 import pytest
 import responses
@@ -113,19 +112,13 @@ def pdm_run(core, pdm):
     yield pdm
 
 
-@pytest.fixture(name="installed_packages")
-def mock_installed():
-    pkgs = {n["name"] for n in PYTHON_REQUIREMENTS}
-    return [PREFERRED_VERSIONS[n] for n in pkgs]
-
-
 @pytest.fixture(name="conda")
-def mock_conda(mocker: MockerFixture, conda_response: dict | list, installed_packages):
-    if isinstance(conda_response, dict):
-        conda_response = [conda_response]
+def mock_conda(mocker: MockerFixture, conda_info: dict | list, installed_packages):
+    if isinstance(conda_info, dict):
+        conda_info = [conda_info]
     install_response = {
         "actions": {
-            "LINK": conda_response,
+            "LINK": conda_info,
         },
     }
 
@@ -172,7 +165,7 @@ def mock_conda(mocker: MockerFixture, conda_response: dict | list, installed_pac
         elif subcommand in ("repoquery", "search"):
             name = next(filter(lambda x: not x.startswith("-") and x != "search", cmd[2:]))
             name = name.split(">")[0].split("<")[0].split("=")[0].split("~")[0]
-            packages = [deepcopy(p) for p in conda_response if p["name"] == name]
+            packages = [deepcopy(p) for p in conda_info if p["name"] == name]
             if runner != "micromamba":
                 return {name: packages}
             return {"result": {"pkgs": packages}}
@@ -184,13 +177,13 @@ def mock_conda(mocker: MockerFixture, conda_response: dict | list, installed_pac
 
 @pytest.fixture(name="pypi")
 def mock_pypi(mocked_responses):
-    def _mocker(conda_response, with_dependencies: bool | list[str] | None = None):
+    def _mocker(conda_info, with_dependencies: bool | list[str] | None = None):
         from pdm_conda.models.requirements import parse_conda_version
 
         _responses = dict()
         if with_dependencies is None:
             with_dependencies = []
-        for package in conda_response:
+        for package in conda_info:
             dependencies = list(package["depends"])
             requires_python = ""
             to_delete = []
@@ -242,25 +235,46 @@ def mock_pypi(mocked_responses):
     return _mocker
 
 
-@pytest.fixture
-def install_manager(mocker: MockerFixture, installed_packages):
-    from pdm.installers.core import install_requirements
-
-    def _install_requirements(*args, **kwargs):
-        from pdm.installers.core import InstallManager
-
-        with mock.patch.object(InstallManager, "install"), mock.patch.object(InstallManager, "uninstall"):
-            return install_requirements(*args, **kwargs)
-
-    mocker.patch("pdm.installers.core.install_requirements", side_effect=_install_requirements)
-    mocker.patch("pdm.installers.manager.install_wheel")
-    mocker.patch("pdm.installers.manager.install_wheel_with_cache")
-    mocker.patch("pdm.builders.base.BuildBackendHookCaller")
-    yield
+@pytest.fixture(name="installed_packages")
+def mock_installed():
+    pkgs = {n["name"] for n in PYTHON_REQUIREMENTS}
+    return [PREFERRED_VERSIONS[n] for n in pkgs]
 
 
 @pytest.fixture
-def build_backend(pypi, install_manager):
+def working_set(mocker: MockerFixture) -> dict:
+    """
+    a mock working set as a fixture
+
+    Returns:
+        a mock working set
+    """
+    from importlib.metadata import Distribution
+
+    from pdm.installers.core import InstallManager
+    from pdm.models.candidates import Candidate
+    from pdm.models.working_set import WorkingSet
+
+    ws: dict[str, Distribution] = dict()
+
+    def _init_ws(self, *args, **kwargs):
+        self._dist_map = ws
+
+    mocker.patch.object(WorkingSet, "__init__", side_effect=_init_ws, autospec=True)
+
+    def install(self, candidate: Candidate) -> None:
+        ws[candidate.name] = candidate.prepare(self.environment).metadata
+
+    def uninstall(dist: Distribution) -> None:
+        del ws[dist.name]
+
+    mocker.patch.object(InstallManager, "install", side_effect=install, autospec=True)
+    mocker.patch.object(InstallManager, "uninstall", side_effect=uninstall)
+    return ws
+
+
+@pytest.fixture
+def build_backend(pypi, working_set):
     return pypi([BUILD_BACKEND], with_dependencies=True)
 
 

@@ -14,7 +14,7 @@ from tests.conftest import (
 
 @pytest.mark.parametrize("runner", ["conda", "micromamba"])
 @pytest.mark.parametrize("conda_mapping", CONDA_MAPPING)
-@pytest.mark.parametrize("conda_response", CONDA_INFO)
+@pytest.mark.parametrize("conda_info", CONDA_INFO)
 @pytest.mark.parametrize("group", ["default", "dev", "other"])
 class TestLock:
     @pytest.mark.parametrize("add_conflict", [True, False])
@@ -23,7 +23,7 @@ class TestLock:
         pdm,
         project,
         conda,
-        conda_response,
+        conda_info,
         runner,
         pypi,
         group,
@@ -37,7 +37,7 @@ class TestLock:
         from pdm_conda.models.requirements import CondaRequirement
 
         python_dependencies = {c["name"] for c in PYTHON_REQUIREMENTS}
-        conda_packages = [c for c in conda_response if c["name"] not in python_dependencies]
+        conda_packages = [c for c in conda_info if c["name"] not in python_dependencies]
         config = project.conda_config
         config.runner = runner
 
@@ -110,13 +110,13 @@ class TestLock:
             assert p["build_string"] == preferred_package["build_string"]
             assert preferred_package["channel"].endswith(p["channel"])
 
-    def test_lock_refresh(self, pdm, project, conda, conda_response, runner, pypi, group, mock_conda_mapping):
-        self.test_lock(pdm, project, conda, conda_response, runner, pypi, group, False, mock_conda_mapping)
+    def test_lock_refresh(self, pdm, project, conda, conda_info, runner, pypi, group, mock_conda_mapping):
+        self.test_lock(pdm, project, conda, conda_info, runner, pypi, group, False, mock_conda_mapping)
         self.test_lock(
             pdm,
             project,
             conda,
-            conda_response,
+            conda_info,
             runner,
             pypi,
             group,
