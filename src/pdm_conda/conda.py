@@ -108,9 +108,9 @@ def _sort_packages(packages: list[dict], channels: Iterable[str], platform: str)
     def get_preference(package):
         return (
             not package.get("track_feature", ""),
-            -channels_sorter.get_priority(package["channel"]),
             Version(parse_conda_version(package["version"], inverse=package.get("name", "") == "openssl")),
             package.get("build_number", 0),
+            -channels_sorter.get_priority(package["channel"]),
             package.get("timestamp", 0),
         )
 
