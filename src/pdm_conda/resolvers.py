@@ -1,9 +1,12 @@
-from copy import copy
 from dataclasses import dataclass, field
 
 from packaging.version import Version
-from resolvelib.resolvers import _build_result  # type: ignore
-from resolvelib.resolvers import RequirementInformation, Resolution, Resolver
+from resolvelib.resolvers import (  # type: ignore
+    RequirementInformation,
+    Resolution,
+    Resolver,
+    _build_result,
+)
 
 from pdm_conda.models.candidates import CondaCandidate
 from pdm_conda.models.environment import CondaEnvironment
@@ -45,11 +48,8 @@ class CondaResolution(Resolution):
         if self._is_conda_environment:
             constrains = self.state.constrains
             if (constrain := constrains.get(requirement.conda_name, None)) is not None:
-                _req = copy(constrain)
-                _req.specifier &= requirement.specifier
-                _req.version_mapping.update(getattr(requirement, "version_mapping", dict()))
-                if isinstance(requirement, CondaRequirement):
-                    _req.channel = requirement.channel
+                _req = constrain.merge(requirement)
+
             identifier = self._p.identify(_req)
             if criterion := criteria.get(identifier):
                 excluded = self._p.repository.environment.project.conda_config.excludes

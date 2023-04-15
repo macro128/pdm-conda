@@ -96,6 +96,40 @@ class CondaRequirement(NamedRequirement):
             and all(self.specifier.contains(s.version) for s in requirement.specifier)
         )
 
+    def merge(self, requirement: Requirement) -> "CondaRequirement":
+        """
+        Merge with other requirement to get more specific
+        :param requirement: other requirement
+        :return: merged requirement
+        """
+        _req = copy(self)
+        _req.specifier &= requirement.specifier
+        if isinstance(requirement, CondaRequirement):
+            _req.channel = requirement.channel
+            _req.version_mapping.update(requirement.version_mapping)
+            if not _req.build_string:
+                _req.build_string = requirement.build_string
+            elif requirement.build_string and requirement.build_string != _req.build_string:
+                # test compatibility
+                _compatible = dict()
+                build_strings = [requirement.build_string, _req.build_string]
+                for build_string in build_strings:
+                    if build_string not in _compatible:
+                        _compatible[build_string] = all(
+                            re.match(build_string.replace("*", r".*"), bs)
+                            or re.match(bs.replace("*", r".*"), build_string)
+                            for bs in build_strings
+                            if bs != build_string
+                        )
+                # if all incompatibles then keep fake build string to force failing search
+                if not all(_compatible.values()):
+                    build_string = f"{_req.build_string}{requirement.build_string}"
+                else:
+                    # tries to find the most specific build string
+                    build_string = min(build_strings, key=lambda x: (-len(x.replace("*", "")), x.count("*")))
+                _req.build_string = build_string
+        return _req
+
 
 def as_conda_requirement(requirement: NamedRequirement | CondaRequirement) -> Requirement:
     if isinstance(requirement, NamedRequirement) and not isinstance(requirement, CondaRequirement):
