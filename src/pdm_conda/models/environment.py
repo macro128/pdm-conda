@@ -1,5 +1,6 @@
 import functools
 import os
+import sysconfig
 from copy import copy
 from pathlib import Path
 from typing import cast
@@ -19,6 +20,12 @@ from pdm_conda.utils import normalize_name
 _patched = False
 
 
+def ensure_conda_env():
+    if (packages_path := os.getenv("CONDA_PREFIX", None)) is None:
+        raise ProjectError("Conda environment not detected.")
+    return packages_path
+
+
 class CondaEnvironment(Environment):
     def __init__(self, project: Project) -> None:
         super().__init__(project)
@@ -28,9 +35,11 @@ class CondaEnvironment(Environment):
 
     @property
     def packages_path(self) -> Path:
-        if (packages_path := os.getenv("CONDA_PREFIX", None)) is None:
-            raise ProjectError("Conda environment not detected.")
-        return Path(packages_path)
+        return Path(ensure_conda_env())
+
+    def get_paths(self) -> dict[str, str]:
+        ensure_conda_env()
+        return sysconfig.get_paths(expand=True)
 
     def get_working_set(self) -> WorkingSet:
         """
