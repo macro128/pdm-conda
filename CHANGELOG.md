@@ -10,6 +10,7 @@
 ### Fixed
 
 * Non-conda packages now get installed in the correct directory for python to find them.
+* Fix `batched-commands` triggering unexpected behaviour.
 
 ## [0.8.0] - 09/04/2023
 
