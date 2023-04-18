@@ -61,7 +61,7 @@ class CondaEnvironment(Environment):
             python_package = conda_list(self.project).get("python", None)
             if python_package is None:
                 raise NoPythonVersion("No python found in Conda environment.")
-            self._python_candidate = conda_search(python_package.as_line().replace(" ", "="), self.project)[0]
+            self._python_candidate = conda_search(self.project, python_package.as_line().replace(" ", "="))[0]
         return self._python_candidate
 
     @property
@@ -73,7 +73,7 @@ class CondaEnvironment(Environment):
                 if name not in packages and name not in dependencies:
                     return
                 package = packages[name].as_line().replace(" ", "=")
-                candidate = conda_search(package, self.project)[0]
+                candidate = conda_search(self.project, package)[0]
                 dependencies[name] = candidate.req
                 for d in candidate.dependencies:
                     load_dependencies(d.name, packages, dependencies)
