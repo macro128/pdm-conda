@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.8.1]
+## [0.8.1] - 17/04/2023
 
 ### Changed
 
@@ -11,6 +11,8 @@
 
 * Non-conda packages now get installed in the correct directory for python to find them.
 * Fix `batched-commands` triggering unexpected behaviour.
+* Conda command execution fixes.
+* PyPI-Conda mapping always returns name in lower to respect conda naming conventions.
 
 ## [0.8.0] - 09/04/2023
 
