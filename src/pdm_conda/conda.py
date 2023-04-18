@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 
 from packaging.version import Version
 from pdm import termui
-from pdm.exceptions import RequirementError
+from pdm.exceptions import PdmException, RequirementError
 from pdm.models.setup import Setup
 from pdm.termui import Verbosity
 
@@ -29,6 +29,11 @@ logger = termui.logger
 
 @contextlib.contextmanager
 def _optional_temporary_file(environment: dict):
+    """
+    If environment contains data then creates temporary file else yield None
+    :param environment: environment data
+    :return: Temporary file or None
+    """
     if environment:
         with NamedTemporaryFile(mode="w+", suffix=".yml") as f:
             yield f
@@ -36,10 +41,17 @@ def _optional_temporary_file(environment: dict):
         yield
 
 
-def run_conda(cmd, **environment) -> dict:
+def run_conda(
+    cmd,
+    exception_cls: type[PdmException] = RequirementError,
+    exception_msg: str = "Error locking dependencies",
+    **environment,
+) -> dict:
     """
-    Creates temporary environment file and run conda command
+    Optionally creates temporary environment file and run conda command
     :param cmd: conda command
+    :param exception_cls: exception to raise on error
+    :param exception_msg: base message to show on error
     :param environment: environment data
     :return: conda command response
     """
@@ -47,7 +59,12 @@ def run_conda(cmd, **environment) -> dict:
         if environment:
             for name, options in environment.items():
                 if options:
-                    f.write(f"{name}:\n")
+                    f.write(f"{name}:")
+                    if isinstance(options, str):
+                        f.write(f" {options}\n")
+                        continue
+                    else:
+                        f.write("\n")
                     for v in options:
                         f.write(f"  - {v}\n")
             f.seek(0)
@@ -62,13 +79,13 @@ def run_conda(cmd, **environment) -> dict:
         except:
             response = {}
     else:
-        response = {"message": process.stdout}
+        response = {"message": f"{process.stdout}\n{process.stderr}"}
     try:
         process.check_returncode()
     except subprocess.CalledProcessError as e:
-        msg = "Error locking dependencies\n"
+        msg = f"{exception_msg}\n"
         if isinstance(response, dict) and not response.get("success", False):
-            if err := response.get("solver_problems", response.get("error", response.get("message", []))):
+            if err := response.get("solver_problems", response.get("error", response.get("message", process.stderr))):
                 if isinstance(err, str):
                     err = [err]
                 msg += "\n".join(err)
@@ -76,7 +93,7 @@ def run_conda(cmd, **environment) -> dict:
             msg += process.stderr
         if environment:
             msg += f"\n{environment}"
-        raise RequirementError(msg) from e
+        raise exception_cls(msg) from e
     return response
 
 
@@ -132,14 +149,14 @@ def _parse_channel(channel_url: str) -> str:
 
 @lru_cache(maxsize=None)
 def _conda_search(
-    requirement: str,
     project: CondaProject,
+    requirement: str,
     channels: tuple[str],
 ) -> list[CondaCandidate]:
     """
     Search conda candidates for a requirement
-    :param requirement: requirement
     :param project: PDM project
+    :param requirement: requirement
     :param channels: requirement channels
     :return: list of conda candidates
     """
@@ -185,14 +202,14 @@ def _conda_search(
 
 
 def conda_search(
-    requirement: CondaRequirement | str,
     project: CondaProject,
+    requirement: CondaRequirement | str,
     channel: str | None = None,
 ) -> list[CondaCandidate]:
     """
     Search conda candidates for a requirement
-    :param requirement: requirement
     :param project: PDM project
+    :param requirement: requirement
     :param channel: requirement channel
     :return: list of conda candidates
     """
@@ -223,21 +240,21 @@ def _conda_install(
     project: CondaProject,
     command: list[str],
     packages: str | list[str] | None = None,
-    verbose: bool = False,
+    dry_run: bool = False,
 ):
     if isinstance(packages, str):
         packages = [packages]
     if packages:
         command.extend(packages)
+    if dry_run:
+        command.append("--dry-run")
     response = run_conda(command + ["--json"])
-    if verbose:
-        project.core.ui.echo(response)
+    project.core.ui.echo(response, verbosity=Verbosity.DEBUG)
 
 
 def conda_install(
     project: CondaProject,
     packages: str | list[str],
-    verbose: bool = False,
     dry_run: bool = False,
     no_deps: bool = False,
 ):
@@ -245,31 +262,28 @@ def conda_install(
     Install resolved packages using conda
     :param project: PDM project
     :param packages: resolved packages
-    :param verbose: show conda response if true
     :param dry_run: don't install if dry run
     :param no_deps: don't install dependencies if true
     """
     config = project.conda_config
-    command = config.command()
+    command = config.command("install")
     if no_deps:
         command.append("--no-deps")
         if config.runner != CondaRunner.MICROMAMBA:
             command.append("--no-update-deps")
-    if dry_run:
-        command.append("--dry-run")
+
     if config.installation_method == "copy":
         _copy = "copy"
         if config.runner == CondaRunner.MICROMAMBA:
             _copy = f"always-{_copy}"
         command.append(f"--{_copy}")
 
-    _conda_install(project, command, packages, verbose)
+    _conda_install(project, command, packages, dry_run=dry_run)
 
 
 def conda_uninstall(
     project: CondaProject,
     packages: str | list[str],
-    verbose: bool = False,
     dry_run: bool = False,
     no_deps: bool = False,
 ):
@@ -277,26 +291,22 @@ def conda_uninstall(
     Uninstall resolved packages using conda
     :param project: PDM project
     :param packages: resolved packages
-    :param verbose: show conda response if true
     :param dry_run: don't uninstall if dry run
     :param no_deps: don't uninstall dependencies if true
     """
     config = project.conda_config
-    command = config.command("remove")
+
+    with config.with_config(
+        runner=CondaRunner.CONDA if no_deps and config.runner == CondaRunner.MAMBA else config.runner,
+    ):
+        command = config.command("remove")
+
     if no_deps:
         if config.runner == CondaRunner.MICROMAMBA:
             command.append("--no-prune")
-        elif config.runner == CondaRunner.MAMBA:
-            command[0] = "conda"
         command.append("--force")
-    if dry_run:
-        command.append("--dry-run")
-    if isinstance(packages, str):
-        packages = [packages]
-    command.extend(packages)
-    command.append("--json")
 
-    _conda_install(project, command, verbose=verbose)
+    _conda_install(project, command, packages, dry_run=dry_run)
 
 
 def not_initialized_warning(project):
