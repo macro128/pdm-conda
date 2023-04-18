@@ -3,6 +3,7 @@ import re
 from importlib.metadata import Distribution
 from pathlib import Path
 from typing import Any, cast
+from urllib.parse import urlparse
 
 from pdm.models.candidates import Candidate, PreparedCandidate
 from pdm.models.environment import Environment
@@ -19,6 +20,18 @@ from pdm_conda.models.requirements import (
 from pdm_conda.models.setup import CondaSetupDistribution
 
 _patched = False
+
+
+def parse_channel(channel_url: str) -> str:
+    """
+    Parse channel from channel url
+    :param channel_url: channel url from package
+    :return: channel
+    """
+    channel = urlparse(channel_url).path
+    if channel.startswith("/"):
+        channel = channel[1:]
+    return channel
 
 
 class CondaPreparedCandidate(PreparedCandidate):
@@ -45,7 +58,10 @@ class CondaCandidate(Candidate):
         dependencies: list[str] | None = None,
         constrains: list[str] | None = None,
         build_string: str | None = None,
+        build_number: int = 0,
+        timestamp: int = 0,
         channel: str | None = None,
+        track_feature: str = "",
     ):
         super().__init__(req, name, version, link)
         self._req = cast(CondaRequirement, req)  # type: ignore
@@ -57,7 +73,10 @@ class CondaCandidate(Candidate):
             c = cast(CondaRequirement, parse_requirement(f"conda:{r}"))
             self.constrains[str(c.conda_name)] = c
         self.build_string = build_string
+        self.build_number = build_number
+        self.timestamp = timestamp
         self.channel = channel
+        self.track_feature = track_feature
         self.conda_version = version
         self.version = parse_conda_version(version)
 
@@ -95,6 +114,9 @@ class CondaCandidate(Candidate):
         result["channel"] = self.channel
         if self.build_string is not None:
             result["build_string"] = self.build_string
+        result["build_number"] = self.build_number
+        if self.track_feature:
+            result["track_feature"] = self.track_feature
         if self.constrains:
             result["constrains"] = [c.as_line(with_build_string=True) for c in self.constrains.values()]
         result["version"] = self.conda_version
@@ -145,7 +167,7 @@ class CondaCandidate(Candidate):
             url += f"#{k}={v}"
         name, version = package["name"], package["version"]
         build_string = package.get("build", package.get("build_string", ""))
-        channel = package["channel"]
+        channel = parse_channel(package["channel"])
         if requirement is not None:
             requirement = as_conda_requirement(requirement)
         else:
@@ -166,6 +188,9 @@ class CondaCandidate(Candidate):
             dependencies=dependencies,
             constrains=package.get("constrains", None) or [],
             build_string=build_string,
+            build_number=package.get("build_number", 0),
+            track_feature=package.get("track_feature", ""),
+            timestamp=package.get("timestamp", 0),
         )
 
     def __str__(self) -> str:
