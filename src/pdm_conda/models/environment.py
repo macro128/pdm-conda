@@ -8,6 +8,7 @@ from typing import cast
 from pdm.exceptions import NoPythonVersion, ProjectError
 from pdm.models.environment import Environment, PrefixEnvironment
 from pdm.models.requirements import Requirement
+from pdm.models.specifiers import PySpecSet
 from pdm.models.working_set import WorkingSet
 from pdm.project import Project
 
@@ -32,6 +33,7 @@ class CondaEnvironment(Environment):
         self.project = cast(CondaProject, project)
         self._python_dependencies: dict[str, Requirement] | None = None
         self._python_candidate: CondaCandidate | None = None
+        self.python_requires &= PySpecSet(f"=={self.interpreter.version}")
 
     @property
     def packages_path(self) -> Path:

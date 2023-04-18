@@ -5,7 +5,6 @@ from pdm.core import Core
 from pdm.exceptions import ProjectError
 from pdm.models.environment import Environment
 from pdm.models.repositories import LockedRepository
-from pdm.models.specifiers import PySpecSet
 from pdm.project import Project
 from pdm.resolver.providers import BaseProvider
 from pdm.utils import get_venv_like_prefix
@@ -76,12 +75,6 @@ class CondaProject(Project):
             lockfile = {}
 
         return self.locked_repository_class(lockfile, self.sources, self.environment)
-
-    @property
-    def python_requires(self) -> PySpecSet:
-        if not self._python:
-            return super().python_requires
-        return PySpecSet(f"=={self.python.version}")
 
     def _get_conda_info(self):
         from pdm_conda.conda import conda_info
