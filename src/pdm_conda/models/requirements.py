@@ -236,7 +236,7 @@ def parse_requirement(line: str, editable: bool = False) -> Requirement:
                             _version = _conda_specifier_star_re.sub(correct_specifier_star, _version)
                             if _version.startswith("~") and "." not in _version:
                                 _version += ".0"
-                        _version = parse_conda_version(_version, name == "openssl")
+                        _version = parse_conda_version(_version)
                         version_mapping[remove_operator(_version)] = remove_operator(conda_version_or)
                     version_or[j] = _version
             version_and[i] = max((v for v in version_or if v), key=comparable_version, default="")
