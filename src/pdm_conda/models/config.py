@@ -180,11 +180,11 @@ class PluginConfig:
         :param cmd: command, install by default
         :return: args list
         """
-        _command = [self.runner, cmd]
+        _command = [self.runner, *cmd.split(" ")]
         if self.runner != CondaRunner.CONDA and cmd == "search":
             _command.insert(1, "repoquery")
 
-        if cmd in ("install", "create", "remove"):
+        if cmd in ("install", "remove", "create"):
             _command.append("-y")
         if cmd in ("install", "create") or (cmd == "search" and self.runner == CondaRunner.MICROMAMBA):
             _command.append("--strict-channel-priority")
