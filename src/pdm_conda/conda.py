@@ -227,10 +227,9 @@ def _conda_install(
 ):
     if isinstance(packages, str):
         packages = [packages]
-    kwargs = dict()
     if packages:
-        kwargs["dependencies"] = packages
-    response = run_conda(command + ["--json"], **kwargs)
+        command.extend(packages)
+    response = run_conda(command + ["--json"])
     if verbose:
         project.core.ui.echo(response)
 
@@ -254,6 +253,8 @@ def conda_install(
     command = config.command()
     if no_deps:
         command.append("--no-deps")
+        if config.runner != CondaRunner.MICROMAMBA:
+            command.append("--no-update-deps")
     if dry_run:
         command.append("--dry-run")
     if config.installation_method == "copy":
