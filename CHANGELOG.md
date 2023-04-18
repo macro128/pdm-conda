@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.8.1] - 17/04/2023
+
+### Changed
+
+* Use Conda channels priority in package sorting.
+* `CondaProject` now contains info from default_channels, virtual_packages and platform.
+
+### Fixed
+
+* Non-conda packages now get installed in the correct directory for python to find them.
+* Fix `batched-commands` triggering unexpected behaviour.
+* Conda command execution fixes.
+* PyPI-Conda mapping always returns name in lower to respect conda naming conventions.
+
 ## [0.8.0] - 09/04/2023
 
 ### Added

@@ -12,10 +12,9 @@ from tests.conftest import (
 )
 
 
-@pytest.mark.parametrize("empty_conda_list", [False])
 @pytest.mark.parametrize("runner", ["conda", "micromamba"])
 @pytest.mark.parametrize("conda_mapping", CONDA_MAPPING)
-@pytest.mark.parametrize("conda_response", CONDA_INFO)
+@pytest.mark.parametrize("conda_info", CONDA_INFO)
 @pytest.mark.parametrize("group", ["default", "dev", "other"])
 class TestLock:
     @pytest.mark.parametrize("add_conflict", [True, False])
@@ -24,7 +23,7 @@ class TestLock:
         pdm,
         project,
         conda,
-        conda_response,
+        conda_info,
         runner,
         pypi,
         group,
@@ -38,7 +37,7 @@ class TestLock:
         from pdm_conda.models.requirements import CondaRequirement
 
         python_dependencies = {c["name"] for c in PYTHON_REQUIREMENTS}
-        conda_packages = [c for c in conda_response if c["name"] not in python_dependencies]
+        conda_packages = [c for c in conda_info if c["name"] not in python_dependencies]
         config = project.conda_config
         config.runner = runner
 
@@ -74,7 +73,7 @@ class TestLock:
         result = pdm(cmd, obj=project)
         assert result.exception is None
         # first subcommands are for python dependency and virtual packages
-        cmd_order = ["list", "info"]
+        cmd_order = ["list"]
         packages_to_search = {
             f"{PYTHON_PACKAGE['name']}=={PYTHON_PACKAGE['version']}={PYTHON_PACKAGE['build']}",
             *requirements,
@@ -86,7 +85,10 @@ class TestLock:
 
         search_command = "search" if runner == "conda" else "repoquery"
         if packages_to_search:
-            cmd_order.extend([search_command] * len(packages_to_search))
+            # python candidate
+            cmd_order.extend([search_command, "info"])
+            # other packages
+            cmd_order.extend([search_command] * (len(packages_to_search) - 1))
 
         assert conda.call_count == len(cmd_order)
         for (cmd,), kwargs in conda.call_args_list:
@@ -106,14 +108,15 @@ class TestLock:
             assert name in packages_to_search
             assert p["version"] == preferred_package["version"]
             assert p["build_string"] == preferred_package["build_string"]
+            assert preferred_package["channel"].endswith(p["channel"])
 
-    def test_lock_refresh(self, pdm, project, conda, conda_response, runner, pypi, group, mock_conda_mapping):
-        self.test_lock(pdm, project, conda, conda_response, runner, pypi, group, False, mock_conda_mapping)
+    def test_lock_refresh(self, pdm, project, conda, conda_info, runner, pypi, group, mock_conda_mapping):
+        self.test_lock(pdm, project, conda, conda_info, runner, pypi, group, False, mock_conda_mapping)
         self.test_lock(
             pdm,
             project,
             conda,
-            conda_response,
+            conda_info,
             runner,
             pypi,
             group,

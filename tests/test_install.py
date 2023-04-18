@@ -2,14 +2,14 @@ import re
 
 import pytest
 
-from tests.conftest import BUILD_BACKEND, CONDA_INFO, CONDA_MAPPING, PYTHON_REQUIREMENTS
+from tests.conftest import CONDA_INFO, CONDA_MAPPING, PYTHON_REQUIREMENTS
 from tests.utils import format_url
 
 
+@pytest.mark.usefixtures("working_set")
 class TestInstall:
-    @pytest.mark.parametrize("conda_response", CONDA_INFO)
+    @pytest.mark.parametrize("conda_info", CONDA_INFO)
     @pytest.mark.parametrize("runner", ["conda", "micromamba"])
-    @pytest.mark.parametrize("empty_conda_list", [True])
     @pytest.mark.parametrize("dry_run", [True, False])
     @pytest.mark.parametrize("conda_batched", [True, False, None])
     @pytest.mark.parametrize("install_self", [True, False])
@@ -19,7 +19,7 @@ class TestInstall:
         pdm,
         project,
         conda,
-        conda_response,
+        conda_info,
         runner,
         dry_run,
         mock_conda_mapping,
@@ -30,10 +30,10 @@ class TestInstall:
         """
         Test `install` command work as expected
         """
-        conda_response = [r for r in conda_response if r not in PYTHON_REQUIREMENTS]
+        conda_info = [r for r in conda_info if r not in PYTHON_REQUIREMENTS]
         conf = project.conda_config
         conf.runner = runner
-        conf.dependencies = [conda_response[-1]["name"]]
+        conf.dependencies = [conda_info[-1]["name"]]
         if conda_batched is None:
             conda_batched = False
         else:
@@ -47,7 +47,7 @@ class TestInstall:
         result = pdm(command, obj=project)
         assert result.exception is None
 
-        packages_to_install = {r["name"]: None for r in conda_response}
+        packages_to_install = {r["name"]: None for r in conda_info}
         num_installs = len(packages_to_install)
         if dry_run:
             out = "Packages to add:\n"
@@ -57,12 +57,11 @@ class TestInstall:
         else:
             if install_self:
                 assert f"Install {project.name} {project.pyproject.metadata.get('version')} successful" in result.output
-                assert f"Installing {BUILD_BACKEND['name']} {BUILD_BACKEND['version']}" in result.outputs
             assert f"{num_installs} to add" in result.stdout
 
         search_cmd = "search" if runner == "conda" else "repoquery"
         cmd_order = (
-            ["list", "info", search_cmd]
+            ["list", search_cmd, "info"]
             + [search_cmd] * num_installs
             + ["list"]
             + ["install"] * (0 if dry_run else (1 if conda_batched else num_installs))
@@ -70,7 +69,7 @@ class TestInstall:
         assert conda.call_count == len(cmd_order)
 
         urls = dict()
-        for p in conda_response:
+        for p in conda_info:
             urls[p["name"]] = format_url(p)
         urls = list(urls.values())
         for (cmd,), kwargs in conda.call_args_list:

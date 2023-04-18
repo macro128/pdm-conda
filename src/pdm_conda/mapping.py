@@ -70,15 +70,12 @@ def get_conda_mapping() -> dict[str, str]:
     return {v: k for k, v in get_pypi_mapping().items()}
 
 
-def _requirement_map(requirement: str, mapping: dict, exclude: set | None = None):
+def _requirement_map(requirement: str, mapping: dict):
     requirement = requirement.strip()
     name = requirement
     for s in (">", "<", "=", "!", "~", " ", "["):
         name = name.split(s, maxsplit=1)[0]
     name = name.split("::")[-1].strip()
-    if exclude is not None and name in exclude:
-        return name
-
     return mapping.get(name, name)
 
 
@@ -88,7 +85,7 @@ def pypi_to_conda(requirement: str) -> str:
     :param requirement: PyPI requirement
     :return: Conda requirement
     """
-    return _requirement_map(requirement, get_pypi_mapping())
+    return _requirement_map(requirement, get_pypi_mapping()).lower()
 
 
 def conda_to_pypi(requirement: str) -> str:

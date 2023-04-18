@@ -13,10 +13,10 @@ from pdm.models.setup import Setup
 from pdm.termui import Verbosity
 
 from pdm_conda.models.candidates import CondaCandidate
+from pdm_conda.models.conda import ChannelSorter
 from pdm_conda.models.config import CondaRunner
 from pdm_conda.models.requirements import (
     CondaRequirement,
-    Requirement,
     parse_conda_version,
     parse_requirement,
 )
@@ -80,25 +80,54 @@ def run_conda(cmd, **environment) -> dict:
     return response
 
 
-def _sort_packages(packages: list[dict]) -> Iterable[dict]:
+@lru_cache(maxsize=None)
+def _get_channel_sorter(platform: str, channels: tuple[str]) -> ChannelSorter:
+    """
+    Get channel sorter
+    :param channels: list of conda channels used to determine priority
+    :param platform: env platform
+    :return: channel sorter
+    """
+    return ChannelSorter(platform, channels)
+
+
+def _sort_packages(packages: list[dict], channels: Iterable[str], platform: str) -> Iterable[dict]:
     """
     Sort packages following mamba specification
     (https://mamba.readthedocs.io/en/latest/advanced_usage/package_resolution.html).
     :param packages: list of conda packages
+    :param channels: list of conda channels used to determine priority
+    :param platform: env platform
     :return: sorted conda packages
     """
     if len(packages) <= 1:
         return packages
+
+    channels_sorter = _get_channel_sorter(platform, tuple(channels))
 
     def get_preference(package):
         return (
             not package.get("track_feature", ""),
             Version(parse_conda_version(package["version"], inverse=package.get("name", "") == "openssl")),
             package.get("build_number", 0),
+            -channels_sorter.get_priority(package["channel"]),
             package.get("timestamp", 0),
         )
 
     return sorted(packages, key=get_preference, reverse=True)
+
+
+@lru_cache(maxsize=None)
+def _parse_channel(channel_url: str) -> str:
+    """
+    Parse channel from channel url
+    :param channel_url: channel url from package
+    :return: channel
+    """
+    channel = urlparse(channel_url).path
+    if channel.startswith("/"):
+        channel = channel[1:]
+    return channel
 
 
 @lru_cache(maxsize=None)
@@ -116,10 +145,8 @@ def _conda_search(
     """
     config = project.conda_config
     command = config.command("search")
-    if not project.virtual_packages:
-        project.virtual_packages = conda_virtual_packages(project)
-
     command.append(requirement)
+
     for c in channels:
         command.extend(["-c", c])
     if channels:
@@ -139,7 +166,10 @@ def _conda_search(
     else:
         packages = result.get("result", dict()).get("pkgs", [])
 
-    for p in _sort_packages(packages):
+    for p in packages:
+        p["channel"] = _parse_channel(p["channel"])
+
+    for p in _sort_packages(packages, channels, project.platform):
         dependencies = p.get("depends", [])
         valid_candidate = True
         for d in dependencies:
@@ -149,14 +179,6 @@ def _conda_search(
                     valid_candidate = False
                     break
         if valid_candidate:
-            package_channel = urlparse(p["channel"]).path
-            for c in channels:
-                if c in package_channel:
-                    p["channel"] = c
-                    break
-            if "defaults" in channels and p["channel"].startswith("http"):
-                p["channel"] = "defaults"
-
             candidates.append(CondaCandidate.from_conda_package(p))
 
     return candidates
@@ -181,29 +203,20 @@ def conda_search(
         channel, requirement = requirement.split("::", maxsplit=1)
     channels = [channel] if channel else project.conda_config.channels
     if not channels:
-        project.core.ui.echo(f"No channel specified for searching [success]{requirement}[/]", verbosity=Verbosity.DEBUG)
+        project.core.ui.echo(
+            f"No channel specified for searching [success]{requirement}[/] using defaults if exist.",
+            verbosity=Verbosity.DEBUG,
+        )
+        channels.append("defaults")
+
+    # set defaults if exist
+    try:
+        idx = channels.index("defaults")
+        channels = channels[:idx] + project.default_channels + channels[idx + 1 :]
+    except ValueError:
+        pass
+
     return _conda_search(requirement, project, tuple(channels))
-
-
-def update_requirements(requirements: list[Requirement], conda_packages: dict[str, CondaCandidate]):
-    """
-    Update requirements list with conda_packages
-    :param requirements: requirements list
-    :param conda_packages: conda packages
-    """
-    repeated_packages: dict[str, int] = dict()
-    for i, requirement in enumerate(requirements):
-        if (name := requirement.conda_name) in conda_packages and not isinstance(requirement, CondaRequirement):
-            requirement.name = requirement.conda_name
-            requirements[i] = parse_requirement(f"conda:{requirement.as_line()}")
-        repeated_packages[name] = repeated_packages.get(name, 0) + 1
-    to_remove = []
-    for r in requirements:
-        if repeated_packages.get(r.name, 1) > 1:
-            to_remove.append(r)
-            repeated_packages.pop(r.name)
-    for r in to_remove:
-        requirements.remove(r)
 
 
 def _conda_install(
@@ -214,10 +227,9 @@ def _conda_install(
 ):
     if isinstance(packages, str):
         packages = [packages]
-    kwargs = dict()
     if packages:
-        kwargs["dependencies"] = packages
-    response = run_conda(command + ["--json"], **kwargs)
+        command.extend(packages)
+    response = run_conda(command + ["--json"])
     if verbose:
         project.core.ui.echo(response)
 
@@ -241,6 +253,8 @@ def conda_install(
     command = config.command()
     if no_deps:
         command.append("--no-deps")
+        if config.runner != CondaRunner.MICROMAMBA:
+            command.append("--no-update-deps")
     if dry_run:
         command.append("--dry-run")
     if config.installation_method == "copy":
@@ -291,25 +305,27 @@ def not_initialized_warning(project):
     )
 
 
-def conda_virtual_packages(project: CondaProject) -> set[CondaRequirement]:
+def conda_info(project: CondaProject) -> dict:
     """
-    Get conda virtual packages
+    Get conda info containing virtual packages, default channels and packages
     :param project: PDM project
-    :return: set of virtual packages
+    :return: dict with conda info
     """
     config = project.conda_config
-    virtual_packages = set()
+    res: dict = dict(virtual_packages=set(), platform="", channels=[])
     if config.is_initialized:
         info = run_conda(config.command("info") + ["--json"])
         if config.runner != CondaRunner.MICROMAMBA:
-            _virtual_packages = {"=".join(p) for p in info["virtual_pkgs"]}
+            virtual_packages = {"=".join(p) for p in info["virtual_pkgs"]}
         else:
-            _virtual_packages = set(info["virtual packages"])
+            virtual_packages = set(info["virtual packages"])
 
-        virtual_packages = {parse_requirement(f"conda:{p.replace('=', '==', 1)}") for p in _virtual_packages}
+        res["virtual_packages"] = {parse_requirement(f"conda:{p.replace('=', '==', 1)}") for p in virtual_packages}
+        res["platform"] = info["platform"]
+        res["channels"] = [_parse_channel(channel) for channel in (info["channels"] or [])]
     else:
         not_initialized_warning(project)
-    return virtual_packages
+    return res
 
 
 def conda_list(project: CondaProject) -> dict[str, CondaSetupDistribution]:
