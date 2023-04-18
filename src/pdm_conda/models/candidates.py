@@ -12,6 +12,7 @@ from unearth import Link
 from pdm_conda.models.requirements import (
     CondaRequirement,
     Requirement,
+    as_conda_requirement,
     parse_conda_version,
     parse_requirement,
 )
@@ -119,10 +120,11 @@ class CondaCandidate(Candidate):
         return CondaCandidate.from_conda_package(package | {"depends": dependencies})
 
     @classmethod
-    def from_conda_package(cls, package: dict) -> "CondaCandidate":
+    def from_conda_package(cls, package: dict, requirement: CondaRequirement | None = None) -> "CondaCandidate":
         """
         Create conda candidate from conda package.
         :param package: conda package
+        :param requirement: conda requirement associated with conda package
         :return: conda candidate
         """
         dependencies: list = package["depends"] or []
@@ -144,10 +146,15 @@ class CondaCandidate(Candidate):
         name, version = package["name"], package["version"]
         build_string = package.get("build", package.get("build_string", ""))
         channel = package["channel"]
-        req = parse_requirement(f"conda:{name} {version} {build_string}")
-        req.is_python_package = requires_python is not None
+        if requirement is not None:
+            requirement = as_conda_requirement(requirement)
+        else:
+            requirement = parse_requirement(f"conda:{name} {version} {build_string}")
+
+        assert requirement is not None
+        requirement.is_python_package = requires_python is not None
         return CondaCandidate(
-            req=req,
+            req=requirement,
             name=name,
             version=version,
             link=Link(
@@ -157,7 +164,7 @@ class CondaCandidate(Candidate):
             ),
             channel=channel,
             dependencies=dependencies,
-            constrains=package.get("constrains", []),
+            constrains=package.get("constrains", None) or [],
             build_string=build_string,
         )
 
