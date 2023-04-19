@@ -27,6 +27,10 @@ from pdm_conda.utils import normalize_name
 logger = termui.logger
 
 
+class CondaResolutionError(PdmException):
+    pass
+
+
 @contextlib.contextmanager
 def _optional_temporary_file(environment: dict):
     """
@@ -291,8 +295,8 @@ def conda_create(
 
     result = run_conda(
         command,
-        exception_cls=VirtualenvCreateError,
-        exception_msg="Error creating environment",
+        exception_cls=CondaResolutionError if dry_run else VirtualenvCreateError,
+        exception_msg=f"Error resolving requirements with {config.runner}" if dry_run else "Error creating environment",
     )
 
     actions = result.get("actions", dict())
