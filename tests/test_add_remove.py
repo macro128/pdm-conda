@@ -65,7 +65,7 @@ class TestAddRemove:
 
         assert channels.issubset(conf.channels)
         assert conf.runner == runner
-        cmd_order = ["create", "list", "install"]
+        cmd_order = ["create", "info", "list", "install"]
         assert conda.call_count == len(cmd_order)
         for (cmd,), kwargs in conda.call_args_list:
             assert cmd[0] == runner

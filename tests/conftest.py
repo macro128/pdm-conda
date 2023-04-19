@@ -24,7 +24,7 @@ pytest_plugins = "pdm.pytest"
 
 PYTHON_VERSION = sys.version.split(" ")[0]
 
-PYTHON_PACKAGE = generate_package_info("python", PYTHON_VERSION, ["lib 1.0", "python-only-dep"])
+PYTHON_PACKAGE = generate_package_info("python", PYTHON_VERSION, ["lib 1.0", "python-only-dep", "__unix =0"])
 PYTHON_REQUIREMENTS = [
     generate_package_info("openssl", "1.1.1a"),
     generate_package_info("openssl", "1.1.1c"),
@@ -183,7 +183,7 @@ def mock_conda(mocker: MockerFixture, conda_info: dict | list, installed_package
 
             def _fetch_package(req, packages, fetch_info):
                 name = req.split(" ")[0].split(":")[-1].split("=")[0].split("<")[0].split(">")[0]
-                if name not in packages:
+                if name not in packages and not name.startswith("__"):
                     packages.add(name)
                     pkg = PREFERRED_VERSIONS[name]
                     fetch_info.append(deepcopy(pkg))

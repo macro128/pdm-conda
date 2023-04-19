@@ -85,7 +85,7 @@ class TestLock:
             cmd.append("--refresh")
         pdm(cmd, obj=project, strict=True)
         # first subcommands are for python dependency and virtual packages
-        cmd_order = ["create"]
+        cmd_order = ["create", "info"]
         packages_to_search = {PYTHON_PACKAGE["name"], *requirements}
 
         assert conda.call_count == len(cmd_order)

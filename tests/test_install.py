@@ -58,7 +58,9 @@ class TestInstall:
                 assert f"Install {project.name} {project.pyproject.metadata.get('version')} successful" in result.output
             assert f"{num_installs} to add" in result.stdout
 
-        cmd_order = ["create", "list"] + ["install"] * (0 if dry_run else (1 if conda_batched else num_installs))
+        cmd_order = ["create", "info", "list"] + ["install"] * (
+            0 if dry_run else (1 if conda_batched else num_installs)
+        )
         assert conda.call_count == len(cmd_order)
 
         urls = dict()
