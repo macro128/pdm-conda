@@ -11,10 +11,24 @@ from pdm.project import ConfigItem, Project
 
 from pdm_conda.mapping import DOWNLOAD_DIR_ENV_VAR
 
+
+class CondaRunner(str, Enum):
+    CONDA = "conda"
+    MAMBA = "mamba"
+    MICROMAMBA = "micromamba"
+
+
+class CondaSolver(str, Enum):
+    CONDA = "conda"
+    MAMBA = "libmamba"
+
+
 _CONFIG_MAP = {"pypi-mapping.download-dir": "mapping_download_dir"}
 _CONFIG_MAP |= {v: k for k, v in _CONFIG_MAP.items()}
+
 CONFIGS = [
-    ("runner", ConfigItem("Conda runner executable", "conda", env_var="CONDA_RUNNER")),
+    ("runner", ConfigItem("Conda runner executable", CondaRunner.CONDA.value, env_var="CONDA_RUNNER")),
+    ("solver", ConfigItem("Solver to use for Conda resolution", CondaSolver.CONDA.value, env_var="CONDA_SOLVER")),
     ("channels", ConfigItem("Conda channels to use")),
     (
         "as-default-manager",
@@ -45,6 +59,7 @@ CONFIGS = [
         ),
     ),
 ]
+
 CONFIGS = [(f"conda.{name}", config) for name, config in CONFIGS]
 
 
@@ -56,12 +71,6 @@ def is_conda_config_initialized(project: Project):
     return "conda" in project.pyproject.settings
 
 
-class CondaRunner(str, Enum):
-    CONDA = "conda"
-    MAMBA = "mamba"
-    MICROMAMBA = "micromamba"
-
-
 @dataclass
 class PluginConfig:
     _project: Project = field(repr=False, default=None)
@@ -69,7 +78,8 @@ class PluginConfig:
     _set_project_config: bool = field(repr=False, default=False, compare=False)
 
     channels: list[str] = field(default_factory=list)
-    runner: str = "conda"
+    runner: str = CondaRunner.CONDA
+    solver: str = CondaSolver.CONDA
     as_default_manager: bool = False
     batched_commands: bool = False
     installation_method: str = "hard-link"
@@ -82,6 +92,8 @@ class PluginConfig:
     def __post_init__(self):
         if self.runner not in list(CondaRunner):
             raise ProjectError(f"Invalid Conda runner: {self.runner}")
+        if self.solver not in list(CondaSolver):
+            raise ProjectError(f"Invalid Conda solver: {self.solver}")
         if self.installation_method not in ["hard-link", "copy"]:
             raise ProjectError(f"Invalid Conda installation method: {self.installation_method}")
         to_suscribe = [
@@ -94,6 +106,14 @@ class PluginConfig:
             if not is_decorated(func):
                 setattr(obj, name, self.suscribe(self, func))
         self._set_project_config = True
+        if self.is_initialized:
+            config = self._project.project_config
+            config["python.use_venv"] = True
+            config["python.use_pyenv"] = False
+            config["venv.backend"] = self.runner
+            if (venv_location := os.getenv("VIRTUAL_ENV", os.getenv("CONDA_PREFIX", None))) is not None:
+                self._project.global_config["venv.location"] = str(Path(venv_location).parent)
+                os.environ["PDM_IGNORE_SAVED_PYTHON"] = "true"
 
     def __setattr__(self, name: str, value: Any) -> None:
         super().__setattr__(name, value)
@@ -136,17 +156,29 @@ class PluginConfig:
         return wrapper
 
     @contextmanager
-    def omit_set_project_config(self):
+    def with_config(self, **kwargs):
         """
-        Context manager that deactivates updating pyproject settings
-        :return:
+        Context manager that temporarily updates configs without updating pyproject settings
         """
-        old_value = self._set_project_config
-        self._set_project_config = False
+        configs = ["_set_project_config"] + list(kwargs)
+        kwargs["_set_project_config"] = False
+        old_values = {}
+        for name in configs:
+            old_values[name] = getattr(self, name)
+            setattr(self, name, kwargs[name])
         try:
             yield
         finally:
-            self._set_project_config = old_value
+            for name in reversed(configs):
+                setattr(self, name, old_values[name])
+
+    @contextmanager
+    def omit_set_project_config(self):
+        """
+        Context manager that deactivates updating pyproject settings
+        """
+        with self.with_config():
+            yield
 
     @property
     def is_initialized(self):
@@ -188,4 +220,6 @@ class PluginConfig:
             _command.append("-y")
         if cmd in ("install", "create") or (cmd == "search" and self.runner == CondaRunner.MICROMAMBA):
             _command.append("--strict-channel-priority")
+        if self.runner == CondaRunner.CONDA and self.solver == CondaSolver.MAMBA and cmd in ("create", "install"):
+            _command.extend(["--solver", self.solver])
         return _command

@@ -18,6 +18,7 @@ DEPENDENCIES = dict(
         ([], ["pytest-conda~=1.0.0"]),
         ([], ["pytest-conda~=1.*"]),
         ([], ["pytest-conda=1"]),
+        ([], ["pytest-conda==1.0=build_string"]),
     ],
     ids=[
         "different pkgs",
@@ -33,6 +34,7 @@ DEPENDENCIES = dict(
         "~= specifier",
         "~= star specifier",
         "= specifier",
+        "conda with build string",
     ],
 )
 CONDA_MAPPING = dict(
@@ -46,6 +48,7 @@ GROUPS = dict(argnames="group", argvalues=["default", "dev", "optional"])
 @pytest.mark.parametrize(**DEPENDENCIES)
 @pytest.mark.parametrize(**GROUPS)
 @pytest.mark.parametrize(**CONDA_MAPPING)
+@pytest.mark.parametrize("as_default_manager", [False, True], ids=["", "as_default_manager"])
 class TestProject:
     def _parse_requirements(
         self,
@@ -85,7 +88,6 @@ class TestProject:
             requirements[r.identify()] = r
         return requirements
 
-    @pytest.mark.parametrize("as_default_manager", [False, True], ids=["", "as_default_manager"])
     def test_get_dependencies(
         self,
         project,
@@ -94,7 +96,6 @@ class TestProject:
         group,
         as_default_manager,
         mock_conda_mapping,
-        test_id,
     ):
         """
         Test get project dependencies with conda dependencies and correct parse requirements
@@ -155,12 +156,14 @@ class TestProject:
         conda_dependencies,
         group,
         mock_conda_mapping,
+        as_default_manager,
+        test_id,
     ):
         from pdm_conda.mapping import conda_to_pypi
         from pdm_conda.models.requirements import CondaRequirement
 
-        requirements = self._parse_requirements(dependencies, conda_dependencies)
-
+        project.conda_config.as_default_manager = as_default_manager
+        requirements = self._parse_requirements(dependencies, conda_dependencies, as_default_manager=as_default_manager)
         group_name = group if group == "default" else "dev"
         dev = group == "dev"
         project.add_dependencies(requirements, to_group=group_name, dev=dev)
@@ -183,5 +186,12 @@ class TestProject:
                         if d in r or conda_to_pypi(d) in r:
                             asserted += 1
                             break
-                assert asserted == len(conda_dependencies) * (2 if requirements[d].is_python_package else 1)
+                req = requirements[d]
+                num_assertions = 1
+                if as_default_manager:
+                    if not req.is_python_package or req.channel or req.build_string:
+                        num_assertions = 2
+                elif req.is_python_package:
+                    num_assertions = 2
+                assert asserted == len(conda_dependencies) * num_assertions
         assert all("[" not in k for k in project.get_dependencies(group_name))

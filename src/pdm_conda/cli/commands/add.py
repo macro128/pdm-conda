@@ -45,9 +45,6 @@ class Command(BaseCommand):
     def handle(self, project: Project, options: argparse.Namespace) -> None:
         project = cast(CondaProject, project)
         config = project.conda_config
-        if config.as_default_manager:
-            options.conda_packages.extend(options.packages)
-            options.packages = []
 
         if conda_packages := options.conda_packages:
             channel = options.conda_channel

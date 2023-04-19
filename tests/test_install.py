@@ -44,8 +44,7 @@ class TestInstall:
 
         if dry_run:
             command.append("--dry-run")
-        result = pdm(command, obj=project)
-        assert result.exception is None
+        result = pdm(command, obj=project, strict=True)
 
         packages_to_install = {r["name"]: None for r in conda_info}
         num_installs = len(packages_to_install)
@@ -59,12 +58,8 @@ class TestInstall:
                 assert f"Install {project.name} {project.pyproject.metadata.get('version')} successful" in result.output
             assert f"{num_installs} to add" in result.stdout
 
-        search_cmd = "search" if runner == "conda" else "repoquery"
-        cmd_order = (
-            ["list", search_cmd, "info"]
-            + [search_cmd] * num_installs
-            + ["list"]
-            + ["install"] * (0 if dry_run else (1 if conda_batched else num_installs))
+        cmd_order = ["create", "info", "list"] + ["install"] * (
+            0 if dry_run else (1 if conda_batched else num_installs)
         )
         assert conda.call_count == len(cmd_order)
 
@@ -77,7 +72,7 @@ class TestInstall:
             cmd_subcommand = cmd[1]
             assert cmd_subcommand == cmd_order.pop(0)
             if cmd_subcommand == "install":
-                deps = kwargs["dependencies"]
+                deps = [c for c in cmd if c.startswith("https://")]
                 if conda_batched:
                     assert len(deps) == num_installs
                 else:

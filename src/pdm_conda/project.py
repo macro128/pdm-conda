@@ -5,7 +5,6 @@ from pdm.core import Core
 from pdm.exceptions import ProjectError
 from pdm.models.environment import Environment
 from pdm.models.repositories import LockedRepository
-from pdm.models.specifiers import PySpecSet
 from pdm.project import Project
 from pdm.resolver.providers import BaseProvider
 from pdm.utils import get_venv_like_prefix
@@ -54,19 +53,21 @@ class CondaProject(Project):
     def _check_update_info(self, prop):
         if prop is None:
             self._get_conda_info()
-        return prop
 
     @property
     def virtual_packages(self) -> set[CondaRequirement]:
-        return self._check_update_info(self._virtual_packages)  # type: ignore
+        self._check_update_info(self._virtual_packages)
+        return self._virtual_packages  # type: ignore
 
     @property
     def platform(self) -> str:
-        return self._check_update_info(self._platform)  # type: ignore
+        self._check_update_info(self._platform)
+        return self._platform  # type: ignore
 
     @property
     def default_channels(self) -> list[str]:
-        return self._check_update_info(self._default_channels)  # type: ignore
+        self._check_update_info(self._default_channels)
+        return self._default_channels  # type: ignore
 
     @property
     def locked_repository(self) -> LockedRepository:
@@ -76,12 +77,6 @@ class CondaProject(Project):
             lockfile = {}
 
         return self.locked_repository_class(lockfile, self.sources, self.environment)
-
-    @property
-    def python_requires(self) -> PySpecSet:
-        if not self._python:
-            return super().python_requires
-        return PySpecSet(f"=={self.python.version}")
 
     def _get_conda_info(self):
         from pdm_conda.conda import conda_info
@@ -164,7 +159,9 @@ class CondaProject(Project):
             n: r.as_named_requirement() for n, r in conda_requirements.items() if r.is_python_package
         }
         if self.conda_config.as_default_manager:
-            conda_requirements = {n: r for n, r in conda_requirements.items() if not r.is_python_package}
+            conda_requirements = {
+                n: r for n, r in conda_requirements.items() if not r.is_python_package or r.channel or r.build_string
+            }
         if conda_requirements:
             deps = self.get_conda_pyproject_dependencies(to_group, dev, set_defaults=True)
             cast(Array, deps).multiline(True)

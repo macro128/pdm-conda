@@ -5,6 +5,7 @@ from typing import Any
 
 from packaging.specifiers import SpecifierSet
 from packaging.version import Version
+from pdm.models.candidates import Candidate
 from pdm.models.requirements import NamedRequirement, Requirement, T
 from pdm.models.requirements import parse_requirement as _parse_requirement
 from pdm.models.requirements import strip_extras
@@ -86,15 +87,25 @@ class CondaRequirement(NamedRequirement):
     def as_named_requirement(self) -> NamedRequirement:
         return NamedRequirement.create(name=conda_to_pypi(self.name), specifier=self.specifier)
 
-    def is_compatible(self, requirement: Requirement):
+    def is_compatible(self, requirement_or_candidate: Requirement | Candidate):
         _compatible = True
-        if (build_string := getattr(requirement, "build_string", "")) and self.build_string:
+        # test build string compatible
+        if (build_string := getattr(requirement_or_candidate, "build_string", "")) and self.build_string:
             _compatible &= re.match(rf"{self.build_string.replace('*', r'.*')}", build_string) is not None
-        return (
-            _compatible
-            and self.conda_name == requirement.conda_name
-            and all(self.specifier.contains(s.version) for s in requirement.specifier)
+
+        # test equal name
+        _compatible &= self.conda_name == getattr(
+            requirement_or_candidate,
+            "conda_name",
+            getattr(requirement_or_candidate, "name", ""),
         )
+
+        # test version/specifier compatible
+        if (version := getattr(requirement_or_candidate, "version", None)) is not None:
+            _compatible &= self.specifier.contains(version)
+        else:
+            _compatible &= all(self.specifier.contains(s.version) for s in requirement_or_candidate.specifier)
+        return _compatible
 
     def merge(self, requirement: Requirement) -> "CondaRequirement":
         """
@@ -225,7 +236,7 @@ def parse_requirement(line: str, editable: bool = False) -> Requirement:
                             _version = _conda_specifier_star_re.sub(correct_specifier_star, _version)
                             if _version.startswith("~") and "." not in _version:
                                 _version += ".0"
-                        _version = parse_conda_version(_version, name == "openssl")
+                        _version = parse_conda_version(_version)
                         version_mapping[remove_operator(_version)] = remove_operator(conda_version_or)
                     version_or[j] = _version
             version_and[i] = max((v for v in version_or if v), key=comparable_version, default="")

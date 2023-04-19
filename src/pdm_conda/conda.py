@@ -2,17 +2,17 @@ import contextlib
 import json
 import subprocess
 from functools import lru_cache
+from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Iterable
-from urllib.parse import urlparse
 
-from packaging.version import Version
 from pdm import termui
-from pdm.exceptions import RequirementError
+from pdm.cli.commands.venv.backends import VirtualenvCreateError
+from pdm.exceptions import PdmException, RequirementError
 from pdm.models.setup import Setup
 from pdm.termui import Verbosity
 
-from pdm_conda.models.candidates import CondaCandidate
+from pdm_conda.models.candidates import CondaCandidate, parse_channel
 from pdm_conda.models.conda import ChannelSorter
 from pdm_conda.models.config import CondaRunner
 from pdm_conda.models.requirements import (
@@ -27,8 +27,17 @@ from pdm_conda.utils import normalize_name
 logger = termui.logger
 
 
+class CondaResolutionError(PdmException):
+    pass
+
+
 @contextlib.contextmanager
 def _optional_temporary_file(environment: dict):
+    """
+    If environment contains data then creates temporary file else yield None
+    :param environment: environment data
+    :return: Temporary file or None
+    """
     if environment:
         with NamedTemporaryFile(mode="w+", suffix=".yml") as f:
             yield f
@@ -36,10 +45,17 @@ def _optional_temporary_file(environment: dict):
         yield
 
 
-def run_conda(cmd, **environment) -> dict:
+def run_conda(
+    cmd,
+    exception_cls: type[PdmException] = RequirementError,
+    exception_msg: str = "Error locking dependencies",
+    **environment,
+) -> dict:
     """
-    Creates temporary environment file and run conda command
+    Optionally creates temporary environment file and run conda command
     :param cmd: conda command
+    :param exception_cls: exception to raise on error
+    :param exception_msg: base message to show on error
     :param environment: environment data
     :return: conda command response
     """
@@ -47,7 +63,12 @@ def run_conda(cmd, **environment) -> dict:
         if environment:
             for name, options in environment.items():
                 if options:
-                    f.write(f"{name}:\n")
+                    f.write(f"{name}:")
+                    if isinstance(options, str):
+                        f.write(f" {options}\n")
+                        continue
+                    else:
+                        f.write("\n")
                     for v in options:
                         f.write(f"  - {v}\n")
             f.seek(0)
@@ -62,13 +83,13 @@ def run_conda(cmd, **environment) -> dict:
         except:
             response = {}
     else:
-        response = {"message": process.stdout}
+        response = {"message": f"{process.stdout}\n{process.stderr}"}
     try:
         process.check_returncode()
     except subprocess.CalledProcessError as e:
-        msg = "Error locking dependencies\n"
+        msg = f"{exception_msg}\n"
         if isinstance(response, dict) and not response.get("success", False):
-            if err := response.get("solver_problems", response.get("error", response.get("message", []))):
+            if err := response.get("solver_problems", response.get("error", response.get("message", process.stderr))):
                 if isinstance(err, str):
                     err = [err]
                 msg += "\n".join(err)
@@ -76,7 +97,7 @@ def run_conda(cmd, **environment) -> dict:
             msg += process.stderr
         if environment:
             msg += f"\n{environment}"
-        raise RequirementError(msg) from e
+        raise exception_cls(msg) from e
     return response
 
 
@@ -91,55 +112,84 @@ def _get_channel_sorter(platform: str, channels: tuple[str]) -> ChannelSorter:
     return ChannelSorter(platform, channels)
 
 
-def _sort_packages(packages: list[dict], channels: Iterable[str], platform: str) -> Iterable[dict]:
+def sort_candidates(project: CondaProject, packages: list[CondaCandidate]) -> Iterable[CondaCandidate]:
     """
-    Sort packages following mamba specification
+    Sort candidates following mamba specification
     (https://mamba.readthedocs.io/en/latest/advanced_usage/package_resolution.html).
-    :param packages: list of conda packages
-    :param channels: list of conda channels used to determine priority
-    :param platform: env platform
-    :return: sorted conda packages
+    :param project: PDM project
+    :param packages: list of conda candidates
+    :return: sorted conda candidates
     """
     if len(packages) <= 1:
         return packages
+    channels_sorter = _get_channel_sorter(project.platform, tuple(project.conda_config.channels))
 
-    channels_sorter = _get_channel_sorter(platform, tuple(channels))
-
-    def get_preference(package):
+    def get_preference(candidate: CondaCandidate):
         return (
-            not package.get("track_feature", ""),
-            Version(parse_conda_version(package["version"], inverse=package.get("name", "") == "openssl")),
-            package.get("build_number", 0),
-            -channels_sorter.get_priority(package["channel"]),
-            package.get("timestamp", 0),
+            not candidate.track_feature,
+            candidate.version,
+            candidate.build_number,
+            -channels_sorter.get_priority(candidate.channel or ""),
+            candidate.timestamp,
         )
 
     return sorted(packages, key=get_preference, reverse=True)
 
 
-@lru_cache(maxsize=None)
-def _parse_channel(channel_url: str) -> str:
+def _parse_candidates(project: CondaProject, packages: list[dict], requirement=None) -> list[CondaCandidate]:
     """
-    Parse channel from channel url
-    :param channel_url: channel url from package
-    :return: channel
+    Convert conda packages to candidates
+    :param project: PDM project
+    :param packages: conda packages
+    :param requirement: requirement linked to packages
+    :return: list of candidates
     """
-    channel = urlparse(channel_url).path
-    if channel.startswith("/"):
-        channel = channel[1:]
-    return channel
+    candidates = []
+    for p in packages:
+        dependencies = p.get("depends", None) or []
+        valid_candidate = True
+        for d in dependencies:
+            if d.startswith("__"):
+                d = parse_requirement(f"conda:{d}")
+                if not any(d.is_compatible(v) for v in project.virtual_packages):
+                    valid_candidate = False
+                    break
+        if valid_candidate:
+            candidates.append(CondaCandidate.from_conda_package(p, requirement))
+
+    return candidates
+
+
+def _ensure_channels(
+    project: CondaProject,
+    channels: list[str],
+    log_message: str = "No channels specified, using defaults if exist.",
+) -> list[str]:
+    """
+    Ensure channels and if empty use defaults
+    :param project: PDM project
+    :param channels: channels to validate
+    :param log_message: log message to display if using defaults
+    :return: list of channels
+    """
+    channels = channels or project.conda_config.channels
+    if not channels:
+        project.core.ui.echo(log_message, verbosity=Verbosity.DEBUG)
+        channels.append("defaults")
+
+    return list(dict.fromkeys(channels))
 
 
 @lru_cache(maxsize=None)
 def _conda_search(
-    requirement: str,
     project: CondaProject,
+    requirement: str,
     channels: tuple[str],
 ) -> list[CondaCandidate]:
     """
     Search conda candidates for a requirement
-    :param requirement: requirement
     :param project: PDM project
+    :param requirement: requirement
     :param channels: requirement channels
     :return: list of conda candidates
     """
@@ -160,39 +210,23 @@ def _conda_search(
         else:
             raise
 
-    candidates = []
     if config.runner == CondaRunner.CONDA:
         packages = result.get(parse_requirement(f"conda:{requirement}").name, [])
     else:
         packages = result.get("result", dict()).get("pkgs", [])
 
-    for p in packages:
-        p["channel"] = _parse_channel(p["channel"])
-
-    for p in _sort_packages(packages, channels, project.platform):
-        dependencies = p.get("depends", [])
-        valid_candidate = True
-        for d in dependencies:
-            if d.startswith("__"):
-                d = parse_requirement(f"conda:{d}")
-                if not any(d.is_compatible(v) for v in project.virtual_packages):
-                    valid_candidate = False
-                    break
-        if valid_candidate:
-            candidates.append(CondaCandidate.from_conda_package(p))
-
-    return candidates
+    return _parse_candidates(project, packages=packages)
 
 
 def conda_search(
-    requirement: CondaRequirement | str,
     project: CondaProject,
+    requirement: CondaRequirement | str,
     channel: str | None = None,
 ) -> list[CondaCandidate]:
     """
     Search conda candidates for a requirement
-    :param requirement: requirement
     :param project: PDM project
+    :param requirement: requirement
     :param channel: requirement channel
     :return: list of conda candidates
     """
@@ -201,43 +235,113 @@ def conda_search(
         requirement = requirement.as_line(with_build_string=True, conda_compatible=True).replace(" ", "=")
     if "::" in requirement:
         channel, requirement = requirement.split("::", maxsplit=1)
-    channels = [channel] if channel else project.conda_config.channels
-    if not channels:
-        project.core.ui.echo(
-            f"No channel specified for searching [success]{requirement}[/] using defaults if exist.",
-            verbosity=Verbosity.DEBUG,
+    channels = _ensure_channels(
+        project,
+        [channel] if channel else [],
+        f"No channel specified for searching [req]{requirement}[/] using defaults if exist.",
+    )
+    return _conda_search(project, requirement, tuple(channels))
+
+
+def conda_create(
+    project: CondaProject,
+    requirements: list[CondaRequirement],
+    channels: list[str] | None = None,
+    prefix: Path | str | None = None,
+    name: str = "",
+    dry_run: bool = False,
+) -> dict[str, list[CondaCandidate]]:
+    """
+    Creates environment using conda
+    :param project: PDM project
+    :param requirements: conda requirements
+    :param channels: requirement channels
+    :param prefix: environment prefix
+    :param name: environment name
+    :param dry_run: don't install if dry run
+    """
+    config = project.conda_config
+    if not config.is_initialized:
+        raise VirtualenvCreateError("Error creating environment, no pdm-conda configs were found on pyproject.toml.")
+    candidates = dict()
+    channels = channels or []
+    for req in requirements:
+        if req.channel:
+            channels.append(req.channel)
+    channels = _ensure_channels(
+        project,
+        channels,
+        "No channels specified for creating environment, using defaults if exist.",
+    )
+    command = config.command("create")
+    command.append("--json")
+    if prefix is not None:
+        command.extend(["--prefix", str(prefix)])
+    elif name:
+        command.extend(["--name", name])
+    else:
+        raise VirtualenvCreateError("Error creating environment, name or prefix must be specified.")
+
+    if dry_run:
+        command.append("--dry-run")
+
+    for req in requirements:
+        command.append(req.as_line(with_build_string=True, conda_compatible=True, with_channel=True).replace(" ", "="))
+
+    if channels:
+        for c in channels:
+            command.extend(["-c", c])
+        command.append("--override-channels")
+
+    result = run_conda(
+        command,
+        exception_cls=CondaResolutionError if dry_run else VirtualenvCreateError,
+        exception_msg=f"Error resolving requirements with {config.runner}" if dry_run else "Error creating environment",
+    )
+
+    actions = result.get("actions", dict())
+    fetch_packages = {pkg["name"]: pkg for pkg in actions.get("FETCH", [])}
+    packages = actions.get("LINK", [])
+    for i, pkg in enumerate(packages):
+        pkg = fetch_packages.get(pkg["name"], pkg)
+        if any(True for n in ("constrains", "depends") if n not in pkg):
+            pkg = conda_search(
+                project,
+                f'{pkg["name"]} {pkg["version"]} {pkg["build_string"]}',
+                parse_channel(pkg["channel"]),
+            )[0]
+        packages[i] = pkg
+
+    _requirements = {req.conda_name: req for req in requirements}
+    for pkg in packages:
+        name = pkg["name"]
+        candidates[name] = _parse_candidates(
+            project,
+            packages=[pkg],
+            requirement=_requirements.get(name, None),
         )
-        channels.append("defaults")
-
-    # set defaults if exist
-    try:
-        idx = channels.index("defaults")
-        channels = channels[:idx] + project.default_channels + channels[idx + 1 :]
-    except ValueError:
-        pass
-
-    return _conda_search(requirement, project, tuple(channels))
+    return candidates
 
 
 def _conda_install(
     project: CondaProject,
     command: list[str],
     packages: str | list[str] | None = None,
-    verbose: bool = False,
+    dry_run: bool = False,
 ):
     if isinstance(packages, str):
         packages = [packages]
     if packages:
         command.extend(packages)
+    if dry_run:
+        command.append("--dry-run")
     response = run_conda(command + ["--json"])
-    if verbose:
-        project.core.ui.echo(response)
+    project.core.ui.echo(response, verbosity=Verbosity.DEBUG)
 
 
 def conda_install(
     project: CondaProject,
     packages: str | list[str],
-    verbose: bool = False,
     dry_run: bool = False,
     no_deps: bool = False,
 ):
@@ -245,31 +349,28 @@ def conda_install(
     Install resolved packages using conda
     :param project: PDM project
     :param packages: resolved packages
-    :param verbose: show conda response if true
     :param dry_run: don't install if dry run
     :param no_deps: don't install dependencies if true
     """
     config = project.conda_config
-    command = config.command()
+    command = config.command("install")
     if no_deps:
         command.append("--no-deps")
         if config.runner != CondaRunner.MICROMAMBA:
             command.append("--no-update-deps")
-    if dry_run:
-        command.append("--dry-run")
+
     if config.installation_method == "copy":
         _copy = "copy"
         if config.runner == CondaRunner.MICROMAMBA:
             _copy = f"always-{_copy}"
         command.append(f"--{_copy}")
 
-    _conda_install(project, command, packages, verbose)
+    _conda_install(project, command, packages, dry_run=dry_run)
 
 
 def conda_uninstall(
     project: CondaProject,
     packages: str | list[str],
-    verbose: bool = False,
     dry_run: bool = False,
     no_deps: bool = False,
 ):
@@ -277,26 +378,22 @@ def conda_uninstall(
     Uninstall resolved packages using conda
     :param project: PDM project
     :param packages: resolved packages
-    :param verbose: show conda response if true
     :param dry_run: don't uninstall if dry run
     :param no_deps: don't uninstall dependencies if true
     """
     config = project.conda_config
-    command = config.command("remove")
+
+    with config.with_config(
+        runner=CondaRunner.CONDA if no_deps and config.runner == CondaRunner.MAMBA else config.runner,
+    ):
+        command = config.command("remove")
+
     if no_deps:
         if config.runner == CondaRunner.MICROMAMBA:
             command.append("--no-prune")
-        elif config.runner == CondaRunner.MAMBA:
-            command[0] = "conda"
         command.append("--force")
-    if dry_run:
-        command.append("--dry-run")
-    if isinstance(packages, str):
-        packages = [packages]
-    command.extend(packages)
-    command.append("--json")
 
-    _conda_install(project, command, verbose=verbose)
+    _conda_install(project, command, packages, dry_run=dry_run)
 
 
 def not_initialized_warning(project):
@@ -322,7 +419,7 @@ def conda_info(project: CondaProject) -> dict:
 
         res["virtual_packages"] = {parse_requirement(f"conda:{p.replace('=', '==', 1)}") for p in virtual_packages}
         res["platform"] = info["platform"]
-        res["channels"] = [_parse_channel(channel) for channel in (info["channels"] or [])]
+        res["channels"] = [parse_channel(channel) for channel in (info["channels"] or [])]
     else:
         not_initialized_warning(project)
     return res

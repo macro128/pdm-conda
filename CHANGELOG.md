@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.9.0] - 19/04/2023
+
+## Added
+
+* Config `conda.solver` to use Conda solver to resolve Conda requirements.
+* `CondaConfig.with_config` contextmanager to temporarily set a config.
+* Use `conda create` to get a resolution.
+* Add conda resolution to `CondaRepository`.
+* Add conda resolution to `CondaResolver`.
+
+## Changed
+
+* Allow `CondaRequirement` to validate if `Candidate` is compatible.
+* Sort `CondaCandidates` instead of packages.
+* `Environment.python_requires` now matches installed python to force it in conda resolution.
+* `CondaResolver` now uses conda resolution.
+
+## Fixed
+
+* If `conda.as-defualt-manager` is `true` then add requirements to `conda.dependencies` if it has `channel`
+  or `build_string`.
+
 ## [0.8.1] - 17/04/2023
 
 ### Changed
@@ -51,7 +73,8 @@
 
 ### Added
 
-* Sort packages following [mamba specification](https://mamba.readthedocs.io/en/latest/advanced_usage/package_resolution.html).
+* Sort packages
+  following [mamba specification](https://mamba.readthedocs.io/en/latest/advanced_usage/package_resolution.html).
 
 ### Fixed
 

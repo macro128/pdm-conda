@@ -8,9 +8,10 @@ import responses
 from pdm.cli.actions import do_init
 from pdm.core import Core
 from pdm.models.backends import PDMBackend
-from pdm.project import Config, Project
+from pdm.project import Config
 from pytest_mock import MockerFixture
 
+from pdm_conda.project import CondaProject
 from tests.utils import (
     DEFAULT_CHANNEL,
     PLATFORM,
@@ -23,7 +24,7 @@ pytest_plugins = "pdm.pytest"
 
 PYTHON_VERSION = sys.version.split(" ")[0]
 
-PYTHON_PACKAGE = generate_package_info("python", PYTHON_VERSION, ["lib 1.0"])
+PYTHON_PACKAGE = generate_package_info("python", PYTHON_VERSION, ["lib 1.0", "python-only-dep", "__unix =0"])
 PYTHON_REQUIREMENTS = [
     generate_package_info("openssl", "1.1.1a"),
     generate_package_info("openssl", "1.1.1c"),
@@ -31,10 +32,12 @@ PYTHON_REQUIREMENTS = [
 ]
 
 PREFERRED_VERSIONS = dict(python=PYTHON_PACKAGE)
+_python_dep = f"python >={PYTHON_VERSION}"
 _packages = [
+    generate_package_info("python-only-dep", "1.0"),
     generate_package_info("openssl", "1.1.1b"),
     generate_package_info("lib2", "1.0.0g"),
-    generate_package_info("lib", "1.0", ["lib2 ==1.0.0g", "openssl >=1.1.1c,<1.1.2a"]),
+    generate_package_info("lib", "1.0", ["lib2 ==1.0.0g", "openssl >=1.1.1a,<1.1.1c"]),
 ]
 for _p in _packages:
     PREFERRED_VERSIONS[_p["name"]] = _p
@@ -43,18 +46,25 @@ PYTHON_REQUIREMENTS.extend(PREFERRED_VERSIONS.values())
 
 _CONDA_INFO = [
     *PYTHON_REQUIREMENTS,
-    generate_package_info("another-dep", "1!0.0gg"),
-    generate_package_info("another-dep", "1!0.1gg", timestamp=3),
-    generate_package_info("another-dep", "1!0.1gg", build_number=1, timestamp=4, channel=f"{DEFAULT_CHANNEL}/noarch"),
-    generate_package_info("another-dep", "1!0.1gg", timestamp=1),
+    generate_package_info("another-dep", "1!0.1gg", depends=[_python_dep, "lib ==1.0"]),
+    generate_package_info("another-dep", "1!0.1gg", depends=[_python_dep], timestamp=3),
+    generate_package_info(
+        "another-dep",
+        "1!0.1gg",
+        depends=[_python_dep],
+        build_number=1,
+        timestamp=4,
+        channel=f"{DEFAULT_CHANNEL}/noarch",
+    ),
+    generate_package_info("another-dep", "1!0.1gg", depends=[_python_dep], timestamp=1),
 ]
 
 _packages = [
-    generate_package_info("another-dep", "1!0.1gg", timestamp=2, build_number=1),
+    generate_package_info("another-dep", "1!0.1gg", depends=[_python_dep], timestamp=2, build_number=1),
     generate_package_info(
         "dep",
         "1.0.0",
-        depends=[f"python >={PYTHON_VERSION}", "another-dep ==1!0.1gg|==1!0.0g"],
+        depends=[_python_dep, "another-dep ==1!0.1gg|==1!0.0g"],
         timestamp=2,
         build_number=1,
     ),
@@ -89,7 +99,7 @@ def core_with_plugin(core, monkeypatch) -> Core:
 
 
 @pytest.fixture
-def project(core, project_no_init, monkeypatch) -> Project:
+def project(core, project_no_init, monkeypatch) -> CondaProject:
     _project = project_no_init
     _project.global_config["check_update"] = False
     _project.global_config["pypi.json_api"] = True
@@ -98,7 +108,7 @@ def project(core, project_no_init, monkeypatch) -> Project:
         _project,
         name="test",
         version="0.0.0",
-        python_requires=f"=={PYTHON_VERSION}",
+        python_requires=f">={PYTHON_VERSION}",
         author="test",
         email="test@test.com",
         build_backend=PDMBackend,
@@ -125,7 +135,7 @@ def mock_conda(mocker: MockerFixture, conda_info: dict | list, installed_package
     def _mock(cmd, **kwargs):
         runner, subcommand, *_ = cmd
         if subcommand == "install":
-            for url in kwargs.get("dependencies", []):
+            for url in (p for p in cmd if p.startswith("https://")):
                 installed_packages.extend(
                     [p for p in PREFERRED_VERSIONS.values() if url.startswith(p["url"])],
                 )
@@ -169,6 +179,37 @@ def mock_conda(mocker: MockerFixture, conda_info: dict | list, installed_package
             if runner != "micromamba":
                 return {name: packages}
             return {"result": {"pkgs": packages}}
+        elif subcommand == "create":
+
+            def _fetch_package(req, packages, fetch_info):
+                name = req.split(" ")[0].split(":")[-1].split("=")[0].split("<")[0].split(">")[0]
+                if name not in packages and not name.startswith("__"):
+                    packages.add(name)
+                    pkg = PREFERRED_VERSIONS[name]
+                    fetch_info.append(deepcopy(pkg))
+                    for d in pkg["depends"]:
+                        _fetch_package(d, packages, fetch_info)
+
+            packages = set()
+            fetch_info = []
+            i = 2
+            while i < len(cmd):
+                req = cmd[i]
+                i += 1
+                if req == "-c":
+                    break
+                elif req.startswith("-"):
+                    if req in ("--prefix", "--solver"):
+                        i += 1
+                    continue
+                _fetch_package(req, packages, fetch_info)
+
+            link_info = deepcopy(fetch_info)
+            if runner != "micromamba":
+                for p in link_info:
+                    p.pop("depends")
+                    p.pop("constrains")
+            return {"actions": {"FETCH": fetch_info, "LINK": link_info}}
         else:
             return {"message": "ok"}
 
@@ -178,6 +219,7 @@ def mock_conda(mocker: MockerFixture, conda_info: dict | list, installed_package
 @pytest.fixture(name="pypi")
 def mock_pypi(mocked_responses):
     def _mocker(conda_info, with_dependencies: bool | list[str] | None = None):
+        from pdm_conda.mapping import conda_to_pypi
         from pdm_conda.models.requirements import parse_conda_version
 
         _responses = dict()
@@ -196,7 +238,7 @@ def mock_pypi(mocked_responses):
                         requires_python = d.split(" ")[-1]
             for d in to_delete:
                 dependencies.remove(d)
-            name = package["name"]
+            name = conda_to_pypi(package["name"])
             version = parse_conda_version(package["version"])
             url = f"{REPO_BASE}/simple/{name}/"
             _responses[url] = mocked_responses.get(

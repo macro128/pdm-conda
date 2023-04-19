@@ -19,6 +19,7 @@ def generate_package_info(
     name: str,
     version: str,
     depends: list | None = None,
+    constrains: list | None = None,
     build_number: int = 0,
     timestamp: int = 0,
     channel: str = f"{DEFAULT_CHANNEL}/{PLATFORM}",
@@ -28,6 +29,7 @@ def generate_package_info(
     return {
         "name": name,
         "depends": depends or [],
+        "constrains": constrains or [],
         "version": version,
         "build_number": build_number,
         "url": f"{channel}/{name}",
