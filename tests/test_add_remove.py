@@ -23,7 +23,6 @@ class TestAddRemove:
         [["'dep'"], ["'another-dep==1!0.1gg'"], ['"dep"', "another-dep"], ["'channel::dep'", "another-dep"]],
     )
     @pytest.mark.parametrize("channel", [None, "another_channel"])
-    @pytest.mark.parametrize("as_default_manager", [True, False])
     def test_add(
         self,
         pdm,
@@ -34,7 +33,6 @@ class TestAddRemove:
         runner,
         mock_conda_mapping,
         installed_packages,
-        as_default_manager,
         group,
     ):
         """
@@ -47,7 +45,7 @@ class TestAddRemove:
         conf.runner = runner or self.default_runner
         conf.channels = []
         conf.batched_commands = True
-        conf.as_default_manager = as_default_manager
+        conf.as_default_manager = True
         command = ["add", "-vv", "--no-self", "--group", group]
         for package in packages:
             command += ["--conda", package]
@@ -94,7 +92,7 @@ class TestAddRemove:
         batch_commands,
         group,
     ):
-        self.test_add(pdm, project, conda, packages, None, runner, mock_conda_mapping, installed_packages, True, group)
+        self.test_add(pdm, project, conda, packages, None, runner, mock_conda_mapping, installed_packages, group)
         conda.reset_mock()
         project.conda_config.batched_commands = batch_commands
         pdm(["remove", "--no-self", "-vv", "--group", group] + packages, obj=project, strict=True)

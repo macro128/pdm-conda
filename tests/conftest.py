@@ -24,7 +24,7 @@ pytest_plugins = "pdm.pytest"
 
 PYTHON_VERSION = sys.version.split(" ")[0]
 
-PYTHON_PACKAGE = generate_package_info("python", PYTHON_VERSION, ["lib 1.0"])
+PYTHON_PACKAGE = generate_package_info("python", PYTHON_VERSION, ["lib 1.0", "python-only-dep"])
 PYTHON_REQUIREMENTS = [
     generate_package_info("openssl", "1.1.1a"),
     generate_package_info("openssl", "1.1.1c"),
@@ -34,6 +34,7 @@ PYTHON_REQUIREMENTS = [
 PREFERRED_VERSIONS = dict(python=PYTHON_PACKAGE)
 _python_dep = f"python >={PYTHON_VERSION}"
 _packages = [
+    generate_package_info("python-only-dep", "1.0"),
     generate_package_info("openssl", "1.1.1b"),
     generate_package_info("lib2", "1.0.0g"),
     generate_package_info("lib", "1.0", ["lib2 ==1.0.0g", "openssl >=1.1.1a,<1.1.1c"]),
