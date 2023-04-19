@@ -160,7 +160,7 @@ def _ensure_channels(
     project: CondaProject,
     channels: list[str],
     log_message: str = "No channels specified, using defaults if exist.",
-):
+) -> list[str]:
     """
     Ensure channels and if empty use defaults
     :param project: PDM project
