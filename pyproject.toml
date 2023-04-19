@@ -4,7 +4,7 @@ build-backend = "pdm.backend"
 
 [project]
 name = "pdm-conda"
-description = " A PDM plugin to install project dependencies with Conda"
+description = "A PDM plugin to resolve/install/uninstall project dependencies with Conda"
 requires-python = ">=3.10"
 authors = [
     { name = "Marcos Pastorini" },

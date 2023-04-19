@@ -1,12 +1,13 @@
 # pdm-conda
 
-A PDM plugin to install project dependencies with Conda.
+A PDM plugin to resolve/install/uninstall project dependencies with Conda.
 
 ## Configuration
 
 | Config item                       | Description                                                                                          | Default value       | Possible values                | Environment variable        |
 |-----------------------------------|------------------------------------------------------------------------------------------------------|---------------------|--------------------------------|-----------------------------|
 | `conda.runner`                    | Conda runner executable                                                                              | `conda`             | `conda`, `mamba`, `micromamba` | `CONDA_RUNNER`              |
+| `conda.solver`                    | Solver to use for Conda resolution                                                                   | `conda`             | `conda`, `libmamba`            | `CONDA_SOLVER`              |
 | `conda.channels`                  | Conda channels to use, order will be enforced                                                        | `[]`                |                                |                             |
 | `conda.as-default-manager`        | Use Conda to install all possible requirements                                                       | `False`             |                                | `CONDA_AS_DEFAULT_MANAGER`  |
 | `conda.batched-commands`          | Execute batched install and remove Conda commands, when True the command is executed only at the end | `False`             |                                | `CONDA_BATCHED_COMMANDS`    |
@@ -25,6 +26,7 @@ runner = "micromamba"
 channels = ["conda-forge/noarch", "conda-forge", "anaconda"]
 dependencies = ["pdm"]
 as-default-manager = true
+solver = "libmamba"
 excludes = ["pytest-cov"] # don't install with conda even if it's a dependency from other packages
 installation-method = "copy"
 batched-commands = true
@@ -61,15 +63,23 @@ The following commands were tested and work:
 
 ### How it works
 
-When PDM detects a Conda managed package, it gets candidates with Conda and then tries to resolve the environment as
-with any other requirement.
+#### Using conda/libmamba solver
 
-To keep the resolution consistent with Conda, PDM follows resolution rules from Conda as good as possible.
+PDM invokes Conda solver to resolve conda packages each time a PDM candidate makes a change in the last Conda
+resolution.
+
+If only Conda packages are used (i.e. setting `conda.as-default-manager` to `true` and no `conda.excludes`) then Conda
+solver is invoked only once.
 
 ### Settings overriden
 
 In order to use Conda to install packages some settings were overriden:
 
+* `python.use_venv` if conda settings detected in `pyproject.toml` this setting is set to `True`.
+* `python.use_pyenv` if conda settings detected in `pyproject.toml` this setting is set to `False`.
+* `venv.backend` if conda settings detected in `pyproject.toml` this setting is set to `conda.runner`.
+* `venv.location` if conda settings detected in `pyproject.toml` and `VIRTUAL_ENV` or `CONDA_PREFIX` environment
+  variables are set then this setting is set to the value of the environment variable.
 * `install.parallel` if some Conda managed packages are to be uninstalled or updated this option is disabled
   momentarily.
 
