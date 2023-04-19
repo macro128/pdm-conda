@@ -157,7 +157,9 @@ class CondaProject(Project):
             n: r.as_named_requirement() for n, r in conda_requirements.items() if r.is_python_package
         }
         if self.conda_config.as_default_manager:
-            conda_requirements = {n: r for n, r in conda_requirements.items() if not r.is_python_package}
+            conda_requirements = {
+                n: r for n, r in conda_requirements.items() if not r.is_python_package or r.channel or r.build_string
+            }
         if conda_requirements:
             deps = self.get_conda_pyproject_dependencies(to_group, dev, set_defaults=True)
             cast(Array, deps).multiline(True)
