@@ -48,6 +48,28 @@ class TestPluginConfig:
             project.pyproject.write(False)
             assert config_value == project.pyproject.settings["conda"][config_name]
 
+    @pytest.mark.parametrize(
+        ("config_name", "config_value"),
+        [
+            ("channels", []),
+            ("channels", ["defaults"]),
+            ("batched-commands", True),
+            ("batched-commands", False),
+            ("dependencies", ["package"]),
+        ],
+    )
+    def test_with_config(self, project, mocker, config_name, config_value):
+        config = project.conda_config
+        subscribed = mocker.spy(project.pyproject._data, "update")
+        conda_config_name = config_name.replace("-", "_")
+        old_value = getattr(config, conda_config_name)
+        project.pyproject.write(False)
+        with config.with_config(**{conda_config_name: config_value}):
+            assert not config._set_project_config
+            assert getattr(config, conda_config_name) == config_value
+        assert getattr(config, conda_config_name) == old_value
+        assert subscribed.call_count == 0
+
     @pytest.mark.parametrize("channels", [[], ["conda-forge"]])
     @pytest.mark.parametrize("runner", ["micromamba", "mamba", "conda", None])
     @pytest.mark.parametrize("as_default_manager", [True, False, None])
@@ -90,7 +112,7 @@ class TestPluginConfig:
         assert config.channels == channels
         assert config.as_default_manager == as_default_manager
 
-    @pytest.mark.parametrize("name", ["runner", "installation-method"])
+    @pytest.mark.parametrize("name", ["runner", "installation-method", "runner"])
     def test_incorrect_config(self, project, name):
         """
         Test load config raises on incorrect config

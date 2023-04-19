@@ -14,6 +14,7 @@ from tests.conftest import (
 @pytest.mark.parametrize("conda_mapping", CONDA_MAPPING)
 @pytest.mark.parametrize("runner", [None, "micromamba", "conda"])
 @pytest.mark.usefixtures("working_set")
+@pytest.mark.parametrize("group", ["default", "other"])
 class TestAddRemove:
     default_runner = "micromamba"
 
@@ -22,7 +23,20 @@ class TestAddRemove:
         [["'dep'"], ["'another-dep==1!0.1gg'"], ['"dep"', "another-dep"], ["'channel::dep'", "another-dep"]],
     )
     @pytest.mark.parametrize("channel", [None, "another_channel"])
-    def test_add(self, pdm, project, conda, packages, channel, runner, mock_conda_mapping, installed_packages):
+    @pytest.mark.parametrize("as_default_manager", [True, False])
+    def test_add(
+        self,
+        pdm,
+        project,
+        conda,
+        packages,
+        channel,
+        runner,
+        mock_conda_mapping,
+        installed_packages,
+        as_default_manager,
+        group,
+    ):
         """
         Test `add` command work as expected
         """
@@ -32,32 +46,17 @@ class TestAddRemove:
         conf = project.conda_config
         conf.runner = runner or self.default_runner
         conf.channels = []
-        command = ["add", "-v", "--no-self"]
+        conf.batched_commands = True
+        conf.as_default_manager = as_default_manager
+        command = ["add", "-vv", "--no-self", "--group", group]
         for package in packages:
-            command.extend(["--conda", package])
+            command += ["--conda", package]
         if channel:
             command += ["--channel", channel]
         if runner:
             command += ["--runner", runner]
         else:
             runner = self.default_runner
-        num_commands = 3  # add conda info, list and python package
-        packages_names = {p.split("::")[-1].split("==")[0].replace("'", "").replace('"', "") for p in packages}
-        to_search = set()
-        for name in packages_names:
-            if name not in to_search:
-                pkg = PREFERRED_VERSIONS[name]
-                to_search.update([d for d in pkg["depends"] if not d.startswith("python ")])
-                to_search.add(name)
-        if to_search:
-            num_commands += (
-                len(to_search)
-                + len(
-                    {p.split(" ")[0] for p in to_search} - {p["name"] for p in installed_packages},
-                )
-                + 1
-            )
-
         pdm(command, obj=project, strict=True)
 
         project.pyproject.reload()
@@ -68,14 +67,20 @@ class TestAddRemove:
 
         assert channels.issubset(conf.channels)
         assert conf.runner == runner
-        assert conda.call_count == num_commands
+        cmd_order = ["create", "list", "install"]
+        assert conda.call_count == len(cmd_order)
+        for (cmd,), kwargs in conda.call_args_list:
+            assert cmd[0] == runner
+            assert cmd[1] == cmd_order.pop(0)
+        assert not cmd_order
 
-        dependencies = project.get_conda_pyproject_dependencies("default")
+        dependencies = project.get_dependencies(group)
         for package in packages:
-            _package = package.split("::")[-1]
+            _package = package.split("::")[-1].split("=")[0]
             assert any(True for d in dependencies if _package in d)
 
     @pytest.mark.parametrize("packages", [["dep"], ["dep", "another-dep"], ["channel::dep"]])
+    @pytest.mark.parametrize("batch_commands", [True, False])
     def test_remove(
         self,
         pdm,
@@ -86,10 +91,13 @@ class TestAddRemove:
         runner,
         mock_conda_mapping,
         installed_packages,
+        batch_commands,
+        group,
     ):
-        self.test_add(pdm, project, conda, packages, None, runner, mock_conda_mapping, installed_packages)
+        self.test_add(pdm, project, conda, packages, None, runner, mock_conda_mapping, installed_packages, True, group)
         conda.reset_mock()
-        pdm(["remove", "--no-self", "-vv"] + packages, obj=project, strict=True)
+        project.conda_config.batched_commands = batch_commands
+        pdm(["remove", "--no-self", "-vv", "--group", group] + packages, obj=project, strict=True)
 
         python_packages = {p["name"] for p in PYTHON_REQUIREMENTS}
         packages_to_remove = set()
@@ -103,11 +111,17 @@ class TestAddRemove:
         if packages_to_remove:
             # get working set + get python packages
             cmd_order = (
-                ["list", "list"]
-                + ["search" if runner == "conda" else "repoquery"] * (len({p["name"] for p in PYTHON_REQUIREMENTS}) - 1)
-                + ["remove"] * len(packages_to_remove)
+                ["create", "list", "list"]
+                + ["search" if runner == "conda" else "repoquery"] * (len({p["name"] for p in PYTHON_REQUIREMENTS}))
+                + ["remove"] * (1 if batch_commands else len(packages_to_remove))
             )
         assert conda.call_count == len(cmd_order)
+
+        dependencies = project.get_dependencies(group)
+        for package in packages:
+            _package = package.split("::")[-1].split("=")[0]
+            assert _package not in dependencies
+
         packages = [p["name"] for p in conda_info]
         python_packages = [f"{p['name']}=={p['version']}={p['build']}" for p in PYTHON_REQUIREMENTS]
         for (cmd,), kwargs in conda.call_args_list:
@@ -121,5 +135,4 @@ class TestAddRemove:
                     assert "-f" not in cmd
                 elif cmd_subcommand in ("search", "repoquery"):
                     assert name in python_packages
-
         assert not cmd_order
