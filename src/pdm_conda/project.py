@@ -53,19 +53,21 @@ class CondaProject(Project):
     def _check_update_info(self, prop):
         if prop is None:
             self._get_conda_info()
-        return prop
 
     @property
     def virtual_packages(self) -> set[CondaRequirement]:
-        return self._check_update_info(self._virtual_packages)  # type: ignore
+        self._check_update_info(self._virtual_packages)
+        return self._virtual_packages  # type: ignore
 
     @property
     def platform(self) -> str:
-        return self._check_update_info(self._platform)  # type: ignore
+        self._check_update_info(self._platform)
+        return self._platform  # type: ignore
 
     @property
     def default_channels(self) -> list[str]:
-        return self._check_update_info(self._default_channels)  # type: ignore
+        self._check_update_info(self._default_channels)
+        return self._default_channels  # type: ignore
 
     @property
     def locked_repository(self) -> LockedRepository:
