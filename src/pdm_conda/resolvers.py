@@ -104,7 +104,7 @@ class CondaResolution(Resolution):
         requirements = [
             criterion.information[-1].requirement
             for i, criterion in criteria.items()
-            if i not in (CONDA_RESOLUTION_KEY, CONSTRAINS_KEY)
+            if i not in (CONDA_RESOLUTION_KEY, CONSTRAINS_KEY) and criterion.information
         ]
         if parent is not None:
             requirements.extend(self._p.get_dependencies(candidate=parent))
