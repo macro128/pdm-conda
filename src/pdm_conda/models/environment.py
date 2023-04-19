@@ -5,7 +5,7 @@ from copy import copy
 from pathlib import Path
 from typing import cast
 
-from pdm.exceptions import NoPythonVersion, ProjectError
+from pdm.exceptions import ProjectError
 from pdm.models.environment import Environment, PrefixEnvironment
 from pdm.models.requirements import Requirement
 from pdm.models.specifiers import PySpecSet
@@ -14,7 +14,6 @@ from pdm.project import Project
 
 from pdm_conda.conda import conda_list, conda_search
 from pdm_conda.mapping import pypi_to_conda
-from pdm_conda.models.candidates import CondaCandidate
 from pdm_conda.project import CondaProject
 from pdm_conda.utils import normalize_name
 
@@ -32,7 +31,6 @@ class CondaEnvironment(Environment):
         super().__init__(project)
         self.project = cast(CondaProject, project)
         self._python_dependencies: dict[str, Requirement] | None = None
-        self._python_candidate: CondaCandidate | None = None
         self.python_requires &= PySpecSet(f"=={self.interpreter.version}")
 
     @property
@@ -54,15 +52,6 @@ class CondaEnvironment(Environment):
             normalize_name(pypi_to_conda(dist.metadata["Name"])): dist for dist in working_set._dist_map.values()
         }
         return working_set
-
-    @property
-    def python_candidate(self) -> CondaCandidate:
-        if self._python_candidate is None:
-            python_package = conda_list(self.project).get("python", None)
-            if python_package is None:
-                raise NoPythonVersion("No python found in Conda environment.")
-            self._python_candidate = conda_search(self.project, python_package.as_line().replace(" ", "="))[0]
-        return self._python_candidate
 
     @property
     def python_dependencies(self) -> dict[str, Requirement]:
