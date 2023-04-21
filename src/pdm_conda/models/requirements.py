@@ -101,10 +101,15 @@ class CondaRequirement(NamedRequirement):
         )
 
         # test version/specifier compatible
+        versions = []
         if (version := getattr(requirement_or_candidate, "version", None)) is not None:
-            _compatible &= self.specifier.contains(version)
+            versions.append(version)
         else:
-            _compatible &= all(self.specifier.contains(s.version) for s in requirement_or_candidate.specifier)
+            versions += [s.version for s in requirement_or_candidate.specifier]
+
+        spec = copy(self.specifier)
+        spec.prereleases = True
+        _compatible &= all(spec.contains(v) for v in versions)
         return _compatible
 
     def merge(self, requirement: Requirement) -> "CondaRequirement":
