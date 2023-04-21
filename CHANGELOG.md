@@ -1,8 +1,20 @@
 # Changelog
 
+## [0.9.1] - 21/04/2023
+
+### Changed
+
+* `conda install` now uses explicit lockfile to avoid resolution.
+* Conda managed packages now save url and hash in `metadata` table of lockfile to match pdm behavior.
+
+### Fixed
+
+* `pdm add` now saves correct custom Conda package version in pyproject.toml.
+* Correctly parse Conda candidates when using `conda search` to find them on resolution.
+
 ## [0.9.0] - 19/04/2023
 
-## Added
+### Added
 
 * Config `conda.solver` to use Conda solver to resolve Conda requirements.
 * `CondaConfig.with_config` contextmanager to temporarily set a config.
@@ -10,14 +22,14 @@
 * Add conda resolution to `CondaRepository`.
 * Add conda resolution to `CondaResolver`.
 
-## Changed
+### Changed
 
 * Allow `CondaRequirement` to validate if `Candidate` is compatible.
 * Sort `CondaCandidates` instead of packages.
 * `Environment.python_requires` now matches installed python to force it in conda resolution.
 * `CondaResolver` now uses conda resolution.
 
-## Fixed
+### Fixed
 
 * If `conda.as-defualt-manager` is `true` then add requirements to `conda.dependencies` if it has `channel`
   or `build_string`.
