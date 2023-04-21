@@ -3,6 +3,7 @@ import pytest
 from tests.conftest import CONDA_INFO, CONDA_MAPPING
 
 
+@pytest.mark.parametrize("num_remove_fetch", [0])
 class TestList:
     @pytest.mark.parametrize("conda_info", CONDA_INFO)
     @pytest.mark.parametrize("conda_mapping", CONDA_MAPPING)

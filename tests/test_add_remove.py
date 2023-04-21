@@ -11,6 +11,7 @@ from tests.conftest import (
 
 
 @pytest.mark.parametrize("conda_info", CONDA_INFO)
+@pytest.mark.parametrize("num_remove_fetch", [0])
 @pytest.mark.parametrize("conda_mapping", CONDA_MAPPING)
 @pytest.mark.parametrize("runner", [None, "micromamba", "conda"])
 @pytest.mark.usefixtures("working_set")
