@@ -1,4 +1,3 @@
-import functools
 import re
 from importlib.metadata import Distribution
 from pathlib import Path
@@ -18,8 +17,6 @@ from pdm_conda.models.requirements import (
     parse_requirement,
 )
 from pdm_conda.models.setup import CondaSetupDistribution
-
-_patched = False
 
 
 def parse_channel(channel_url: str) -> str:
@@ -67,8 +64,11 @@ class CondaCandidate(Candidate):
         self._req = cast(CondaRequirement, req)  # type: ignore
         self._preferred = None
         self._prepared: CondaPreparedCandidate | None = None
-        self.dependencies: list[CondaRequirement] = [parse_requirement(f"conda:{r}") for r in (dependencies or [])]
+        self.dependencies: list[CondaRequirement] = [
+            cast(CondaRequirement, parse_requirement(f"conda:{r}")) for r in (dependencies or [])
+        ]
         self.constrains: dict[str, CondaRequirement] = dict()
+        self.hashes = {self.link: f"{self.link.hash_name}:{self.link.hash}"}
         for r in constrains or []:
             c = cast(CondaRequirement, parse_requirement(f"conda:{r}"))
             self.constrains[str(c.conda_name)] = c
@@ -96,7 +96,7 @@ class CondaCandidate(Candidate):
                 name=self.name,
                 summary="",
                 version=self.version,
-                install_requires=[d.as_line(as_conda=True, with_build_string=True) for d in self.dependencies],
+                install_requires=self.dependencies_lines,
                 python_requires=self.requires_python,
             ),
         )
@@ -110,7 +110,6 @@ class CondaCandidate(Candidate):
         result["conda_managed"] = True
         if self.link is None:
             raise ValueError("Uninitialized conda requirement")
-        result["url"] = self.link.url
         result["channel"] = self.channel
         if self.build_string is not None:
             result["build_string"] = self.build_string
@@ -161,7 +160,7 @@ class CondaCandidate(Candidate):
                     requires_python = match.group(1).strip().split(" ")[0] or "*"
         for d in to_delete:
             dependencies.remove(d)
-        hashes = {h: package[h] for h in ["sha256", "md5"] if h in package}
+        hashes = {h: package[h] for h in ["md5"] if h in package}
         url = package["url"]
         for k, v in hashes.items():
             url += f"#{k}={v}"
@@ -169,7 +168,8 @@ class CondaCandidate(Candidate):
         build_string = package.get("build", package.get("build_string", ""))
         channel = parse_channel(package["channel"])
         if requirement is not None:
-            requirement = as_conda_requirement(requirement)
+            requirement = cast(CondaRequirement, as_conda_requirement(requirement))
+            requirement.version_mapping.update({parse_conda_version(version): version})
         else:
             requirement = parse_requirement(f"conda:{name} {version} {build_string}")
 
@@ -201,19 +201,3 @@ class CondaCandidate(Candidate):
     def format(self) -> str:
         """Format for output."""
         return f"[req]{self.name}[/] [warning]{self.conda_version}[/]"
-
-
-def wrap_as_lockfile_entry(func):
-    @functools.wraps(func)
-    def wrapper(self, *args, **kwargs) -> dict[str, Any]:
-        res = func(self, *args, **kwargs)
-        if (conda_name := self.req.conda_name) is not None and conda_name != self.name:
-            res["conda_name"] = conda_name
-        return res
-
-    return wrapper
-
-
-if not _patched:
-    setattr(Candidate, "as_lockfile_entry", wrap_as_lockfile_entry(Candidate.as_lockfile_entry))
-    _patched = True

@@ -6,6 +6,7 @@ from tests.conftest import CONDA_INFO, CONDA_MAPPING, PYTHON_REQUIREMENTS
 from tests.utils import format_url
 
 
+@pytest.mark.parametrize("num_remove_fetch", [0])
 @pytest.mark.usefixtures("working_set")
 class TestInstall:
     @pytest.mark.parametrize("conda_info", CONDA_INFO)
@@ -72,7 +73,7 @@ class TestInstall:
             cmd_subcommand = cmd[1]
             assert cmd_subcommand == cmd_order.pop(0)
             if cmd_subcommand == "install":
-                deps = [c for c in cmd if c.startswith("https://")]
+                deps = [c for c in kwargs["lockfile"] if c.startswith("https://")]
                 if conda_batched:
                     assert len(deps) == num_installs
                 else:

@@ -46,25 +46,25 @@ PYTHON_REQUIREMENTS.extend(PREFERRED_VERSIONS.values())
 
 _CONDA_INFO = [
     *PYTHON_REQUIREMENTS,
-    generate_package_info("another-dep", "1!0.1gg", depends=[_python_dep, "lib ==1.0"]),
-    generate_package_info("another-dep", "1!0.1gg", depends=[_python_dep], timestamp=3),
+    generate_package_info("another-dep", "1!0.1gg", depends=["lib ==1.0"]),
+    generate_package_info("another-dep", "1!0.1gg", timestamp=3),
     generate_package_info(
         "another-dep",
         "1!0.1gg",
-        depends=[_python_dep],
         build_number=1,
         timestamp=4,
         channel=f"{DEFAULT_CHANNEL}/noarch",
     ),
-    generate_package_info("another-dep", "1!0.1gg", depends=[_python_dep], timestamp=1),
+    generate_package_info("another-dep", "1!0.1gg", timestamp=1),
 ]
 
 _packages = [
-    generate_package_info("another-dep", "1!0.1gg", depends=[_python_dep], timestamp=2, build_number=1),
+    generate_package_info("another-dep", "1!0.1gg", timestamp=2, build_number=1),
+    generate_package_info("another-python-dep", "0.1b0", timestamp=2, build_number=1),
     generate_package_info(
         "dep",
         "1.0.0",
-        depends=[_python_dep, "another-dep ==1!0.1gg|==1!0.0g"],
+        depends=[_python_dep, "another-dep ==1!0.1gg|==1!0.0g", "another-python-dep"],
         timestamp=2,
         build_number=1,
     ),
@@ -123,24 +123,21 @@ def pdm_run(core, pdm):
 
 
 @pytest.fixture(name="conda")
-def mock_conda(mocker: MockerFixture, conda_info: dict | list, installed_packages):
+def mock_conda(mocker: MockerFixture, conda_info: dict | list, num_remove_fetch: int, installed_packages):
     if isinstance(conda_info, dict):
         conda_info = [conda_info]
-    install_response = {
-        "actions": {
-            "LINK": conda_info,
-        },
-    }
 
     def _mock(cmd, **kwargs):
         runner, subcommand, *_ = cmd
         if subcommand == "install":
-            for url in (p for p in cmd if p.startswith("https://")):
-                installed_packages.extend(
-                    [p for p in PREFERRED_VERSIONS.values() if url.startswith(p["url"])],
-                )
+            install_response = []
+            packages = kwargs["lockfile"]
+            assert packages.pop(0) == "@EXPLICIT"
+            for url in (p for p in packages if p.startswith("https://")):
+                install_response += [p for p in PREFERRED_VERSIONS.values() if url.startswith(p["url"])]
+            installed_packages.extend(install_response)
 
-            return deepcopy(install_response)
+            return {"actions": {"LINK": deepcopy(install_response)}}
         elif subcommand == "remove":
             for name in (arg for arg in cmd[2:] if not arg.startswith("-")):
                 installed_packages.pop(installed_packages.index(PREFERRED_VERSIONS[name]))
@@ -206,9 +203,10 @@ def mock_conda(mocker: MockerFixture, conda_info: dict | list, installed_package
 
             link_info = deepcopy(fetch_info)
             if runner != "micromamba":
-                for p in link_info:
+                for i, p in enumerate(link_info):
                     p.pop("depends")
                     p.pop("constrains")
+                fetch_info = fetch_info[num_remove_fetch:]
             return {"actions": {"FETCH": fetch_info, "LINK": link_info}}
         else:
             return {"message": "ok"}

@@ -17,7 +17,10 @@ from tests.conftest import (
 @pytest.mark.parametrize("conda_info", CONDA_INFO)
 @pytest.mark.parametrize("group", ["default", "dev", "other"])
 class TestLock:
-    @pytest.mark.parametrize("add_conflict,as_default_manager", [[True, True], [False, True], [False, False]])
+    @pytest.mark.parametrize(
+        "add_conflict,as_default_manager,num_remove_fetch",
+        [[True, True, 1], [True, True, 0], [False, True, 2], [False, False, 0]],
+    )
     def test_lock(
         self,
         pdm,
@@ -32,6 +35,7 @@ class TestLock:
         conda_mapping,
         mock_conda_mapping,
         as_default_manager,
+        num_remove_fetch,
         refresh=False,
     ):
         """
@@ -80,12 +84,12 @@ class TestLock:
             if isinstance(r, CondaRequirement)
         ]
 
-        cmd = ["lock", "-v"]
+        cmd = ["lock", "-vv"]
         if refresh:
             cmd.append("--refresh")
         pdm(cmd, obj=project, strict=True)
-        # first subcommands are for python dependency and virtual packages
-        cmd_order = ["create", "info"]
+        search_command = "search" if runner == "conda" else "repoquery"
+        cmd_order = ["create"] + [search_command] * (0 if runner == "micromamba" else num_remove_fetch) + ["info"]
         packages_to_search = {PYTHON_PACKAGE["name"], *requirements}
 
         assert conda.call_count == len(cmd_order)
@@ -100,6 +104,7 @@ class TestLock:
         assert not cmd_order
         lockfile = project.lockfile
         packages = lockfile["package"]
+        hashes = lockfile["metadata"]["files"]
         for p in packages:
             name = p["name"]
             if add_conflict and conda_mapping.get(name, name) == (pkg := conda_packages[0])["name"]:
@@ -108,12 +113,19 @@ class TestLock:
                 assert p["version"] == parse_conda_version(pkg["version"])
             else:
                 preferred_package = PREFERRED_VERSIONS[name]
-                assert p["version"] == preferred_package["version"]
+                version = preferred_package["version"]
+                assert p["version"] == version
                 assert p["build_string"] == preferred_package["build_string"]
                 assert p["build_number"] == preferred_package["build_number"]
                 assert p["conda_managed"]
                 assert preferred_package["channel"].endswith(p["channel"])
+                _hash = hashes[f"{name} {version}"]
+                assert len(_hash) == 1
+                _hash = _hash[0]
+                assert _hash["url"] == preferred_package["url"]
+                assert _hash["hash"] == f"md5:{preferred_package['md5']}"
 
+    @pytest.mark.parametrize("num_remove_fetch", [0])
     def test_lock_refresh(
         self,
         pdm,
@@ -126,6 +138,7 @@ class TestLock:
         group,
         conda_mapping,
         mock_conda_mapping,
+        num_remove_fetch,
     ):
         self.test_lock(
             pdm,
@@ -140,6 +153,7 @@ class TestLock:
             conda_mapping,
             mock_conda_mapping,
             True,
+            num_remove_fetch,
         )
         self.test_lock(
             pdm,
@@ -154,5 +168,6 @@ class TestLock:
             conda_mapping,
             mock_conda_mapping,
             True,
+            num_remove_fetch,
             refresh=True,
         )

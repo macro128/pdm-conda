@@ -11,6 +11,7 @@ from tests.conftest import (
 
 
 @pytest.mark.parametrize("conda_info", CONDA_INFO)
+@pytest.mark.parametrize("num_remove_fetch", [0])
 @pytest.mark.parametrize("conda_mapping", CONDA_MAPPING)
 @pytest.mark.parametrize("runner", [None, "micromamba", "conda"])
 @pytest.mark.usefixtures("working_set")
@@ -74,8 +75,9 @@ class TestAddRemove:
 
         dependencies = project.get_dependencies(group)
         for package in packages:
-            _package = package.split("::")[-1].split("=")[0]
-            assert any(True for d in dependencies if _package in d)
+            pkg = PREFERRED_VERSIONS[package.split("::")[-1].split("=")[0]]
+            assert (dep := dependencies.get(pkg["name"], None)) is not None
+            assert pkg["version"] in dep.as_line()
 
     @pytest.mark.parametrize("packages", [["dep"], ["dep", "another-dep"], ["channel::dep"]])
     @pytest.mark.parametrize("batch_commands", [True, False])
