@@ -46,25 +46,25 @@ PYTHON_REQUIREMENTS.extend(PREFERRED_VERSIONS.values())
 
 _CONDA_INFO = [
     *PYTHON_REQUIREMENTS,
-    generate_package_info("another-dep", "1!0.1gg", depends=[_python_dep, "lib ==1.0"]),
-    generate_package_info("another-dep", "1!0.1gg", depends=[_python_dep], timestamp=3),
+    generate_package_info("another-dep", "1!0.1gg", depends=["lib ==1.0"]),
+    generate_package_info("another-dep", "1!0.1gg", timestamp=3),
     generate_package_info(
         "another-dep",
         "1!0.1gg",
-        depends=[_python_dep],
         build_number=1,
         timestamp=4,
         channel=f"{DEFAULT_CHANNEL}/noarch",
     ),
-    generate_package_info("another-dep", "1!0.1gg", depends=[_python_dep], timestamp=1),
+    generate_package_info("another-dep", "1!0.1gg", timestamp=1),
 ]
 
 _packages = [
-    generate_package_info("another-dep", "1!0.1gg", depends=[_python_dep], timestamp=2, build_number=1),
+    generate_package_info("another-dep", "1!0.1gg", timestamp=2, build_number=1),
+    generate_package_info("another-python-dep", "0.1b0", timestamp=2, build_number=1),
     generate_package_info(
         "dep",
         "1.0.0",
-        depends=[_python_dep, "another-dep ==1!0.1gg|==1!0.0g"],
+        depends=[_python_dep, "another-dep ==1!0.1gg|==1!0.0g", "another-python-dep"],
         timestamp=2,
         build_number=1,
     ),
