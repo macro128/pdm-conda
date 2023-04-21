@@ -168,7 +168,8 @@ class CondaCandidate(Candidate):
         build_string = package.get("build", package.get("build_string", ""))
         channel = parse_channel(package["channel"])
         if requirement is not None:
-            requirement = as_conda_requirement(requirement)
+            requirement = cast(CondaRequirement, as_conda_requirement(requirement))
+            requirement.version_mapping.update({parse_conda_version(version): version})
         else:
             requirement = parse_requirement(f"conda:{name} {version} {build_string}")
 
