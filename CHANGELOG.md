@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.9.2] - 21/04/2023
+
+### Fixed
+
+* Fix explicit lockfile generation.
+
 ## [0.9.1] - 21/04/2023
 
 ### Changed
