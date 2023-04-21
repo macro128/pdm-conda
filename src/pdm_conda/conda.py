@@ -8,7 +8,12 @@ from typing import Iterable
 
 from pdm import termui
 from pdm.cli.commands.venv.backends import VirtualenvCreateError
-from pdm.exceptions import PdmException, RequirementError
+from pdm.exceptions import (
+    InstallationError,
+    PdmException,
+    RequirementError,
+    UninstallError,
+)
 from pdm.models.setup import Setup
 from pdm.termui import Verbosity
 
@@ -32,14 +37,14 @@ class CondaResolutionError(PdmException):
 
 
 @contextlib.contextmanager
-def _optional_temporary_file(environment: dict):
+def _optional_temporary_file(environment: dict | list):
     """
     If environment contains data then creates temporary file else yield None
     :param environment: environment data
     :return: Temporary file or None
     """
     if environment:
-        with NamedTemporaryFile(mode="w+", suffix=".yml") as f:
+        with NamedTemporaryFile(mode="w+", suffix=".yml" if isinstance(environment, dict) else ".lock") as f:
             yield f
     else:
         yield
@@ -56,23 +61,27 @@ def run_conda(
     :param cmd: conda command
     :param exception_cls: exception to raise on error
     :param exception_msg: base message to show on error
-    :param environment: environment data
+    :param environment: environment or lockfile data
     :return: conda command response
     """
-    with _optional_temporary_file(environment) as f:
-        if environment:
-            for name, options in environment.items():
-                if options:
-                    f.write(f"{name}:")
-                    if isinstance(options, str):
-                        f.write(f" {options}\n")
-                        continue
-                    else:
-                        f.write("\n")
-                    for v in options:
-                        f.write(f"  - {v}\n")
+    lockfile = environment.get("lockfile", [])
+    with _optional_temporary_file(lockfile or environment) as f:
+        if lockfile or environment:
+            if lockfile:
+                f.writelines(lockfile)
+            elif environment:
+                for name, options in environment.items():
+                    if options:
+                        f.write(f"{name}:")
+                        if isinstance(options, str):
+                            f.write(f" {options}\n")
+                            continue
+                        else:
+                            f.write("\n")
+                        for v in options:
+                            f.write(f"  - {v}\n")
             f.seek(0)
-            cmd = cmd + ["-f", f.name]
+            cmd = cmd + ["--file", f.name]
         logger.debug(f"cmd: {' '.join(cmd)}")
         if environment:
             logger.debug(f"env: {environment}")
@@ -185,7 +194,7 @@ def _conda_search(
     project: CondaProject,
     requirement: str,
     channels: tuple[str],
-) -> list[CondaCandidate]:
+) -> list[dict]:
     """
     Search conda candidates for a requirement
     :param project: PDM project
@@ -214,8 +223,7 @@ def _conda_search(
         packages = result.get(parse_requirement(f"conda:{requirement}").name, [])
     else:
         packages = result.get("result", dict()).get("pkgs", [])
-
-    return _parse_candidates(project, packages=packages)
+    return packages
 
 
 def conda_search(
@@ -230,17 +238,21 @@ def conda_search(
     :param channel: requirement channel
     :return: list of conda candidates
     """
-    if isinstance(requirement, CondaRequirement):
-        channel = channel or requirement.channel
-        requirement = requirement.as_line(with_build_string=True, conda_compatible=True).replace(" ", "=")
-    if "::" in requirement:
-        channel, requirement = requirement.split("::", maxsplit=1)
+    _requirement = requirement
+    if isinstance(_requirement, CondaRequirement):
+        channel = channel or _requirement.channel
+        _requirement = _requirement.as_line(with_build_string=True, conda_compatible=True).replace(" ", "=")
+    if "::" in _requirement:
+        channel, _requirement = _requirement.split("::", maxsplit=1)
+    if isinstance(requirement, str):
+        requirement = parse_requirement(f"conda::{requirement}")
     channels = _ensure_channels(
         project,
         [channel] if channel else [],
         f"No channel specified for searching [req]{requirement}[/] using defaults if exist.",
     )
-    return _conda_search(project, requirement, tuple(channels))
+    packages = _conda_search(project, _requirement, tuple(channels))
+    return _parse_candidates(project, packages, requirement)
 
 
 def conda_create(
@@ -307,36 +319,48 @@ def conda_create(
         if any(True for n in ("constrains", "depends") if n not in pkg):
             pkg = conda_search(
                 project,
-                f'{pkg["name"]} {pkg["version"]} {pkg["build_string"]}',
+                f'{pkg["name"]}={pkg["version"]}={pkg["build_string"]}',
                 parse_channel(pkg["channel"]),
-            )[0]
+            )
         packages[i] = pkg
 
     _requirements = {req.conda_name: req for req in requirements}
     for pkg in packages:
-        name = pkg["name"]
-        candidates[name] = _parse_candidates(
-            project,
-            packages=[pkg],
-            requirement=_requirements.get(name, None),
-        )
+        # if is list of candidates then it comes from search
+        if isinstance(pkg, list):
+            if pkg:
+                candidates[pkg[0].name] = pkg
+        else:
+            name = pkg["name"]
+            candidates[name] = _parse_candidates(
+                project,
+                packages=[pkg],
+                requirement=_requirements.get(name, None),
+            )
     return candidates
 
 
 def _conda_install(
-    project: CondaProject,
     command: list[str],
     packages: str | list[str] | None = None,
+    exception_cls: type[PdmException] = InstallationError,
     dry_run: bool = False,
+    explicit: bool = False,
 ):
     if isinstance(packages, str):
         packages = [packages]
-    if packages:
+    if not packages:
+        raise exception_cls(f"No packages used for {' '.join(command[:3])} command.")
+    if explicit:
+        packages.insert(0, "@EXPLICIT")
+    else:
         command.extend(packages)
     if dry_run:
         command.append("--dry-run")
-    response = run_conda(command + ["--json"])
-    project.core.ui.echo(response, verbosity=Verbosity.DEBUG)
+    kwargs: dict = dict()
+    if explicit:
+        kwargs["lockfile"] = packages
+    run_conda(command + ["--json"], **kwargs)
 
 
 def conda_install(
@@ -365,7 +389,7 @@ def conda_install(
             _copy = f"always-{_copy}"
         command.append(f"--{_copy}")
 
-    _conda_install(project, command, packages, dry_run=dry_run)
+    _conda_install(command, packages, dry_run=dry_run, explicit=True)
 
 
 def conda_uninstall(
@@ -393,7 +417,7 @@ def conda_uninstall(
             command.append("--no-prune")
         command.append("--force")
 
-    _conda_install(project, command, packages, dry_run=dry_run)
+    _conda_install(command, packages, dry_run=dry_run, exception_cls=UninstallError)
 
 
 def not_initialized_warning(project):
