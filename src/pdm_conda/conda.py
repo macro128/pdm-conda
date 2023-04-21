@@ -68,7 +68,7 @@ def run_conda(
     with _optional_temporary_file(lockfile or environment) as f:
         if lockfile or environment:
             if lockfile:
-                f.writelines(lockfile)
+                f.write("\n".join(lockfile))
             elif environment:
                 for name, options in environment.items():
                     if options:
