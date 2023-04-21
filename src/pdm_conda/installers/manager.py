@@ -33,7 +33,11 @@ class CondaInstallManager(InstallManager):
             try:
                 self._batch_install.append(candidate)
                 if len(self._batch_install) >= self._num_install:
-                    conda_install(self.environment.project, [c.link.url for c in self._batch_install], no_deps=True)
+                    conda_install(
+                        self.environment.project,
+                        [f"{c.link.url_without_fragment}#{c.link.hash}" for c in self._batch_install],
+                        no_deps=True,
+                    )
                     self._batch_install.clear()
             except (RequirementError, ValueError) as e:
                 raise InstallerError(e) from e
