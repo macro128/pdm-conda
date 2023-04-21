@@ -7,7 +7,6 @@ from pdm.models.repositories import BaseRepository, LockedRepository, PyPIReposi
 from pdm.models.requirements import Requirement
 from pdm.models.specifiers import PySpecSet
 from pdm.resolver.python import PythonRequirement
-from unearth import Link
 
 from pdm_conda.conda import conda_create, sort_candidates
 from pdm_conda.models.candidates import Candidate, CondaCandidate
@@ -68,11 +67,6 @@ class CondaRepository(BaseRepository):
         else:
             dependencies, requires_python, summary = super().get_dependencies(candidate)
         return dependencies, requires_python, summary
-
-    def get_hashes(self, candidate: Candidate) -> dict[Link, str] | None:
-        if isinstance(candidate, CondaCandidate):
-            return None
-        return super().get_hashes(candidate)
 
 
 class PyPICondaRepository(PyPIRepository, CondaRepository):
@@ -136,15 +130,23 @@ class PyPICondaRepository(PyPIRepository, CondaRepository):
 class LockedCondaRepository(LockedRepository, CondaRepository):
     def _read_lockfile(self, lockfile: Mapping[str, Any]) -> None:
         packages = lockfile.get("package", [])
-        conda_packages = [p for p in packages if p.get("conda_managed", False)]
+        conda_packages = [copy(p) for p in packages if p.get("conda_managed", False)]
         packages = [p for p in packages if not p.get("conda_managed", False)]
-        super()._read_lockfile({"package": packages})
+        super()._read_lockfile({"package": packages, "metadata": lockfile.get("metadata", {})})
 
         for package in conda_packages:
+            link, _hash = list(self.file_hashes[(package["name"], package["version"])].items())[0]
+            name, value = _hash.split(":", maxsplit=1)
+            package[name] = value
+            package["url"] = link.url_without_fragment
             can = CondaCandidate.from_lock_package(package)
             can_id = self._identify_candidate(can)
             self.packages[can_id] = can
-            self.candidate_info[can_id] = (can.dependencies_lines, package.get("requires_python", ""), "")
+            self.candidate_info[can_id] = (
+                can.dependencies_lines,
+                package.get("requires_python", ""),
+                package.get("summary", ""),
+            )
 
     def _identify_candidate(self, candidate: Candidate) -> tuple:
         if isinstance(candidate, CondaCandidate):
