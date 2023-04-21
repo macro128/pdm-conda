@@ -4,6 +4,7 @@ from pdm.models.candidates import Candidate
 from pdm.models.requirements import Requirement
 from pdm.project import Project
 
+from pdm_conda.models.candidates import CondaCandidate
 from pdm_conda.models.requirements import CondaRequirement
 
 _patched = False
@@ -44,12 +45,30 @@ def wrap_format_lockfile(func):
             for i, dep in enumerate(deps):
                 if isinstance(dep, CondaRequirement):
                     setattr(dep, "as_line", functools.partial(dep.as_line, with_build_string=True))
-        res = func(project, mapping, fetched_dependencies)
-        for deps in fetched_dependencies.values():
-            for i, dep in enumerate(deps):
-                if isinstance(dep, CondaRequirement):
-                    setattr(dep, "as_line", dep.as_line.func)  # type: ignore
-        return res
+        version_mapping = {}
+        for name, can in mapping.items():
+            if isinstance(can, CondaCandidate):
+                fetched_dependencies[(can.name, can.conda_version)] = fetched_dependencies.pop(
+                    (can.name, can.version),
+                    [],
+                )
+                version_mapping[name] = can.version
+                can.version = can.conda_version
+        try:
+            res = func(project, mapping, fetched_dependencies)
+            return res
+        finally:
+            for deps in fetched_dependencies.values():
+                for i, dep in enumerate(deps):
+                    if isinstance(dep, CondaRequirement):
+                        setattr(dep, "as_line", dep.as_line.func)  # type: ignore
+            for name, version in version_mapping.items():
+                can = mapping[name]
+                can.version = version
+                fetched_dependencies[(can.name, can.version)] = fetched_dependencies.pop(
+                    (can.name, can.conda_version),
+                    [],
+                )
 
     return wrapper
 
