@@ -1,6 +1,8 @@
-from typing import Any
+from typing import Any, cast
 
 from pdm.models.setup import Setup, SetupDistribution
+
+from pdm_conda.models.requirements import CondaRequirement, parse_requirement
 
 
 class CondaSetupDistribution(SetupDistribution):
@@ -25,3 +27,7 @@ class CondaSetupDistribution(SetupDistribution):
         version = self.package.get("version", "")
         name = self.package.get("name", "")
         return f"{channel}{name}=={version}{build_string}"
+
+    @property
+    def req(self) -> CondaRequirement:
+        return cast(CondaRequirement, parse_requirement(f"conda:{self.as_line()}"))

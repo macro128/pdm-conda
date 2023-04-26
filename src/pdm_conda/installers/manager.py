@@ -1,8 +1,6 @@
 from importlib.metadata import Distribution
 from typing import cast
 
-from installer.exceptions import InstallerError
-from pdm.exceptions import RequirementError, UninstallError
 from pdm.installers import InstallManager
 
 from pdm_conda.conda import conda_install, conda_uninstall
@@ -17,12 +15,27 @@ class CondaInstallManager(InstallManager):
         self.environment = cast(CondaEnvironment, environment)
         self._num_install = 0
         self._num_remove = 0
-        self._batch_install: list[CondaCandidate] = []
-        self._batch_remove: list[CondaSetupDistribution] = []
+        self._batch_install: list[str] = []
+        self._batch_remove: list[str] = []
 
     def prepare_batch_operations(self, num_install: int, num_remove: int):
         self._num_install = num_install
         self._num_remove = num_remove
+
+    def _run_with_conda(self, conda_func, new_requirement: str, requirements: list[str], min_requirements: int):
+        requirements.append(new_requirement)
+        if len(requirements) >= min_requirements:
+            try:
+                conda_func(
+                    self.environment.project,
+                    list(requirements),
+                    no_deps=True,
+                )
+                requirements.clear()
+            except:
+                if min_requirements == 0:
+                    requirements.clear()
+                raise
 
     def install(self, candidate: Candidate) -> None:
         """
@@ -30,17 +43,12 @@ class CondaInstallManager(InstallManager):
         :param candidate: candidate to install
         """
         if isinstance(candidate, CondaCandidate):
-            try:
-                self._batch_install.append(candidate)
-                if len(self._batch_install) >= self._num_install:
-                    conda_install(
-                        self.environment.project,
-                        [f"{c.link.url_without_fragment}#{c.link.hash}" for c in self._batch_install],
-                        no_deps=True,
-                    )
-                    self._batch_install.clear()
-            except (RequirementError, ValueError) as e:
-                raise InstallerError(e) from e
+            self._run_with_conda(
+                conda_install,
+                f"{candidate.link.url_without_fragment}#{candidate.link.hash}",
+                self._batch_install,
+                self._num_install,
+            )
         else:
             super().install(candidate)
 
@@ -50,12 +58,6 @@ class CondaInstallManager(InstallManager):
         :param dist: distribution to uninstall
         """
         if isinstance(dist, CondaSetupDistribution):
-            try:
-                self._batch_remove.append(dist)
-                if len(self._batch_remove) >= self._num_remove:
-                    conda_uninstall(self.environment.project, [d.name for d in self._batch_remove], no_deps=True)
-                    self._batch_remove.clear()
-            except RequirementError as e:
-                raise UninstallError(e) from e
+            self._run_with_conda(conda_uninstall, dist.name, self._batch_remove, self._num_remove)
         else:
             super().uninstall(dist)

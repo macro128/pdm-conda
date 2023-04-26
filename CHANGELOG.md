@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.9.3] - 26/04/2023
+
+### Added
+
+* PyPi mapping fixes included in the package.
+* `CondaSetupDistribution` now has `req` property.
+
+### Changed
+
+* All environment variables now use `PDM_CONDA` prefix to avoid conflicts.
+* `CondaEnvironment` `python_dependencies` changed to `env_dependencies` and include runner dependencies.
+
+### Fixed
+
+* Conda commands now use `CondaRunner` values to avoid logging errors.
+* When using `conda/mamba` avoid listing PyPi packages as Conda managed.
+
+
 ## [0.9.2] - 21/04/2023
 
 ### Fixed

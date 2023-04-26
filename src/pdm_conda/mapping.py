@@ -7,7 +7,7 @@ from pathlib import Path
 import requests
 
 MAPPINGS_URL = "https://github.com/regro/cf-graph-countyfair/raw/master/mappings/pypi/grayskull_pypi_mapping.yaml"
-DOWNLOAD_DIR_ENV_VAR = "PYPI_MAPPING_DIR"
+DOWNLOAD_DIR_ENV_VAR = "PDM_CONDA_PYPI_MAPPING_DIR"
 
 
 def process_mapping(yaml_path: Path, dict_path: Path):
@@ -59,10 +59,23 @@ def download_mapping(download_dir: Path, update_interval: timedelta | None = Non
         return json.load(f)
 
 
+def get_mapping_fixes() -> dict:
+    fixes = dict()
+    for path in Path(__file__).parents[:3]:
+        print(path)
+        if (fixes_file := path / "data/mapping_fixes.json").exists():
+            with fixes_file.open() as f:
+                fixes = json.load(f)
+                break
+    return fixes
+
+
 @lru_cache
 def get_pypi_mapping() -> dict[str, str]:
     download_dir = os.getenv(DOWNLOAD_DIR_ENV_VAR)
-    return download_mapping(Path(str(download_dir)))
+    mapping = download_mapping(Path(str(download_dir)))
+    mapping.update(get_mapping_fixes())
+    return mapping
 
 
 @lru_cache

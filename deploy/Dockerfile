@@ -41,7 +41,7 @@ ARG env
 ARG dependencies=""
 ARG plugins=""
 ENV ENV_NAME=${app_env}
-ENV CONDA_INSTALLATION_METHOD="copy"
+ENV PDM_CONDA_INSTALLATION_METHOD="copy"
 ENV PATH=${BIN_PATH}:${PATH}
 RUN --mount=type=cache,target=/opt/conda/pkgs,id=mamba,mode=0775,uid=1000,gid=1000,sharing=locked \
     python /tmp/pdm_install.py "/opt/conda/bin/pdm" -G ${dependencies} --plugins pdm-backend ${plugins} - --${env}

@@ -27,23 +27,23 @@ _CONFIG_MAP = {"pypi-mapping.download-dir": "mapping_download_dir"}
 _CONFIG_MAP |= {v: k for k, v in _CONFIG_MAP.items()}
 
 CONFIGS = [
-    ("runner", ConfigItem("Conda runner executable", CondaRunner.CONDA.value, env_var="CONDA_RUNNER")),
-    ("solver", ConfigItem("Solver to use for Conda resolution", CondaSolver.CONDA.value, env_var="CONDA_SOLVER")),
+    ("runner", ConfigItem("Conda runner executable", CondaRunner.CONDA.value, env_var="PDM_CONDA_RUNNER")),
+    ("solver", ConfigItem("Solver to use for Conda resolution", CondaSolver.CONDA.value, env_var="PDM_CONDA_SOLVER")),
     ("channels", ConfigItem("Conda channels to use")),
     (
         "as-default-manager",
-        ConfigItem("Use Conda to install all possible requirements", False, env_var="CONDA_AS_DEFAULT_MANAGER"),
+        ConfigItem("Use Conda to install all possible requirements", False, env_var="PDM_CONDA_AS_DEFAULT_MANAGER"),
     ),
     (
         "batched-commands",
-        ConfigItem("Execute batched install and remove commands", False, env_var="CONDA_BATCHED_COMMANDS"),
+        ConfigItem("Execute batched install and remove commands", False, env_var="PDM_CONDA_BATCHED_COMMANDS"),
     ),
     (
         "installation-method",
         ConfigItem(
             "Whether to use hard-link or copy when installing",
             "hard-link",
-            env_var="CONDA_INSTALLATION_METHOD",
+            env_var="PDM_CONDA_INSTALLATION_METHOD",
         ),
     ),
     ("dependencies", ConfigItem("Dependencies to install with Conda")),
@@ -212,14 +212,20 @@ class PluginConfig:
         :param cmd: command, install by default
         :return: args list
         """
-        _command = [self.runner, *cmd.split(" ")]
+        runner = self.runner
+        if cmd == "remove" and runner == CondaRunner.MAMBA:
+            runner = CondaRunner.CONDA
+        if isinstance(runner, CondaRunner):
+            runner = runner.value
+
+        _command = [runner, *cmd.split(" ")]
+
         if self.runner != CondaRunner.CONDA and cmd == "search":
             _command.insert(1, "repoquery")
-
         if cmd in ("install", "remove", "create"):
             _command.append("-y")
         if cmd in ("install", "create") or (cmd == "search" and self.runner == CondaRunner.MICROMAMBA):
             _command.append("--strict-channel-priority")
         if self.runner == CondaRunner.CONDA and self.solver == CondaSolver.MAMBA and cmd in ("create", "install"):
-            _command.extend(["--solver", self.solver])
+            _command.extend(["--solver", CondaSolver.MAMBA.value])
         return _command

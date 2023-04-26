@@ -4,19 +4,19 @@ A PDM plugin to resolve/install/uninstall project dependencies with Conda.
 
 ## Configuration
 
-| Config item                       | Description                                                                                          | Default value       | Possible values                | Environment variable        |
-|-----------------------------------|------------------------------------------------------------------------------------------------------|---------------------|--------------------------------|-----------------------------|
-| `conda.runner`                    | Conda runner executable                                                                              | `conda`             | `conda`, `mamba`, `micromamba` | `CONDA_RUNNER`              |
-| `conda.solver`                    | Solver to use for Conda resolution                                                                   | `conda`             | `conda`, `libmamba`            | `CONDA_SOLVER`              |
-| `conda.channels`                  | Conda channels to use, order will be enforced                                                        | `[]`                |                                |                             |
-| `conda.as-default-manager`        | Use Conda to install all possible requirements                                                       | `False`             |                                | `CONDA_AS_DEFAULT_MANAGER`  |
-| `conda.batched-commands`          | Execute batched install and remove Conda commands, when True the command is executed only at the end | `False`             |                                | `CONDA_BATCHED_COMMANDS`    |
-| `conda.excludes`                  | Array of dependencies to exclude from Conda resolution                                               | `[]`                |                                |                             |
-| `conda.installation-method`       | Installation method to use when installing dependencies with Conda                                   | `hard-link`         | `hard-link`, `copy`            | `CONDA_INSTALLATION_METHOD` |
-| `conda.dependencies`              | Array of dependencies to install with Conda, analogue to `project.dependencies`                      | `[]`                |                                |                             |
-| `conda.optional-dependencies`     | Groups of optional dependencies to install with Conda, analogue to `project.optional-dependencies`   | `{}`                |                                |                             |
-| `conda.dev-dependencies`          | Groups of development dependencies to install with Conda, analogue to `tool.pdm.dev-dependencies`    | `{}`                |                                |                             |
-| `conda.pypi-mapping.download-dir` | PyPI-Conda mapping download directory                                                                | `$HOME/.pdm-conda/` |                                | `PYPI_MAPPING_DIR`          |
+| Config item                       | Description                                                                                          | Default value       | Possible values                | Environment variable            |
+|-----------------------------------|------------------------------------------------------------------------------------------------------|---------------------|--------------------------------|---------------------------------|
+| `conda.runner`                    | Conda runner executable                                                                              | `conda`             | `conda`, `mamba`, `micromamba` | `PDM_CONDA_RUNNER`              |
+| `conda.solver`                    | Solver to use for Conda resolution                                                                   | `conda`             | `conda`, `libmamba`            | `PDM_CONDA_SOLVER`              |
+| `conda.channels`                  | Conda channels to use, order will be enforced                                                        | `[]`                |                                |                                 |
+| `conda.as-default-manager`        | Use Conda to install all possible requirements                                                       | `False`             |                                | `PDM_CONDA_AS_DEFAULT_MANAGER`  |
+| `conda.batched-commands`          | Execute batched install and remove Conda commands, when True the command is executed only at the end | `False`             |                                | `PDM_CONDA_BATCHED_COMMANDS`    |
+| `conda.excludes`                  | Array of dependencies to exclude from Conda resolution                                               | `[]`                |                                |                                 |
+| `conda.installation-method`       | Installation method to use when installing dependencies with Conda                                   | `hard-link`         | `hard-link`, `copy`            | `PDM_CONDA_INSTALLATION_METHOD` |
+| `conda.dependencies`              | Array of dependencies to install with Conda, analogue to `project.dependencies`                      | `[]`                |                                |                                 |
+| `conda.optional-dependencies`     | Groups of optional dependencies to install with Conda, analogue to `project.optional-dependencies`   | `{}`                |                                |                                 |
+| `conda.dev-dependencies`          | Groups of development dependencies to install with Conda, analogue to `tool.pdm.dev-dependencies`    | `{}`                |                                |                                 |
+| `conda.pypi-mapping.download-dir` | PyPI-Conda mapping download directory                                                                | `$HOME/.pdm-conda/` |                                | `PDM_CONDA_PYPI_MAPPING_DIR`    |
 
 All configuration items use prefix `pdm.tool`, this is a viable configuration:
 
