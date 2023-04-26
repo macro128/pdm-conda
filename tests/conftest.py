@@ -44,6 +44,13 @@ for _p in _packages:
     PYTHON_REQUIREMENTS.append(_p)
 PYTHON_REQUIREMENTS.extend(PREFERRED_VERSIONS.values())
 
+CONDA_REQUIREMENTS = [
+    generate_package_info("conda", "1.0"),
+    generate_package_info("mamba", "1.0", depends=["conda"]),
+]
+for _p in CONDA_REQUIREMENTS:
+    PREFERRED_VERSIONS[_p["name"]] = _p
+
 _CONDA_INFO = [
     *PYTHON_REQUIREMENTS,
     generate_package_info("another-dep", "1!0.1gg", depends=["lib ==1.0"]),
@@ -131,7 +138,7 @@ def mock_conda(mocker: MockerFixture, conda_info: dict | list, num_remove_fetch:
         runner, subcommand, *_ = cmd
         if subcommand == "install":
             install_response = []
-            packages = kwargs["lockfile"]
+            packages = list(kwargs["lockfile"])
             assert packages.pop(0) == "@EXPLICIT"
             for url in (p for p in packages if p.startswith("https://")):
                 install_response += [p for p in PREFERRED_VERSIONS.values() if url.startswith(p["url"])]
@@ -144,6 +151,10 @@ def mock_conda(mocker: MockerFixture, conda_info: dict | list, num_remove_fetch:
             return {"message": "ok"}
         elif subcommand == "list":
             res = [deepcopy(p) for p in installed_packages]
+            if runner in ("conda", "mamba"):
+                res.append(deepcopy(PREFERRED_VERSIONS["conda"]))
+                if runner == "mamba":
+                    res.append(deepcopy(PREFERRED_VERSIONS["mamba"]))
             for p in res:
                 if p["channel"].startswith("http"):
                     p["channel"] = p["channel"].split(f"{REPO_BASE}/")[-1]
@@ -172,7 +183,7 @@ def mock_conda(mocker: MockerFixture, conda_info: dict | list, num_remove_fetch:
         elif subcommand in ("repoquery", "search"):
             name = next(filter(lambda x: not x.startswith("-") and x != "search", cmd[2:]))
             name = name.split(">")[0].split("<")[0].split("=")[0].split("~")[0]
-            packages = [deepcopy(p) for p in conda_info if p["name"] == name]
+            packages = [deepcopy(p) for p in conda_info + CONDA_REQUIREMENTS if p["name"] == name]
             if runner != "micromamba":
                 return {name: packages}
             return {"result": {"pkgs": packages}}
@@ -326,7 +337,5 @@ def mocked_responses():
 
 @pytest.fixture
 def mock_conda_mapping(mocker: MockerFixture, mocked_responses, conda_mapping):
-    yield mocker.patch("pdm_conda.mapping.download_mapping", return_value=conda_mapping)
-    from pdm_conda.mapping import get_pypi_mapping
-
-    get_pypi_mapping.cache_clear()
+    mocker.patch("pdm_conda.mapping.get_mapping_fixes", return_value={})
+    yield mocker.patch("pdm_conda.mapping.get_pypi_mapping", return_value=conda_mapping)

@@ -5,6 +5,7 @@ import pytest
 from tests.conftest import (
     CONDA_INFO,
     CONDA_MAPPING,
+    CONDA_REQUIREMENTS,
     PREFERRED_VERSIONS,
     PYTHON_REQUIREMENTS,
 )
@@ -110,11 +111,17 @@ class TestAddRemove:
         cmd_order = []
         if packages_to_remove:
             # get working set + get python packages
-            cmd_order = (
-                ["create", "list", "list"]
-                + ["search" if runner == "conda" else "repoquery"] * (len({p["name"] for p in PYTHON_REQUIREMENTS}))
-                + ["remove"] * (1 if batch_commands else len(packages_to_remove))
-            )
+            cmd_order = ["create", "list", "list"]
+            if project.conda_config.runner in ("mamba", "micromamba") or project.conda_config.solver == "libmamba":
+                cmd_order.append("create")
+            else:
+                num_searches = len({p["name"] for p in PYTHON_REQUIREMENTS})
+                if runner == "conda":
+                    num_searches += 1
+                elif runner == "mamba":
+                    num_searches += 2
+                cmd_order += ["search" if runner == "conda" else "repoquery"] * num_searches
+            cmd_order += ["remove"] * (1 if batch_commands else len(packages_to_remove))
         assert conda.call_count == len(cmd_order)
 
         dependencies = project.get_dependencies(group)
@@ -123,7 +130,9 @@ class TestAddRemove:
             assert _package not in dependencies
 
         packages = [p["name"] for p in conda_info]
-        python_packages = [f"{p['name']}=={p['version']}={p['build']}" for p in PYTHON_REQUIREMENTS]
+        python_packages = [
+            f"{p['name']}=={p['version']}={p['build']}" for p in PYTHON_REQUIREMENTS + CONDA_REQUIREMENTS
+        ]
         for (cmd,), kwargs in conda.call_args_list:
             assert cmd[0] == (runner or self.default_runner)
             cmd_subcommand = cmd[1]
