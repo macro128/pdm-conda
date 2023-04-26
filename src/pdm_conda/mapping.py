@@ -7,7 +7,7 @@ from pathlib import Path
 import requests
 
 MAPPINGS_URL = "https://github.com/regro/cf-graph-countyfair/raw/master/mappings/pypi/grayskull_pypi_mapping.yaml"
-DOWNLOAD_DIR_ENV_VAR = "PYPI_MAPPING_DIR"
+DOWNLOAD_DIR_ENV_VAR = "PDM_CONDA_PYPI_MAPPING_DIR"
 
 
 def process_mapping(yaml_path: Path, dict_path: Path):
