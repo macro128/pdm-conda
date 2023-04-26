@@ -59,10 +59,20 @@ def download_mapping(download_dir: Path, update_interval: timedelta | None = Non
         return json.load(f)
 
 
+def get_mapping_fixes() -> dict:
+    fixes = dict()
+    if (fixes_file := Path(__file__).parents[2] / "data/mapping_fixes.json").exists():
+        with fixes_file.open() as f:
+            fixes = json.load(f)
+    return fixes
+
+
 @lru_cache
 def get_pypi_mapping() -> dict[str, str]:
     download_dir = os.getenv(DOWNLOAD_DIR_ENV_VAR)
-    return download_mapping(Path(str(download_dir)))
+    mapping = download_mapping(Path(str(download_dir)))
+    mapping.update(get_mapping_fixes())
+    return mapping
 
 
 @lru_cache
