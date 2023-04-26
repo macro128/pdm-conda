@@ -43,7 +43,7 @@ class CondaSynchronizer(Synchronizer):
         # deactivate parallel execution if uninstall
         self.parallel = self.environment.project.config["install.parallel"]
         if to_remove:
-            to_remove = [p for p in to_remove if p not in self.environment.python_dependencies]
+            to_remove = [p for p in to_remove if p not in self.environment.env_dependencies]
 
         num_update, num_remove = (
             len([p for p in pks if isinstance(self.working_set[p], CondaSetupDistribution)])
