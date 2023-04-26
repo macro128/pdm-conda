@@ -414,11 +414,7 @@ def conda_uninstall(
     """
     config = project.conda_config
 
-    with config.with_config(
-        runner=CondaRunner.CONDA if no_deps and config.runner == CondaRunner.MAMBA else config.runner,
-    ):
-        command = config.command("remove")
-
+    command = config.command("remove")
     if no_deps:
         if config.runner == CondaRunner.MICROMAMBA:
             command.append("--no-prune")
