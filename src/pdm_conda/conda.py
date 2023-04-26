@@ -367,7 +367,7 @@ def _conda_install(
     kwargs: dict = dict()
     if explicit:
         kwargs["lockfile"] = packages
-    run_conda(command + ["--json"], **kwargs)
+    run_conda(command + ["--json"], exception_cls=exception_cls, exception_msg="", **kwargs)
 
 
 def conda_install(
