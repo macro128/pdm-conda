@@ -252,7 +252,7 @@ def conda_search(
     if "::" in _requirement:
         channel, _requirement = _requirement.split("::", maxsplit=1)
     if isinstance(requirement, str):
-        requirement = parse_requirement(f"conda::{requirement}")
+        requirement = parse_requirement(f"conda:{requirement}")
     channels = _ensure_channels(
         project,
         [channel] if channel else [],
