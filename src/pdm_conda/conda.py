@@ -463,6 +463,8 @@ def conda_list(project: CondaProject) -> dict[str, CondaSetupDistribution]:
     if config.is_initialized:
         packages = run_conda(config.command("list") + ["--json"])
         for package in packages:
+            if config.runner != CondaRunner.MICROMAMBA and package.get("platform", "") == "pypi":
+                continue
             name, version = package["name"], package["version"]
             distributions[normalize_name(name)] = CondaSetupDistribution(
                 Setup(
