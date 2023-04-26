@@ -85,18 +85,25 @@ def run_conda(
         logger.debug(f"cmd: {' '.join(cmd)}")
         if environment:
             logger.debug(f"env: {environment}")
-        process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
+        process = subprocess.run(cmd, capture_output=True, encoding="utf-8")
     if "--json" in cmd:
         try:
             response = json.loads(process.stdout)
         except:
             response = {}
     else:
-        response = {"message": f"{process.stdout}\n{process.stderr}"}
+        response = {}
+        msg = f"{process.stdout}\n" if process.stdout else ""
+        if process.stderr:
+            msg += process.stderr
+        if msg:
+            response["message"] = msg
     try:
         process.check_returncode()
     except subprocess.CalledProcessError as e:
-        msg = f"{exception_msg}\n"
+        msg = ""
+        if exception_msg:
+            msg = f"{exception_msg}\n"
         if isinstance(response, dict) and not response.get("success", False):
             if err := response.get("solver_problems", response.get("error", response.get("message", process.stderr))):
                 if isinstance(err, str):
