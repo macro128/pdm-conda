@@ -38,7 +38,7 @@ path = "src/pdm_conda/__init__.py"
 
 [tool.pdm.build]
 package-dir = "src"
-includes = ["src"]
+includes = ["src", "data/*.json"]
 excludes = ["tests"]
 
 [tool.pdm.scripts]
