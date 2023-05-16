@@ -7,8 +7,8 @@ from resolvelib.resolvers import (
     _build_result,
 )
 
-from pdm_conda.models.candidates import CondaCandidate
 from pdm_conda.environments import CondaEnvironment
+from pdm_conda.models.candidates import CondaCandidate
 from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement
 
 CONSTRAINS_KEY = "___constrains___"

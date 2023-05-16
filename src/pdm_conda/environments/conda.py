@@ -83,6 +83,3 @@ class CondaEnvironment(PythonEnvironment):
                     load_dependencies(dep, working_set, self._env_dependencies)
 
         return self._env_dependencies
-
-
-

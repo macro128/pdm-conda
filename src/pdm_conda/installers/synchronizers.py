@@ -3,8 +3,8 @@ from typing import Collection, cast
 from pdm.installers import Synchronizer
 from pdm.models.candidates import Candidate
 
+from pdm_conda.environments import BaseEnvironment, CondaEnvironment
 from pdm_conda.models.candidates import CondaCandidate
-from pdm_conda.environments import CondaEnvironment, BaseEnvironment
 from pdm_conda.models.setup import CondaSetupDistribution
 
 
@@ -32,7 +32,7 @@ class CondaSynchronizer(Synchronizer):
             no_editable,
             reinstall,
             only_keep,
-            fail_fast
+            fail_fast,
         )
         self.environment = cast(CondaEnvironment, environment)
         self.parallel = bool(self.parallel)  # type: ignore

@@ -19,7 +19,12 @@ from pdm_conda.models.requirements import (
 
 
 class CondaRepository(BaseRepository):
-    def __init__(self, sources: list[RepositoryConfig], environment: BaseEnvironment, ignore_compatibility: bool = True) -> None:
+    def __init__(
+        self,
+        sources: list[RepositoryConfig],
+        environment: BaseEnvironment,
+        ignore_compatibility: bool = True,
+    ) -> None:
         super().__init__(sources, environment, ignore_compatibility)
         self.environment = cast(CondaEnvironment, environment)
         self._conda_resolution: dict[str, list[CondaCandidate]] = dict()
