@@ -1,13 +1,11 @@
-import functools
 import os
 import sysconfig
 import uuid
-from copy import copy
 from pathlib import Path
 from typing import cast
 
+from pdm.environments import PythonEnvironment
 from pdm.exceptions import ProjectError
-from pdm.models.environment import Environment, PrefixEnvironment
 from pdm.models.requirements import Requirement
 from pdm.models.specifiers import PySpecSet
 from pdm.models.working_set import WorkingSet
@@ -19,8 +17,6 @@ from pdm_conda.models.config import CondaRunner, CondaSolver
 from pdm_conda.project import CondaProject
 from pdm_conda.utils import normalize_name
 
-_patched = False
-
 
 def ensure_conda_env():
     if (packages_path := os.getenv("CONDA_PREFIX", None)) is None:
@@ -28,7 +24,7 @@ def ensure_conda_env():
     return packages_path
 
 
-class CondaEnvironment(Environment):
+class CondaEnvironment(PythonEnvironment):
     def __init__(self, project: Project) -> None:
         super().__init__(project)
         self.project = cast(CondaProject, project)
@@ -89,18 +85,4 @@ class CondaEnvironment(Environment):
         return self._env_dependencies
 
 
-def wrap_init(func):
-    @functools.wraps(func)
-    def wrapper(self, *args, **kwargs):
-        res = func(self, *args, **kwargs)
-        if isinstance(self.project, CondaProject):
-            self.project = copy(self.project)
-            self.project.environment = self
-        return res
 
-    return wrapper
-
-
-if not _patched:
-    setattr(PrefixEnvironment, "__init__", wrap_init(PrefixEnvironment.__init__))
-    _patched = True
