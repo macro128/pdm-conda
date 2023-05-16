@@ -4,8 +4,8 @@ from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlparse
 
-from pdm.models.candidates import Candidate, PreparedCandidate
 from pdm.environments import BaseEnvironment
+from pdm.models.candidates import Candidate, PreparedCandidate
 from pdm.models.setup import Setup
 from unearth import Link
 
