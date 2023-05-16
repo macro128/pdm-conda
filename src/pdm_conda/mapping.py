@@ -62,7 +62,6 @@ def download_mapping(download_dir: Path, update_interval: timedelta | None = Non
 def get_mapping_fixes() -> dict:
     fixes = dict()
     for path in Path(__file__).parents[:3]:
-        print(path)
         if (fixes_file := path / "data/mapping_fixes.json").exists():
             with fixes_file.open() as f:
                 fixes = json.load(f)
