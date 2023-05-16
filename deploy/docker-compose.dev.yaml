@@ -8,3 +8,6 @@ services:
     user: root
     volumes:
       - ../:/app/
+      - /app/.pdm-plugins
+      - /app/dist
+      - /app/build
