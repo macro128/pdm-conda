@@ -1,9 +1,10 @@
+from functools import cached_property
 from pathlib import Path
 from typing import Iterable, cast
 
 from pdm.core import Core
+from pdm.environments import BaseEnvironment
 from pdm.exceptions import ProjectError
-from pdm.models.environment import Environment
 from pdm.models.repositories import LockedRepository
 from pdm.project import Project
 from pdm.resolver.providers import BaseProvider
@@ -17,6 +18,7 @@ from pdm_conda.models.requirements import (
     as_conda_requirement,
     parse_requirement,
 )
+from pdm_conda.project.project_file import PyProject
 
 
 class CondaProject(Project):
@@ -27,9 +29,9 @@ class CondaProject(Project):
         is_global: bool = False,
         global_config: str | Path | None = None,
     ) -> None:
+        from pdm_conda.environments import CondaEnvironment
         from pdm_conda.installers.manager import CondaInstallManager
         from pdm_conda.installers.synchronizers import CondaSynchronizer
-        from pdm_conda.models.environment import CondaEnvironment
         from pdm_conda.models.repositories import (
             LockedCondaRepository,
             PyPICondaRepository,
@@ -77,6 +79,10 @@ class CondaProject(Project):
             lockfile = {}
 
         return self.locked_repository_class(lockfile, self.sources, self.environment)
+
+    @cached_property
+    def pyproject(self) -> PyProject:
+        return PyProject(self.root / self.PYPROJECT_FILENAME, ui=self.core.ui)
 
     def _get_conda_info(self):
         from pdm_conda.conda import conda_info
@@ -175,7 +181,7 @@ class CondaProject(Project):
 
         super().add_dependencies(requirements, to_group, dev, show_message)
 
-    def get_environment(self) -> Environment:
+    def get_environment(self) -> BaseEnvironment:
         if not self.config["python.use_venv"]:
             raise ProjectError("python.use_venv is required to use Conda.")
         if get_venv_like_prefix(self.python.executable) is None:
