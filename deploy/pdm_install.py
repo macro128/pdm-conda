@@ -49,13 +49,6 @@ if __name__ == "__main__":
         help="select groups of optional-dependencies",
     )
     parser.add_argument(
-        "-p",
-        "--plugins",
-        nargs="*",
-        default="",
-        help="list of plugins to install",
-    )
-    parser.add_argument(
         "-",
         dest="args",
         default=[],
@@ -77,10 +70,5 @@ if __name__ == "__main__":
         if arg not in cmd_args:
             cmd_args.append(arg)
 
-    executable = args.pdm_executable or get_pdm_executable()
-    plugins = parse_list(args.plugins)
-    for plugin in plugins:
-        subprocess.check_call(["pdm", "self", "add", plugin], executable=executable)
-
     # replace current process with pdm install
-    os.execl(executable, "pdm", "install", *cmd_args)
+    os.execl(args.pdm_executable or get_pdm_executable(), "pdm", "install", *cmd_args)
