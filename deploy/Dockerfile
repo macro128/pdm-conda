@@ -10,7 +10,7 @@ ARG MAMBA_DOCKERFILE_ACTIVATE=1
 # install PDM and create app environment
 ARG app_env
 ARG python_version="3.10.*"
-ARG pdm_version="2.4.*"
+ARG pdm_version="2.6.*"
 ENV BIN_PATH=/opt/conda/_bin
 RUN --mount=type=cache,target=/opt/conda/pkgs,id=mamba,mode=0775,uid=1000,gid=1000,sharing=locked \
     micromamba install -y python==3.10.* pdm==${pdm_version} git -n base -c conda-forge && \
@@ -39,12 +39,12 @@ COPY --chown=$MAMBA_USER $src $src
 # install dependencies and project
 ARG env
 ARG dependencies=""
-ARG plugins=""
 ENV ENV_NAME=${app_env}
 ENV PDM_CONDA_INSTALLATION_METHOD="copy"
 ENV PATH=${BIN_PATH}:${PATH}
 RUN --mount=type=cache,target=/opt/conda/pkgs,id=mamba,mode=0775,uid=1000,gid=1000,sharing=locked \
-    python /tmp/pdm_install.py "/opt/conda/bin/pdm" -G ${dependencies} --plugins pdm-backend ${plugins} - --${env}
+    /opt/conda/bin/pdm install --plugins -v && \
+    python /tmp/pdm_install.py "/opt/conda/bin/pdm" -G ${dependencies} - --${env}
 # add src to python path
 ENV PYTHONPATH=${src_path}${src}:${PYTHONPATH}
 
