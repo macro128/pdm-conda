@@ -6,6 +6,7 @@ from pdm.models.requirements import Requirement
 from pdm.resolver.providers import BaseProvider, EagerUpdateProvider, ReusePinProvider
 from pdm.resolver.python import find_python_matches
 from resolvelib.resolvers import RequirementInformation
+from unearth.utils import LazySequence
 
 from pdm_conda.models.requirements import CondaRequirement
 
@@ -44,9 +45,9 @@ class CondaBaseProvider(BaseProvider):
             candidates = []
             for req in reqs:
                 candidates = self._find_candidates(req)
-                candidates = [
+                candidates = LazySequence(
                     can for can in candidates if can not in incompat and all(self.is_satisfied_by(r, can) for r in reqs)
-                ]
+                )
                 if candidates:
                     break
             return iter(candidates)
