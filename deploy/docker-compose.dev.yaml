@@ -10,4 +10,3 @@ services:
       - ../:/app/
       - /app/.pdm-plugins
       - /app/dist
-      - /app/build
