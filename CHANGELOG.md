@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.10.0]
+
+### Added
+
+* Now compatible with `pdm>=v2.6`.
+
+### Fixed
+
+* Lockfile hash includes `pdm-conda` configs.
+* When using `-G :all` in `pdm install/lock` consider `pdm-conda` defined groups.
+* Ensure all requirements are considered for conda resolution update
+
 ## [0.9.3] - 26/04/2023
 
 ### Added
