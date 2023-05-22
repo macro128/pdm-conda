@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from itertools import chain
 
 from resolvelib.resolvers import (
     RequirementInformation,
@@ -7,8 +8,8 @@ from resolvelib.resolvers import (
     _build_result,
 )
 
+from pdm_conda.environments import CondaEnvironment
 from pdm_conda.models.candidates import CondaCandidate
-from pdm_conda.models.environment import CondaEnvironment
 from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement
 
 CONSTRAINS_KEY = "___constrains___"
@@ -101,11 +102,15 @@ class CondaResolution(Resolution):
                     self._add_to_criteria(criteria, constrain, parent=candidate)
 
     def _update_conda_resolution(self, criteria, parent) -> bool:
-        requirements = [
-            criterion.information[-1].requirement
-            for i, criterion in criteria.items()
-            if i not in (CONDA_RESOLUTION_KEY, CONSTRAINS_KEY) and criterion.information
-        ]
+        requirements = list(
+            chain.from_iterable(
+                (
+                    [information.requirement for information in criterion.information]
+                    for i, criterion in criteria.items()
+                    if i not in (CONDA_RESOLUTION_KEY, CONSTRAINS_KEY) and criterion.information
+                )
+            ),
+        )
         if parent is not None:
             requirements.extend(self._p.get_dependencies(candidate=parent))
         self._ensure_criteria(criteria)

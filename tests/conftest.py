@@ -101,6 +101,8 @@ def core_with_plugin(core, monkeypatch) -> Core:
 
     Config._config_map["python.use_venv"].default = True
     monkeypatch.setenv("_CONDA_PREFIX", os.getenv("CONDA_PREFIX"))
+    for conf in ["INSTALLATION_METHOD", "RUNNER", "SOLVER", "AS_DEFAULT_MANAGER", "BATCHED_COMMANDS"]:
+        monkeypatch.delenv(f"PDM_CONDA_{conf}", raising=False)
     main(core)
     yield core
 
@@ -302,7 +304,7 @@ def working_set(mocker: MockerFixture) -> dict:
     """
     from importlib.metadata import Distribution
 
-    from pdm.installers.core import InstallManager
+    from pdm.installers.manager import InstallManager
     from pdm.models.candidates import Candidate
     from pdm.models.working_set import WorkingSet
 

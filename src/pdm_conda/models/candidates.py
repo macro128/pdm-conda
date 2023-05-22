@@ -4,8 +4,8 @@ from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlparse
 
+from pdm.environments import BaseEnvironment
 from pdm.models.candidates import Candidate, PreparedCandidate
-from pdm.models.environment import Environment
 from pdm.models.setup import Setup
 from unearth import Link
 
@@ -32,7 +32,7 @@ def parse_channel(channel_url: str) -> str:
 
 
 class CondaPreparedCandidate(PreparedCandidate):
-    def __init__(self, candidate: Candidate, environment: Environment) -> None:
+    def __init__(self, candidate: Candidate, environment: BaseEnvironment) -> None:
         super().__init__(candidate, environment)
         self.candidate = cast(CondaCandidate, self.candidate)  # type: ignore
 
@@ -121,7 +121,7 @@ class CondaCandidate(Candidate):
         result["version"] = self.conda_version
         return result
 
-    def prepare(self, environment: Environment) -> CondaPreparedCandidate:
+    def prepare(self, environment: BaseEnvironment) -> CondaPreparedCandidate:
         """Prepare the candidate for installation."""
         if self._prepared is None:
             self._prepared = CondaPreparedCandidate(self, environment)

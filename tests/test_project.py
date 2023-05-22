@@ -45,10 +45,6 @@ CONDA_MAPPING = dict(
 GROUPS = dict(argnames="group", argvalues=["default", "dev", "optional"])
 
 
-@pytest.mark.parametrize(**DEPENDENCIES)
-@pytest.mark.parametrize(**GROUPS)
-@pytest.mark.parametrize(**CONDA_MAPPING)
-@pytest.mark.parametrize("as_default_manager", [False, True], ids=["", "as_default_manager"])
 class TestProject:
     def _parse_requirements(
         self,
@@ -88,6 +84,10 @@ class TestProject:
             requirements[r.identify()] = r
         return requirements
 
+    @pytest.mark.parametrize(**DEPENDENCIES)
+    @pytest.mark.parametrize(**GROUPS)
+    @pytest.mark.parametrize(**CONDA_MAPPING)
+    @pytest.mark.parametrize("as_default_manager", [False, True], ids=["", "as_default_manager"])
     def test_get_dependencies(
         self,
         project,
@@ -149,6 +149,10 @@ class TestProject:
                     assert re.match(r".+=[\w.*]+,>=[\w.]+.*", line)
             assert all("[" not in k for k in project_requirements)
 
+    @pytest.mark.parametrize(**DEPENDENCIES)
+    @pytest.mark.parametrize(**GROUPS)
+    @pytest.mark.parametrize(**CONDA_MAPPING)
+    @pytest.mark.parametrize("as_default_manager", [False, True], ids=["", "as_default_manager"])
     def test_add_dependencies(
         self,
         project,
@@ -195,3 +199,31 @@ class TestProject:
                     num_assertions = 2
                 assert asserted == len(conda_dependencies) * num_assertions
         assert all("[" not in k for k in project.get_dependencies(group_name))
+
+    @pytest.mark.parametrize(
+        ("config_name", "config_value", "must_be_different"),
+        [
+            ("channels", ["other"], True),
+            ("batched_commands", True, False),
+            ("runner", "micromamba", False),
+            ("solver", "libmamba", False),
+            ("installation_method", "copy", False),
+            ("as_default_manager", True, True),
+            ("dependencies", ["package"], True),
+            ("excludes", ["package"], True),
+            ("dev_dependencies", {"dev": ["package"]}, True),
+            ("optional_dependencies", {"other": ["package"]}, True),
+        ],
+    )
+    def test_pyproject_hash(self, project, config_name, config_value, must_be_different):
+        original_hash = project.pyproject.content_hash()
+        config = project.conda_config
+        original_value = getattr(config, config_name)
+        assert original_value != config_value
+        setattr(config, config_name, config_value)
+        if must_be_different:
+            assert original_hash != project.pyproject.content_hash()
+        else:
+            assert original_hash == project.pyproject.content_hash()
+        setattr(config, config_name, original_value)
+        assert original_hash == project.pyproject.content_hash()

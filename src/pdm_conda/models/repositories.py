@@ -2,15 +2,15 @@ import uuid
 from copy import copy
 from typing import Any, Iterable, Mapping, cast
 
-from pdm._types import Source
+from pdm._types import RepositoryConfig
 from pdm.models.repositories import BaseRepository, LockedRepository, PyPIRepository
 from pdm.models.requirements import Requirement
 from pdm.models.specifiers import PySpecSet
 from pdm.resolver.python import PythonRequirement
 
 from pdm_conda.conda import conda_create, sort_candidates
+from pdm_conda.environments import BaseEnvironment, CondaEnvironment
 from pdm_conda.models.candidates import Candidate, CondaCandidate
-from pdm_conda.models.environment import CondaEnvironment, Environment
 from pdm_conda.models.requirements import (
     CondaRequirement,
     NamedRequirement,
@@ -19,7 +19,12 @@ from pdm_conda.models.requirements import (
 
 
 class CondaRepository(BaseRepository):
-    def __init__(self, sources: list[Source], environment: Environment, ignore_compatibility: bool = True) -> None:
+    def __init__(
+        self,
+        sources: list[RepositoryConfig],
+        environment: BaseEnvironment,
+        ignore_compatibility: bool = True,
+    ) -> None:
         super().__init__(sources, environment, ignore_compatibility)
         self.environment = cast(CondaEnvironment, environment)
         self._conda_resolution: dict[str, list[CondaCandidate]] = dict()

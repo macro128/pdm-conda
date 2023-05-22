@@ -83,6 +83,13 @@ In order to use Conda to install packages some settings were overriden:
 * `install.parallel` if some Conda managed packages are to be uninstalled or updated this option is disabled
   momentarily.
 
+Some environment variables were overridden too:
+
+* `PDM_IGNORE_SAVED_PYTHON` if conda settings detected in `pyproject.toml` and `VIRTUAL_ENV` or `CONDA_PREFIX` environment
+  variables are set then this variable is set to `True`.
+* `PDM_IGNORE_ACTIVE_VENV` if conda settings detected in `pyproject.toml` and `VIRTUAL_ENV` or `CONDA_PREFIX` environment
+  variables are set then this variable is set to `False`.
+
 ## Development
 
 For development `docker-compose` files exist in `deploy` directory, helper script `deploy/docker-compose.sh` can be used

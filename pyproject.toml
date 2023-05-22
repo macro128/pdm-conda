@@ -19,7 +19,7 @@ classifiers = [
     "Programming Language :: Python :: 3 :: Only",
 ]
 dependencies = [
-    "pdm~=2.4.0",
+    "pdm~=2.6.0",
     "requests>=2.28.1",
 ]
 
@@ -29,7 +29,12 @@ dev = [
     "pytest-mock>=3.10.0",
     "pytest-cov>=4.0.0",
     "pytest-random-num>=1.0.13",
-    "responses>=0.22.0",
+    "responses>=0.23.0",
+]
+
+[tool.pdm]
+plugins = [
+    "pdm-backend"
 ]
 
 [tool.pdm.version]

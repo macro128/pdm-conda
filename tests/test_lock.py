@@ -84,7 +84,7 @@ class TestLock:
             if isinstance(r, CondaRequirement)
         ]
 
-        cmd = ["lock", "-vv"]
+        cmd = ["lock", "-vv", "-G", ":all"]
         if refresh:
             cmd.append("--refresh")
         pdm(cmd, obj=project, strict=True)
