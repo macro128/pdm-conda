@@ -114,7 +114,7 @@ class PluginConfig:
             if (venv_location := os.getenv("VIRTUAL_ENV", os.getenv("CONDA_PREFIX", None))) is not None:
                 self._project.global_config["venv.location"] = str(Path(venv_location).parent)
                 os.environ["PDM_IGNORE_SAVED_PYTHON"] = "true"
-                os.environ["PDM_IGNORE_ACTIVE_VENV"] = "false"
+                os.environ.pop("PDM_IGNORE_ACTIVE_VENV", None)
 
     def __setattr__(self, name: str, value: Any) -> None:
         super().__setattr__(name, value)
