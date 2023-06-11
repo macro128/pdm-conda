@@ -1,21 +1,30 @@
+from __future__ import annotations
+
 import uuid
 from copy import copy
-from typing import Any, Iterable, Mapping, cast
+from typing import TYPE_CHECKING, cast
 
-from pdm._types import RepositoryConfig
 from pdm.models.repositories import BaseRepository, LockedRepository, PyPIRepository
-from pdm.models.requirements import Requirement
 from pdm.models.specifiers import PySpecSet
 from pdm.resolver.python import PythonRequirement
 
 from pdm_conda.conda import conda_create, sort_candidates
-from pdm_conda.environments import BaseEnvironment, CondaEnvironment
-from pdm_conda.models.candidates import Candidate, CondaCandidate
+from pdm_conda.environments import CondaEnvironment
+from pdm_conda.models.candidates import CondaCandidate
 from pdm_conda.models.requirements import (
     CondaRequirement,
     NamedRequirement,
     as_conda_requirement,
 )
+
+if TYPE_CHECKING:
+    from typing import Any, Iterable, Mapping
+
+    from pdm.models.repositories import RepositoryConfig
+
+    from pdm_conda.environments import BaseEnvironment
+    from pdm_conda.models.candidates import Candidate
+    from pdm_conda.models.requirements import Requirement
 
 
 class CondaRepository(BaseRepository):

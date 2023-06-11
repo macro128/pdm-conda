@@ -1,11 +1,17 @@
-import argparse
-from typing import cast
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, cast
 
 from pdm.cli.commands.remove import Command as BaseCommand
 
 from pdm_conda.cli.utils import remove_quotes
 from pdm_conda.models.requirements import parse_requirement
-from pdm_conda.project import CondaProject, Project
+from pdm_conda.project import CondaProject
+
+if TYPE_CHECKING:
+    import argparse
+
+    from pdm_conda.project import Project
 
 
 class Command(BaseCommand):

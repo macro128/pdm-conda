@@ -1,10 +1,11 @@
+from __future__ import annotations
+
 import contextlib
 import json
 import subprocess
 from functools import lru_cache
-from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Iterable
+from typing import TYPE_CHECKING
 
 from pdm import termui
 from pdm.cli.commands.venv.backends import VirtualenvCreateError
@@ -26,8 +27,13 @@ from pdm_conda.models.requirements import (
     parse_requirement,
 )
 from pdm_conda.models.setup import CondaSetupDistribution
-from pdm_conda.project import CondaProject
 from pdm_conda.utils import normalize_name
+
+if TYPE_CHECKING:
+    from pathlib import Path
+    from typing import Iterable
+
+    from pdm_conda.project import CondaProject
 
 logger = termui.logger
 

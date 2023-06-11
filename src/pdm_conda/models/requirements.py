@@ -1,17 +1,24 @@
+from __future__ import annotations
+
 import dataclasses
 import re
 from copy import copy
-from typing import Any
+from typing import TYPE_CHECKING
 
 from packaging.specifiers import SpecifierSet
 from packaging.version import Version
-from pdm.models.candidates import Candidate
-from pdm.models.requirements import NamedRequirement, Requirement, T
+from pdm.models.requirements import NamedRequirement, Requirement
 from pdm.models.requirements import parse_requirement as _parse_requirement
 from pdm.models.requirements import strip_extras
 
 from pdm_conda.mapping import conda_to_pypi, pypi_to_conda
 from pdm_conda.utils import normalize_name
+
+if TYPE_CHECKING:
+    from typing import Any
+
+    from pdm.models.candidates import Candidate
+    from pdm.models.requirements import T
 
 _conda_meta_req_re = re.compile(r"conda:([\w\-_\d/]+::)?(.+)$")
 _prev_spec = ",|<>!~="

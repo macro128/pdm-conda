@@ -1,14 +1,20 @@
-from typing import Callable, Iterator, Mapping, Sequence
+from __future__ import annotations
 
-from pdm._types import Comparable
-from pdm.models.candidates import Candidate
-from pdm.models.requirements import Requirement
+from typing import TYPE_CHECKING
+
 from pdm.resolver.providers import BaseProvider, EagerUpdateProvider, ReusePinProvider
 from pdm.resolver.python import find_python_matches
-from resolvelib.resolvers import RequirementInformation
 from unearth.utils import LazySequence
 
 from pdm_conda.models.requirements import CondaRequirement
+
+if TYPE_CHECKING:
+    from typing import Callable, Iterator, Mapping, Sequence
+
+    from pdm.models.candidates import Candidate
+    from pdm.models.requirements import Requirement
+    from pdm.resolver.providers import Comparable
+    from resolvelib.resolvers import RequirementInformation
 
 
 class CondaBaseProvider(BaseProvider):

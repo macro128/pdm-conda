@@ -1,7 +1,8 @@
+from __future__ import annotations
+
 import re
-from importlib.metadata import Distribution
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, cast
 from urllib.parse import urlparse
 
 from pdm.environments import BaseEnvironment
@@ -11,12 +12,17 @@ from unearth import Link
 
 from pdm_conda.models.requirements import (
     CondaRequirement,
-    Requirement,
     as_conda_requirement,
     parse_conda_version,
     parse_requirement,
 )
 from pdm_conda.models.setup import CondaSetupDistribution
+
+if TYPE_CHECKING:
+    from importlib.metadata import Distribution
+    from typing import Any
+
+    from pdm_conda.models.requirements import Requirement
 
 
 def parse_channel(channel_url: str) -> str:

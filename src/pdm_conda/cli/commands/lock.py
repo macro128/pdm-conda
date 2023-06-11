@@ -1,9 +1,15 @@
-import argparse
-from typing import cast
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, cast
 
 from pdm.cli.commands.lock import Command as BaseCommand
 
-from pdm_conda.project import CondaProject, Project
+from pdm_conda.project import CondaProject
+
+if TYPE_CHECKING:
+    import argparse
+
+    from pdm_conda.project import Project
 
 
 class Command(BaseCommand):

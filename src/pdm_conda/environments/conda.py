@@ -1,21 +1,26 @@
+from __future__ import annotations
+
 import os
 import sysconfig
 import uuid
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from pdm.environments import PythonEnvironment
 from pdm.exceptions import ProjectError
-from pdm.models.requirements import Requirement
 from pdm.models.specifiers import PySpecSet
-from pdm.models.working_set import WorkingSet
-from pdm.project import Project
 
 from pdm_conda.conda import conda_create, conda_list, conda_search
 from pdm_conda.mapping import pypi_to_conda
 from pdm_conda.models.config import CondaRunner, CondaSolver
 from pdm_conda.project import CondaProject
 from pdm_conda.utils import normalize_name
+
+if TYPE_CHECKING:
+    from pdm.models.working_set import WorkingSet
+
+    from pdm_conda.models.requirements import Requirement
+    from pdm_conda.project import Project
 
 
 def ensure_conda_env():

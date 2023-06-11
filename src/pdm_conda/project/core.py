@@ -1,24 +1,30 @@
-from functools import cached_property
-from pathlib import Path
-from typing import Iterable, cast
+from __future__ import annotations
 
-from pdm.core import Core
-from pdm.environments import BaseEnvironment
+from functools import cached_property
+from typing import TYPE_CHECKING, cast
+
 from pdm.exceptions import ProjectError
-from pdm.models.repositories import LockedRepository
 from pdm.project import Project
-from pdm.resolver.providers import BaseProvider
 from pdm.utils import get_venv_like_prefix
 from tomlkit.items import Array
 
 from pdm_conda.models.config import PluginConfig
 from pdm_conda.models.requirements import (
     CondaRequirement,
-    Requirement,
     as_conda_requirement,
     parse_requirement,
 )
 from pdm_conda.project.project_file import PyProject
+
+if TYPE_CHECKING:
+    from pathlib import Path
+    from typing import Iterable
+
+    from pdm.core import Core
+    from pdm.environments import BaseEnvironment
+    from pdm.models.repositories import LockedRepository
+    from pdm.models.requirements import Requirement
+    from pdm.resolver.providers import BaseProvider
 
 
 class CondaProject(Project):
@@ -197,6 +203,7 @@ class CondaProject(Project):
         ignore_compatibility: bool = True,
     ) -> BaseProvider:
         from pdm_conda.resolver.providers import (
+            BaseProvider,
             CondaBaseProvider,
             CondaEagerUpdateProvider,
             CondaReusePinProvider,

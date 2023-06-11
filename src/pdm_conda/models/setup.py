@@ -1,8 +1,15 @@
-from typing import Any, cast
+from __future__ import annotations
 
-from pdm.models.setup import Setup, SetupDistribution
+from typing import TYPE_CHECKING, cast
+
+from pdm.models.setup import SetupDistribution
 
 from pdm_conda.models.requirements import CondaRequirement, parse_requirement
+
+if TYPE_CHECKING:
+    from typing import Any
+
+    from pdm.models.setup import Setup
 
 
 class CondaSetupDistribution(SetupDistribution):

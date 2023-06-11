@@ -1,12 +1,19 @@
-from importlib.metadata import Distribution
-from typing import cast
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, cast
 
 from pdm.installers import InstallManager
 
 from pdm_conda.conda import conda_install, conda_uninstall
-from pdm_conda.environments import BaseEnvironment, CondaEnvironment
-from pdm_conda.models.candidates import Candidate, CondaCandidate
+from pdm_conda.environments import CondaEnvironment
+from pdm_conda.models.candidates import CondaCandidate
 from pdm_conda.models.setup import CondaSetupDistribution
+
+if TYPE_CHECKING:
+    from importlib.metadata import Distribution
+
+    from pdm_conda.environments import BaseEnvironment
+    from pdm_conda.models.candidates import Candidate
 
 
 class CondaInstallManager(InstallManager):

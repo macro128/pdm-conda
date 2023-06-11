@@ -1,11 +1,16 @@
-import functools
+from __future__ import annotations
 
-from pdm.models.candidates import Candidate
-from pdm.models.requirements import Requirement
-from pdm.project import Project
+import functools
+from typing import TYPE_CHECKING
 
 from pdm_conda.models.candidates import CondaCandidate
 from pdm_conda.models.requirements import CondaRequirement
+
+if TYPE_CHECKING:
+    from pdm.project import Project
+
+    from pdm_conda.models.candidates import Candidate
+    from pdm_conda.models.requirements import Requirement
 
 _patched = False
 
