@@ -5,7 +5,6 @@ from copy import deepcopy
 
 import pytest
 import responses
-from pdm.cli.actions import do_init
 from pdm.core import Core
 from pdm.models.backends import PDMBackend
 from pdm.project import Config
@@ -109,11 +108,13 @@ def core_with_plugin(core, monkeypatch) -> Core:
 
 @pytest.fixture
 def project(core, project_no_init, monkeypatch) -> CondaProject:
+    from pdm.cli.commands.init import Command
+
     _project = project_no_init
     _project.global_config["check_update"] = False
     _project.global_config["pypi.json_api"] = True
     _project.global_config["pypi.url"] = f"{REPO_BASE}/simple"
-    do_init(
+    Command.do_init(
         _project,
         name="test",
         version="0.0.0",
