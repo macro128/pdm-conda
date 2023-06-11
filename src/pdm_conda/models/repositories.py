@@ -135,6 +135,8 @@ class PyPICondaRepository(PyPIRepository, CondaRepository):
             candidates = [copy(c) for c in candidates if requirement.is_compatible(c)]
             candidates = list(sort_candidates(self.environment.project, candidates))
             for can in candidates:
+                requirement.is_python_package &= can.req.is_python_package
+                requirement.version_mapping |= can.req.version_mapping
                 can.req = requirement
         else:
             candidates = super()._find_candidates(requirement)
