@@ -7,7 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.10.0]
+## [0.11.0]
+
+### Added
+
+* Now compatible with `pdm>=v2.7`.
+* Use lazy import to reduce the startup time of the CLI.
+
+## [0.10.0] - 22/05/2023
 
 ### Added
 
