@@ -10,3 +10,5 @@ services:
     platform: linux/amd64
     image: pdm-conda:latest
     restart: always
+    env_file:
+      - ../.env

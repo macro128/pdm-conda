@@ -12,5 +12,6 @@ services:
     platform: linux/arm64
     volumes:
       - ../:/app/
+      - ../.env:/app/.env
       - /app/.pdm-plugins
       - /app/dist
