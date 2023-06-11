@@ -1,11 +1,18 @@
-from typing import Collection, cast
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, cast
 
 from pdm.installers import Synchronizer
-from pdm.models.candidates import Candidate
 
-from pdm_conda.environments import BaseEnvironment, CondaEnvironment
+from pdm_conda.environments import CondaEnvironment
 from pdm_conda.models.candidates import CondaCandidate
 from pdm_conda.models.setup import CondaSetupDistribution
+
+if TYPE_CHECKING:
+    from typing import Collection
+
+    from pdm_conda.environments import BaseEnvironment
+    from pdm_conda.models.candidates import Candidate
 
 
 class CondaSynchronizer(Synchronizer):

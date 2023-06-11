@@ -1,12 +1,17 @@
+name: "pdm-conda-dev"
+
 services:
   pdm-conda:
+    user: root
     build:
       args:
-        env: dev
+        env: "dev"
+        dependencies: ":all"
+        lockfile: "pdm.dev.lock"
     image: pdm-conda:latest-dev
     platform: linux/arm64
-    user: root
     volumes:
       - ../:/app/
+      - ../.env:/app/.env
       - /app/.pdm-plugins
       - /app/dist

@@ -2,39 +2,47 @@
 requires = ["pdm-backend"]
 build-backend = "pdm.backend"
 
+[project.urls]
+Homepage = "https://github.com/macro128/pdm-conda"
+Changelog = "https://github.com/macro128/pdm-conda/blob/main/CHANGELOG.md"
+
+[project.entry-points.pdm]
+conda = "pdm_conda:main"
+
 [project]
 name = "pdm-conda"
 description = "A PDM plugin to resolve/install/uninstall project dependencies with Conda"
-requires-python = ">=3.10"
+requires-python = "~=3.10.0"
 authors = [
     { name = "Marcos Pastorini" },
 ]
 keywords = ["pdm", "plugin", "conda"]
 readme = "README.md"
-license = { file = "LICENSE" }
+license = { text = "MIT" }
 dynamic = ["version"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3 :: Only",
 ]
+
 dependencies = [
-    "pdm~=2.6.0",
-    "requests>=2.28.1",
+    "pdm~=2.7.0",
+    "requests~=2.31.0",
 ]
 
 [tool.pdm.dev-dependencies]
 dev = [
-    "pytest>=7.2.0",
-    "pytest-mock>=3.10.0",
-    "pytest-cov>=4.0.0",
-    "pytest-random-num>=1.0.13",
-    "responses>=0.23.0",
+    "pytest~=7.3.2",
+    "pytest-mock~=3.10.0",
+    "pytest-cov~=4.1.0",
+    "pytest-random-num~=1.0.13",
+    "responses~=0.23.1",
 ]
 
 [tool.pdm]
 plugins = [
-    "pdm-backend"
+    "pdm-backend",
 ]
 
 [tool.pdm.version]
@@ -47,14 +55,9 @@ includes = ["src", "data/*.json"]
 excludes = ["tests"]
 
 [tool.pdm.scripts]
-test = "pytest --cov=src/pdm_conda/ tests/ --cov-report xml --cov-report term"
-
-[project.urls]
-Homepage = "https://github.com/macro128/pdm-conda"
-Changelog = "https://github.com/macro128/pdm-conda/blob/main/CHANGELOG.md"
-
-[project.entry-points.pdm]
-conda = "pdm_conda:main"
+test = "pytest --cov=src/ tests/{args} --cov-report xml --cov-report term"
+coverage-fix = "sed -i \"s|/app/|${LOCAL_PATH}/|g\" coverage.xml"
+test-cov = { composite = ["test {args}", "coverage-fix"] }
 
 [tool.pytest.ini_options]
 addopts = "--random-order"

@@ -1,5 +1,6 @@
-import argparse
-from typing import cast
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, cast
 
 from pdm.cli.commands.add import Command as BaseCommand
 from pdm.cli.options import ArgumentGroup
@@ -7,7 +8,12 @@ from pdm.exceptions import RequirementError
 
 from pdm_conda.cli.utils import remove_quotes
 from pdm_conda.models.requirements import CondaRequirement, parse_requirement
-from pdm_conda.project import CondaProject, Project
+from pdm_conda.project import CondaProject
+
+if TYPE_CHECKING:
+    import argparse
+
+    from pdm_conda.project import Project
 
 conda_group = ArgumentGroup("Conda Arguments")
 conda_group.add_argument(

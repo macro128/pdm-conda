@@ -1,11 +1,16 @@
-import functools
+from __future__ import annotations
 
-from pdm.models.candidates import Candidate
-from pdm.models.requirements import Requirement
-from pdm.project import Project
+import functools
+from typing import TYPE_CHECKING
 
 from pdm_conda.models.candidates import CondaCandidate
-from pdm_conda.models.requirements import CondaRequirement
+from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement
+
+if TYPE_CHECKING:
+    from pdm.project import Project
+
+    from pdm_conda.models.candidates import Candidate
+    from pdm_conda.models.requirements import Requirement
 
 _patched = False
 
@@ -26,10 +31,12 @@ def wrap_save_version_specifiers(func):
     ) -> None:
         func(requirements, resolved, save_strategy)
         for reqs in requirements.values():
-            for name, r in reqs.items():
-                if isinstance(r, CondaRequirement):
-                    r.version_mapping.update(resolved[name].req.version_mapping)
-                    r.is_python_package = resolved[name].req.is_python_package
+            for name in reqs:
+                if isinstance(can := resolved[name], CondaCandidate):
+                    req = as_conda_requirement(reqs[name])
+                    req.version_mapping.update(can.req.version_mapping)
+                    req.is_python_package = can.req.is_python_package
+                    reqs[name] = req
 
     return wrapper
 

@@ -4,9 +4,11 @@ services:
   pdm-conda:
     build:
       context: ../
-      dockerfile: ./deploy/Dockerfile
+      dockerfile: ./base/Dockerfile
       args:
-        src: ./src
+        project_type: "lib"
+    platform: linux/amd64
     image: pdm-conda:latest
     restart: always
-    platform: linux/amd64
+    env_file:
+      - ../.env

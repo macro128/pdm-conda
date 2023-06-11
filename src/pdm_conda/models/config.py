@@ -1,15 +1,22 @@
+from __future__ import annotations
+
 import os
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import wraps
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
 
 from pdm.exceptions import ProjectError
-from pdm.project import ConfigItem, Project
+from pdm.project import ConfigItem
 
 from pdm_conda.mapping import DOWNLOAD_DIR_ENV_VAR
+
+if TYPE_CHECKING:
+    from typing import Any
+
+    from pdm.project import Project
 
 
 class CondaRunner(str, Enum):

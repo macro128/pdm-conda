@@ -1,4 +1,9 @@
-from pdm.core import Core
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pdm.core import Core
 
 
 def main(core: Core):
@@ -21,4 +26,4 @@ def main(core: Core):
         core.add_config(name, config)
 
 
-__version__ = "0.10.0"
+__version__ = "0.11.0"
