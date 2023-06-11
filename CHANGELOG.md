@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Now compatible with `pdm>=v2.7`.
 * Use lazy import to reduce the startup time of the CLI.
 
+### Fixed
+
+* If `conda.as-defualt-manager` is `true` then add requirements to `conda.dependencies` if they aren't python packages
+  when using `pdm add` without `--conda` flag.
+
 ## [0.10.0] - 22/05/2023
 
 ### Added
@@ -42,7 +47,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Conda commands now use `CondaRunner` values to avoid logging errors.
 * When using `conda/mamba` avoid listing PyPi packages as Conda managed.
-
 
 ## [0.9.2] - 21/04/2023
 
