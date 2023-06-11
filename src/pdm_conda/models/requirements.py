@@ -154,7 +154,7 @@ class CondaRequirement(NamedRequirement):
         return _req
 
 
-def as_conda_requirement(requirement: NamedRequirement | CondaRequirement) -> Requirement:
+def as_conda_requirement(requirement: NamedRequirement | CondaRequirement) -> CondaRequirement:
     if isinstance(requirement, NamedRequirement) and not isinstance(requirement, CondaRequirement):
         req = copy(requirement)
         req.marker = None
