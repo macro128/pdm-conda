@@ -27,17 +27,17 @@ classifiers = [
 ]
 
 dependencies = [
-    "pdm~=2.7.0",
+    "pdm~=2.8.2",
     "requests~=2.31.0",
 ]
 
 [tool.pdm.dev-dependencies]
 dev = [
-    "pytest~=7.3.2",
-    "pytest-mock~=3.10.0",
+    "pytest~=7.4.0",
+    "pytest-mock~=3.11.1",
     "pytest-cov~=4.1.0",
     "pytest-random-num~=1.0.13",
-    "responses~=0.23.1",
+    "responses~=0.23.3",
 ]
 
 [tool.pdm]
@@ -56,11 +56,14 @@ excludes = ["tests"]
 
 [tool.pdm.scripts]
 test = "pytest --cov=src/ tests/{args} --cov-report xml --cov-report term"
-coverage-fix = "sed -i \"s|/app/|${LOCAL_PATH}/|g\" coverage.xml"
-test-cov = { composite = ["test {args}", "coverage-fix"] }
+fix-report = "python scripts/fix_report.py"
+test-cov = { composite = ["test {args}", "fix-report"] }
 
 [tool.pytest.ini_options]
 addopts = "--random-order"
+filterwarnings = [
+    "ignore::pytest.PytestReturnNotNoneWarning"
+]
 
 [tool.mypy]
 python_version = "3.10"
