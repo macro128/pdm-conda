@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, cast
 from urllib.parse import urlparse
 
 from pdm.environments import BaseEnvironment
-from pdm.models.candidates import Candidate, PreparedCandidate
+from pdm.models.candidates import Candidate, FileHash, PreparedCandidate
 from pdm.models.setup import Setup
 from unearth import Link
 
@@ -46,7 +46,7 @@ class CondaPreparedCandidate(PreparedCandidate):
         # if conda candidate return already obtained dependencies
         return [d.as_line(as_conda=True, with_build_string=True) for d in self.candidate.dependencies]
 
-    def prepare_metadata(self) -> Distribution:
+    def prepare_metadata(self, force_build: bool = False) -> Distribution:
         # if conda candidate get setup from package
         return self.candidate.distribution
 
@@ -74,7 +74,13 @@ class CondaCandidate(Candidate):
             cast(CondaRequirement, parse_requirement(f"conda:{r}")) for r in (dependencies or [])
         ]
         self.constrains: dict[str, CondaRequirement] = dict()
-        self.hashes = {self.link: f"{self.link.hash_name}:{self.link.hash}"}
+        self.hashes: list[FileHash] = [
+            FileHash(
+                url=self.link.url_without_fragment,
+                file="",
+                hash=f"{self.link.hash_name}:{self.link.hash}",
+            ),
+        ]
         for r in constrains or []:
             c = cast(CondaRequirement, parse_requirement(f"conda:{r}"))
             self.constrains[str(c.conda_name)] = c
@@ -144,7 +150,14 @@ class CondaCandidate(Candidate):
         dependencies = package.get("dependencies", [])
         if requires_python:
             dependencies.append(f"python {requires_python}")
-        return CondaCandidate.from_conda_package(package | {"depends": dependencies})
+        corrections = {"depends": dependencies}
+        for file in package.get("files", []):
+            if file.get("hash"):
+                hash_name, _hash = file["hash"].split(":")
+                corrections[hash_name] = _hash
+                corrections["url"] = file["url"]
+                break
+        return CondaCandidate.from_conda_package(package | corrections)
 
     @classmethod
     def from_conda_package(cls, package: dict, requirement: CondaRequirement | None = None) -> "CondaCandidate":

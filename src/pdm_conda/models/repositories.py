@@ -150,10 +150,6 @@ class LockedCondaRepository(LockedRepository, CondaRepository):
         super()._read_lockfile({"package": packages, "metadata": lockfile.get("metadata", {})})
 
         for package in conda_packages:
-            link, _hash = list(self.file_hashes[(package["name"], package["version"])].items())[0]
-            name, value = _hash.split(":", maxsplit=1)
-            package[name] = value
-            package["url"] = link.url_without_fragment
             can = CondaCandidate.from_lock_package(package)
             can_id = self._identify_candidate(can)
             self.packages[can_id] = can

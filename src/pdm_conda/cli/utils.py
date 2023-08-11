@@ -47,35 +47,31 @@ def wrap_format_lockfile(func):
         project: Project,
         mapping: dict[str, Candidate],
         fetched_dependencies: dict[tuple[str, str | None], list[Requirement]],
+        *args,
+        **kwargs,
     ) -> dict:
-        for deps in fetched_dependencies.values():
-            for i, dep in enumerate(deps):
-                if isinstance(dep, CondaRequirement):
-                    setattr(dep, "as_line", functools.partial(dep.as_line, with_build_string=True))
-        version_mapping = {}
+        res = func(project, mapping, fetched_dependencies, *args, **kwargs)
+        conda_corrections = dict()
         for name, can in mapping.items():
+            corrections = dict()
             if isinstance(can, CondaCandidate):
-                fetched_dependencies[(can.name, can.conda_version)] = fetched_dependencies.pop(
-                    (can.name, can.version),
-                    [],
-                )
-                version_mapping[name] = can.version
-                can.version = can.conda_version
-        try:
-            res = func(project, mapping, fetched_dependencies)
-            return res
-        finally:
-            for deps in fetched_dependencies.values():
-                for i, dep in enumerate(deps):
-                    if isinstance(dep, CondaRequirement):
-                        setattr(dep, "as_line", dep.as_line.func)  # type: ignore
-            for name, version in version_mapping.items():
-                can = mapping[name]
-                can.version = version
-                fetched_dependencies[(can.name, can.version)] = fetched_dependencies.pop(
-                    (can.name, can.conda_version),
-                    [],
-                )
+                corrections["files"] = [{"url": item["url"], "hash": item["hash"]} for item in can.hashes]
+
+            dependencies = []
+            include_dependencies = False
+            for dep in fetched_dependencies[(can.name, can.version)]:
+                kwargs = {}
+                if isinstance(dep, CondaRequirement):
+                    kwargs["with_build_string"] = True
+                    include_dependencies = True
+                dependencies.append(dep.as_line(**kwargs))
+            if include_dependencies:
+                corrections["dependencies"] = dependencies
+            if corrections:
+                conda_corrections[name] = corrections
+        for package in res["package"]:
+            package.update(conda_corrections.get(package["name"], {}))
+        return res
 
     return wrapper
 
