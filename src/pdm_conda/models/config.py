@@ -191,10 +191,14 @@ class PluginConfig:
             yield
 
     @property
-    def excludes(self) -> set[str]:
+    def excluded_identifiers(self) -> set[str]:
         if self._excluded_identifiers is None:
             self._excluded_identifiers = {parse_requirement(name).identify() for name in self._excludes}
         return self._excluded_identifiers
+
+    @property
+    def excludes(self) -> list[str]:
+        return self._excludes
 
     @excludes.setter
     def excludes(self, value):

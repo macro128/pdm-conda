@@ -24,7 +24,7 @@ class Command(BaseCommand):
 
         project = cast(CondaProject, project)
         conda_dependencies = project.get_conda_pyproject_dependencies(options.group, options.dev)
-        dependencies, _ = project.get_pyproject_dependencies(options.group, options.dev)
+        dependencies, _ = project.use_pyproject_dependencies(options.group, options.dev)
         _dependencies = [parse_requirement(d).conda_name for d in dependencies]
         # add conda dependencies to common dependencies if going to remove it
         for i, pkg in enumerate(options.packages):

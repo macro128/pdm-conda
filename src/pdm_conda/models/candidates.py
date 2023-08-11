@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, cast
 from urllib.parse import urlparse
 
 from pdm.environments import BaseEnvironment
-from pdm.models.candidates import Candidate, FileHash, PreparedCandidate
+from pdm.models.candidates import Candidate, PreparedCandidate
 from pdm.models.setup import Setup
 from unearth import Link
 
@@ -21,6 +21,8 @@ from pdm_conda.models.setup import CondaSetupDistribution
 if TYPE_CHECKING:
     from importlib.metadata import Distribution
     from typing import Any
+
+    from pdm.models.candidates import FileHash
 
     from pdm_conda.models.requirements import Requirement
 
