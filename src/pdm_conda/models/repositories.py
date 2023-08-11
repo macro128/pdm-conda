@@ -38,7 +38,7 @@ class CondaRepository(BaseRepository):
         self.environment = cast(CondaEnvironment, environment)
         self._conda_resolution: dict[str, list[CondaCandidate]] = dict()
 
-    def _uses_conda(self, requirement: Requirement) -> bool:
+    def is_conda_managed(self, requirement: Requirement) -> bool:
         """
         True if requirement is conda requirement or (not excluded and named requirement
         and conda as default manager or used by another conda requirement)
@@ -47,10 +47,9 @@ class CondaRepository(BaseRepository):
         if not isinstance(self.environment, CondaEnvironment):
             return False
         conda_config = self.environment.project.conda_config
-        return isinstance(requirement, (CondaRequirement, PythonRequirement)) or (
-            isinstance(requirement, NamedRequirement)
-            and conda_config.as_default_manager
-            and requirement.name not in conda_config.excludes
+        return requirement.identify() not in conda_config.excludes and (
+            isinstance(requirement, (CondaRequirement, PythonRequirement))
+            or (isinstance(requirement, NamedRequirement) and conda_config.as_default_manager)
         )
 
     def update_conda_resolution(
@@ -92,7 +91,7 @@ class PyPICondaRepository(PyPIRepository, CondaRepository):
         super().update_conda_resolution(requirements, resolution)
         changed = []
         requirements = requirements or []
-        requirements = [as_conda_requirement(req) for req in requirements if self._uses_conda(req)]
+        requirements = [as_conda_requirement(req) for req in requirements if self.is_conda_managed(req)]
         update = False
         # if any requirement not in saved candidates or incompatible candidates
         for req in requirements:
@@ -129,7 +128,7 @@ class PyPICondaRepository(PyPIRepository, CondaRepository):
         return changed
 
     def _find_candidates(self, requirement: Requirement) -> Iterable[Candidate]:
-        if self._uses_conda(requirement):
+        if self.is_conda_managed(requirement):
             requirement = as_conda_requirement(requirement)
             candidates = self._conda_resolution.get(requirement.identify(), [])
             candidates = [copy(c) for c in candidates if requirement.is_compatible(c)]

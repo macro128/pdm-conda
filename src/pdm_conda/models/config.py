@@ -12,6 +12,7 @@ from pdm.exceptions import ProjectError
 from pdm.project import ConfigItem
 
 from pdm_conda.mapping import DOWNLOAD_DIR_ENV_VAR
+from pdm_conda.models.requirements import parse_requirement
 
 if TYPE_CHECKING:
     from typing import Any
@@ -82,7 +83,9 @@ def is_conda_config_initialized(project: Project):
 class PluginConfig:
     _project: Project = field(repr=False, default=None)
     _initialized: bool = field(repr=False, default=False, compare=False)
-    _set_project_config: bool = field(repr=False, default=False, compare=False)
+    _set_project_config: bool = field(repr=False, default=False, compare=False, init=False)
+    _excludes: list[str] = field(repr=False, compare=False, init=False, default_factory=list)
+    _excluded_identifiers: set[str] | None = field(default=None, repr=False, init=False)
 
     channels: list[str] = field(default_factory=list)
     runner: str = CondaRunner.CONDA
@@ -90,7 +93,6 @@ class PluginConfig:
     as_default_manager: bool = False
     batched_commands: bool = False
     installation_method: str = "hard-link"
-    excludes: list[str] = field(default_factory=list, repr=False)
     dependencies: list[str] = field(default_factory=list, repr=False)
     optional_dependencies: dict[str, list] = field(default_factory=dict)
     dev_dependencies: dict[str, list] = field(default_factory=dict)
@@ -189,6 +191,19 @@ class PluginConfig:
             yield
 
     @property
+    def excludes(self) -> set[str]:
+        if self._excluded_identifiers is None:
+            self._excluded_identifiers = {parse_requirement(name).identify() for name in self._excludes}
+        return self._excluded_identifiers
+
+    @excludes.setter
+    def excludes(self, value):
+        excluded = getattr(self, "_excludes", set())
+        if set(value) != excluded:
+            self._excludes = list(value)
+            self._excluded_identifiers = None
+
+    @property
     def is_initialized(self):
         return self._initialized
 
@@ -211,8 +226,11 @@ class PluginConfig:
                 elif prop_name in ("as-default-manager", "batched-commands"):
                     value = str(value).lower() in ("true", "1")
                 config[prop_name] = value
-        config = {k.replace("-", "_"): v for k, v in config.items()}
-        return PluginConfig(_project=project, **(config | kwargs))
+        config = {k.replace("-", "_"): v for k, v in config.items()} | kwargs
+        excludes = config.pop("excludes", [])
+        plugin_config = PluginConfig(_project=project, **config)
+        plugin_config.excludes = excludes
+        return plugin_config
 
     def command(self, cmd="install"):
         """
