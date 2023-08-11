@@ -273,7 +273,7 @@ def conda_name(self) -> str | None:
 
 
 def key(self) -> str | None:
-    return normalize_name(self.conda_name).lower() if self.conda_name else None
+    return normalize_name(self.conda_name) if self.conda_name else None
 
 
 if not _patched:

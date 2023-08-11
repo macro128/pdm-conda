@@ -154,7 +154,7 @@ class CondaProject(Project):
         if self.conda_config.as_default_manager:
             for k in list(result):
                 req = result[k]
-                if req.name not in self.conda_config.excludes and not isinstance(req, CondaRequirement):
+                if req.identify() not in self.conda_config.excludes and not isinstance(req, CondaRequirement):
                     result[k] = as_conda_requirement(req)
 
         return result

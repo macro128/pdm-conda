@@ -78,7 +78,7 @@ class Command(BaseCommand):
                     _p = None
 
                 # if not named we can't use Conda
-                if _p is None or (_p.is_named and _p.name not in config.excludes):
+                if _p is None or (_p.is_named and _p.identify() not in config.excludes):
                     if package.startswith("conda:"):
                         package = package[len("conda:") :]
                     if not package_channel and channel:

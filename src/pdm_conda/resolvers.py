@@ -114,7 +114,10 @@ class CondaResolution(Resolution):
         if parent is not None:
             requirements.extend(self._p.get_dependencies(candidate=parent))
         self._ensure_criteria(criteria)
-        changed = self._p.repository.update_conda_resolution(requirements, criteria[CONDA_RESOLUTION_KEY])
+        changed = self._p.repository.update_conda_resolution(
+            [self._p.get_override_requirement(req) for req in requirements],
+            criteria[CONDA_RESOLUTION_KEY],
+        )
         for req in changed:
             self._add_to_criteria(criteria, req, parent)
             identifier = self._p.identify(requirement_or_candidate=req)
@@ -155,7 +158,7 @@ class CondaResolution(Resolution):
 
                 # if excluded then delete conda related information else if other conda requirement transform to conda
                 else:
-                    if requirement.name in excluded:
+                    if requirement.identify() in excluded:
                         criterion.information = [
                             RequirementInformation(i.requirement.as_named_requirement(), i.parent)
                             if isinstance(
@@ -180,7 +183,10 @@ class CondaResolution(Resolution):
 
     def initialize_conda_resolution(self, requirements):
         # update conda resolution
-        self._p.repository.update_conda_resolution(list(requirements), self._conda_resolution)
+        self._p.repository.update_conda_resolution(
+            [self._p.get_override_requirement(req) for req in requirements],
+            self._conda_resolution,
+        )
         # update constrains
         for candidates in self._conda_resolution.values():
             for can in candidates:
