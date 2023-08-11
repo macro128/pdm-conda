@@ -10,7 +10,6 @@ from pdm.models.backends import PDMBackend
 from pdm.project import Config
 from pytest_mock import MockerFixture
 
-from pdm_conda.project import CondaProject
 from tests.utils import (
     DEFAULT_CHANNEL,
     PLATFORM,
@@ -107,22 +106,30 @@ def core_with_plugin(core, monkeypatch) -> Core:
 
 
 @pytest.fixture
-def project(core, project_no_init, monkeypatch) -> CondaProject:
-    from pdm.cli.commands.init import Command
-
+def project(core, project_no_init, monkeypatch):
     _project = project_no_init
     _project.global_config["check_update"] = False
     _project.global_config["pypi.json_api"] = True
     _project.global_config["pypi.url"] = f"{REPO_BASE}/simple"
-    Command.do_init(
-        _project,
-        name="test",
-        version="0.0.0",
-        python_requires=f">={PYTHON_VERSION}",
-        author="test",
-        email="test@test.com",
-        build_backend=PDMBackend,
-    )
+    from pdm.cli.utils import merge_dictionary
+
+    data = {
+        "project": {
+            "name": "test-project",
+            "version": "0.0.0",
+            "description": "",
+            "authors": [],
+            "license": {"text": "MIT"},
+            "dependencies": [],
+            "requires-python": f">={PYTHON_VERSION}",
+        },
+        "build-system": PDMBackend.build_system(),
+    }
+
+    merge_dictionary(_project.pyproject._data, data)
+    _project.pyproject.write()
+    # Clean the cached property
+    _project._environment = None
     monkeypatch.setenv("CONDA_PREFIX", os.getenv("_CONDA_PREFIX"))
     yield _project
 

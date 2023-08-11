@@ -46,7 +46,7 @@ conda_group.add_argument(
 class Command(BaseCommand):
     description = BaseCommand.__doc__
     name = "add"
-    arguments = BaseCommand.arguments + [conda_group]
+    arguments = (*BaseCommand.arguments, conda_group)
 
     def handle(self, project: Project, options: argparse.Namespace) -> None:
         project = cast(CondaProject, project)

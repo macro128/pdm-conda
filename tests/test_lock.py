@@ -1,6 +1,7 @@
 import itertools
 
 import pytest
+from pytest_mock import MockerFixture
 
 from tests.conftest import (
     CONDA_INFO,
@@ -171,3 +172,20 @@ class TestLock:
             num_remove_fetch,
             refresh=True,
         )
+
+
+class TestLockOverrides:
+    @pytest.mark.parametrize("cross_platform", [True, False])
+    @pytest.mark.parametrize("initialized", [True, False])
+    def test_no_cross_platform(self, pdm, project, cross_platform, initialized, mocker: MockerFixture):
+        mocker.patch.object(project.conda_config, "_initialized", initialized)
+
+        assert project.conda_config.is_initialized == initialized
+        handle = mocker.patch("pdm_conda.cli.commands.lock.BaseCommand.handle")
+        cmd = ["lock"]
+        if not cross_platform:
+            cmd.append("--no-cross-platform")
+        pdm(cmd, obj=project, strict=True)
+        handle.assert_called_once()
+
+        assert handle.call_args[1]["options"].cross_platform == (False if initialized else cross_platform)
