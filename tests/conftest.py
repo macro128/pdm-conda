@@ -2,6 +2,8 @@
 import os
 import sys
 from copy import deepcopy
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import pytest
 import responses
@@ -91,6 +93,12 @@ def _test_name():
 @pytest.fixture(name="test_id")
 def _test_id(test_name):
     yield test_name.split("[")[-1].split("]")[0]
+
+
+@pytest.fixture(scope="session")
+def build_env():
+    with TemporaryDirectory() as tmp:
+        yield Path(tmp)
 
 
 @pytest.fixture(name="core")
