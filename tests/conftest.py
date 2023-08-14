@@ -2,6 +2,8 @@
 import os
 import sys
 from copy import deepcopy
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import pytest
 import responses
@@ -10,7 +12,6 @@ from pdm.models.backends import PDMBackend
 from pdm.project import Config
 from pytest_mock import MockerFixture
 
-from pdm_conda.project import CondaProject
 from tests.utils import (
     DEFAULT_CHANNEL,
     PLATFORM,
@@ -79,8 +80,8 @@ for _p in _packages:
     PREFERRED_VERSIONS[_p["name"]] = _p
     _CONDA_INFO.append(_p)
 
-CONDA_MAPPING = [{f"{p['name']}-pip": p["name"] for p in _CONDA_INFO}]
-CONDA_INFO = [[*PYTHON_REQUIREMENTS, *_CONDA_INFO]]
+CONDA_MAPPING = {f"{p['name']}-pip": p["name"] for p in _CONDA_INFO}
+CONDA_INFO = [*PYTHON_REQUIREMENTS, *_CONDA_INFO]
 BUILD_BACKEND = generate_package_info("pdm-backend", "2.0")
 
 
@@ -92,6 +93,12 @@ def _test_name():
 @pytest.fixture(name="test_id")
 def _test_id(test_name):
     yield test_name.split("[")[-1].split("]")[0]
+
+
+@pytest.fixture(scope="session")
+def build_env():
+    with TemporaryDirectory() as tmp:
+        yield Path(tmp)
 
 
 @pytest.fixture(name="core")
@@ -107,22 +114,30 @@ def core_with_plugin(core, monkeypatch) -> Core:
 
 
 @pytest.fixture
-def project(core, project_no_init, monkeypatch) -> CondaProject:
-    from pdm.cli.commands.init import Command
-
+def project(core, project_no_init, monkeypatch):
     _project = project_no_init
     _project.global_config["check_update"] = False
     _project.global_config["pypi.json_api"] = True
     _project.global_config["pypi.url"] = f"{REPO_BASE}/simple"
-    Command.do_init(
-        _project,
-        name="test",
-        version="0.0.0",
-        python_requires=f">={PYTHON_VERSION}",
-        author="test",
-        email="test@test.com",
-        build_backend=PDMBackend,
-    )
+    from pdm.cli.utils import merge_dictionary
+
+    data = {
+        "project": {
+            "name": "test-project",
+            "version": "0.0.0",
+            "description": "",
+            "authors": [],
+            "license": {"text": "MIT"},
+            "dependencies": [],
+            "requires-python": f">={PYTHON_VERSION}",
+        },
+        "build-system": PDMBackend.build_system(),
+    }
+
+    merge_dictionary(_project.pyproject._data, data)
+    _project.pyproject.write()
+    # Clean the cached property
+    _project._environment = None
     monkeypatch.setenv("CONDA_PREFIX", os.getenv("_CONDA_PREFIX"))
     yield _project
 
@@ -132,8 +147,23 @@ def pdm_run(core, pdm):
     yield pdm
 
 
+@pytest.fixture
+def num_missing_info_on_create():
+    yield 0
+
+
+@pytest.fixture
+def conda_info():
+    yield CONDA_INFO
+
+
+@pytest.fixture
+def conda_mapping():
+    yield dict(CONDA_MAPPING)
+
+
 @pytest.fixture(name="conda")
-def mock_conda(mocker: MockerFixture, conda_info: dict | list, num_remove_fetch: int, installed_packages):
+def mock_conda(mocker: MockerFixture, conda_info: dict | list, num_missing_info_on_create: int, installed_packages):
     if isinstance(conda_info, dict):
         conda_info = [conda_info]
 
@@ -220,7 +250,7 @@ def mock_conda(mocker: MockerFixture, conda_info: dict | list, num_remove_fetch:
                 for i, p in enumerate(link_info):
                     p.pop("depends")
                     p.pop("constrains")
-                fetch_info = fetch_info[num_remove_fetch:]
+                fetch_info = fetch_info[num_missing_info_on_create:]
             return {"actions": {"FETCH": fetch_info, "LINK": link_info}}
         else:
             return {"message": "ok"}

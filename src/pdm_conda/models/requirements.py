@@ -5,7 +5,6 @@ import re
 from copy import copy
 from typing import TYPE_CHECKING
 
-from packaging.specifiers import SpecifierSet
 from packaging.version import Version
 from pdm.models.requirements import NamedRequirement, Requirement
 from pdm.models.requirements import parse_requirement as _parse_requirement
@@ -20,7 +19,7 @@ if TYPE_CHECKING:
     from pdm.models.candidates import Candidate
     from pdm.models.requirements import T
 
-_conda_meta_req_re = re.compile(r"conda:([\w\-_\d/]+::)?(.+)$")
+_conda_meta_req_re = re.compile(r"conda:([\w\-_/]+::)?(.+)$")
 _prev_spec = ",|<>!~="
 _specifier_re = re.compile(rf"(?<![{_prev_spec}])(=|==|~=|!=|<|>|<=|>=)([^{_prev_spec}\s]+)")
 _conda_specifier_star_re = re.compile(r"([\w.]+)\*")
@@ -92,7 +91,7 @@ class CondaRequirement(NamedRequirement):
         )
 
     def as_named_requirement(self) -> NamedRequirement:
-        return NamedRequirement.create(name=conda_to_pypi(self.name), specifier=self.specifier)
+        return NamedRequirement.create(name=conda_to_pypi(self.name), version=self.specifier)
 
     def is_compatible(self, requirement_or_candidate: Requirement | Candidate):
         _compatible = True
@@ -255,7 +254,7 @@ def parse_requirement(line: str, editable: bool = False) -> Requirement:
         version = ",".join(version_and)
         req = CondaRequirement.create(
             name=strip_extras(name.strip())[0],
-            specifier=SpecifierSet(version),
+            version=version,
             channel=channel,
             version_mapping=version_mapping,
             build_string=build_string,
@@ -273,7 +272,7 @@ def conda_name(self) -> str | None:
 
 
 def key(self) -> str | None:
-    return normalize_name(self.conda_name).lower() if self.conda_name else None
+    return normalize_name(self.conda_name) if self.conda_name else None
 
 
 if not _patched:

@@ -22,6 +22,8 @@ if TYPE_CHECKING:
     from importlib.metadata import Distribution
     from typing import Any
 
+    from pdm.models.candidates import FileHash
+
     from pdm_conda.models.requirements import Requirement
 
 
@@ -38,15 +40,18 @@ def parse_channel(channel_url: str) -> str:
 
 
 class CondaPreparedCandidate(PreparedCandidate):
-    def __init__(self, candidate: Candidate, environment: BaseEnvironment) -> None:
+    def __init__(self, candidate: CondaCandidate, environment: BaseEnvironment) -> None:
         super().__init__(candidate, environment)
-        self.candidate = cast(CondaCandidate, self.candidate)  # type: ignore
+        self.candidate = cast(CondaCandidate, self.candidate)  # type: ignore[has-type]
 
     def get_dependencies_from_metadata(self) -> list[str]:
-        # if conda candidate return already obtained dependencies
+        """
+        Get the dependencies of a candidate from pre-fetched package.
+        :return: list of dependencies
+        """
         return [d.as_line(as_conda=True, with_build_string=True) for d in self.candidate.dependencies]
 
-    def prepare_metadata(self) -> Distribution:
+    def prepare_metadata(self, force_build: bool = False) -> Distribution:
         # if conda candidate get setup from package
         return self.candidate.distribution
 
@@ -74,7 +79,13 @@ class CondaCandidate(Candidate):
             cast(CondaRequirement, parse_requirement(f"conda:{r}")) for r in (dependencies or [])
         ]
         self.constrains: dict[str, CondaRequirement] = dict()
-        self.hashes = {self.link: f"{self.link.hash_name}:{self.link.hash}"}
+        self.hashes: list[FileHash] = [
+            dict(
+                url=self.link.url_without_fragment,
+                file="",
+                hash=f"{self.link.hash_name}:{self.link.hash}",
+            ),
+        ]
         for r in constrains or []:
             c = cast(CondaRequirement, parse_requirement(f"conda:{r}"))
             self.constrains[str(c.conda_name)] = c
@@ -144,7 +155,14 @@ class CondaCandidate(Candidate):
         dependencies = package.get("dependencies", [])
         if requires_python:
             dependencies.append(f"python {requires_python}")
-        return CondaCandidate.from_conda_package(package | {"depends": dependencies})
+        corrections = {"depends": dependencies}
+        for file in package.get("files", []):
+            if file.get("hash"):
+                hash_name, _hash = file["hash"].split(":")
+                corrections[hash_name] = _hash
+                corrections["url"] = file["url"]
+                break
+        return CondaCandidate.from_conda_package(package | corrections)
 
     @classmethod
     def from_conda_package(cls, package: dict, requirement: CondaRequirement | None = None) -> "CondaCandidate":
@@ -174,7 +192,7 @@ class CondaCandidate(Candidate):
         build_string = package.get("build", package.get("build_string", ""))
         channel = parse_channel(package["channel"])
         if requirement is not None:
-            requirement = cast(CondaRequirement, as_conda_requirement(requirement))
+            requirement = as_conda_requirement(requirement)
             requirement.version_mapping.update({parse_conda_version(version): version})
         else:
             requirement = parse_requirement(f"conda:{name} {version} {build_string}")

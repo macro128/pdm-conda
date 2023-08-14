@@ -47,35 +47,33 @@ def wrap_format_lockfile(func):
         project: Project,
         mapping: dict[str, Candidate],
         fetched_dependencies: dict[tuple[str, str | None], list[Requirement]],
+        *args,
+        **kwargs,
     ) -> dict:
-        for deps in fetched_dependencies.values():
-            for i, dep in enumerate(deps):
+        res = func(project, mapping, fetched_dependencies, *args, **kwargs)
+        _mapping = {can.name: can for can in mapping.values()}
+        # ensure no duplicated groups in metadata
+        if groups := res.get("metadata", dict()).get("groups"):
+            res["metadata"]["groups"] = list({group: None for group in groups}.keys())
+        # fix conda packages
+        for package in res["package"]:
+            # only static-url allowed for conda packages
+            if isinstance(can := _mapping[package["name"]], CondaCandidate):
+                package["files"] = [{"url": item["url"], "hash": item["hash"]} for item in can.hashes]
+
+            # fix conda dependencies to include build string
+            dependencies = []
+            include_dependencies = False
+            for dep in fetched_dependencies.get((can.name, can.version), []):
+                kwargs = {}
                 if isinstance(dep, CondaRequirement):
-                    setattr(dep, "as_line", functools.partial(dep.as_line, with_build_string=True))
-        version_mapping = {}
-        for name, can in mapping.items():
-            if isinstance(can, CondaCandidate):
-                fetched_dependencies[(can.name, can.conda_version)] = fetched_dependencies.pop(
-                    (can.name, can.version),
-                    [],
-                )
-                version_mapping[name] = can.version
-                can.version = can.conda_version
-        try:
-            res = func(project, mapping, fetched_dependencies)
-            return res
-        finally:
-            for deps in fetched_dependencies.values():
-                for i, dep in enumerate(deps):
-                    if isinstance(dep, CondaRequirement):
-                        setattr(dep, "as_line", dep.as_line.func)  # type: ignore
-            for name, version in version_mapping.items():
-                can = mapping[name]
-                can.version = version
-                fetched_dependencies[(can.name, can.version)] = fetched_dependencies.pop(
-                    (can.name, can.conda_version),
-                    [],
-                )
+                    kwargs["with_build_string"] = True
+                    include_dependencies = True
+                dependencies.append(dep.as_line(**kwargs))
+            if include_dependencies:
+                package["dependencies"] = dependencies
+
+        return res
 
     return wrapper
 

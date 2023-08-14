@@ -4,11 +4,17 @@ import uuid
 from copy import copy
 from typing import TYPE_CHECKING, cast
 
+from pdm import termui
 from pdm.models.repositories import BaseRepository, LockedRepository, PyPIRepository
 from pdm.models.specifiers import PySpecSet
 from pdm.resolver.python import PythonRequirement
 
-from pdm_conda.conda import conda_create, sort_candidates
+from pdm_conda.conda import (
+    CondaSearchError,
+    conda_create,
+    conda_search,
+    sort_candidates,
+)
 from pdm_conda.environments import CondaEnvironment
 from pdm_conda.models.candidates import CondaCandidate
 from pdm_conda.models.requirements import (
@@ -23,7 +29,7 @@ if TYPE_CHECKING:
     from pdm.models.repositories import RepositoryConfig
 
     from pdm_conda.environments import BaseEnvironment
-    from pdm_conda.models.candidates import Candidate
+    from pdm_conda.models.candidates import Candidate, FileHash
     from pdm_conda.models.requirements import Requirement
 
 
@@ -38,7 +44,7 @@ class CondaRepository(BaseRepository):
         self.environment = cast(CondaEnvironment, environment)
         self._conda_resolution: dict[str, list[CondaCandidate]] = dict()
 
-    def _uses_conda(self, requirement: Requirement) -> bool:
+    def is_conda_managed(self, requirement: Requirement) -> bool:
         """
         True if requirement is conda requirement or (not excluded and named requirement
         and conda as default manager or used by another conda requirement)
@@ -47,10 +53,9 @@ class CondaRepository(BaseRepository):
         if not isinstance(self.environment, CondaEnvironment):
             return False
         conda_config = self.environment.project.conda_config
-        return isinstance(requirement, (CondaRequirement, PythonRequirement)) or (
-            isinstance(requirement, NamedRequirement)
-            and conda_config.as_default_manager
-            and requirement.name not in conda_config.excludes
+        return requirement.identify() not in conda_config.excluded_identifiers and (
+            isinstance(requirement, (CondaRequirement, PythonRequirement))
+            or (isinstance(requirement, NamedRequirement) and conda_config.as_default_manager)
         )
 
     def update_conda_resolution(
@@ -82,6 +87,17 @@ class CondaRepository(BaseRepository):
             dependencies, requires_python, summary = super().get_dependencies(candidate)
         return dependencies, requires_python, summary
 
+    def get_hashes(self, candidate: Candidate) -> list[FileHash]:
+        if isinstance(candidate, CondaCandidate):
+            if not candidate.hashes:
+                termui.logger.info("Fetching hashes for %s", candidate)
+                _candidates = conda_search(self.environment.project, candidate.req)
+                if not _candidates:
+                    raise CondaSearchError(f"Cannot find hashes for {candidate}")
+
+                candidate.hashes = _candidates[0].hashes
+        return super().get_hashes(candidate)
+
 
 class PyPICondaRepository(PyPIRepository, CondaRepository):
     def update_conda_resolution(
@@ -92,7 +108,7 @@ class PyPICondaRepository(PyPIRepository, CondaRepository):
         super().update_conda_resolution(requirements, resolution)
         changed = []
         requirements = requirements or []
-        requirements = [as_conda_requirement(req) for req in requirements if self._uses_conda(req)]
+        requirements = [as_conda_requirement(req) for req in requirements if self.is_conda_managed(req)]
         update = False
         # if any requirement not in saved candidates or incompatible candidates
         for req in requirements:
@@ -129,7 +145,7 @@ class PyPICondaRepository(PyPIRepository, CondaRepository):
         return changed
 
     def _find_candidates(self, requirement: Requirement) -> Iterable[Candidate]:
-        if self._uses_conda(requirement):
+        if self.is_conda_managed(requirement):
             requirement = as_conda_requirement(requirement)
             candidates = self._conda_resolution.get(requirement.identify(), [])
             candidates = [copy(c) for c in candidates if requirement.is_compatible(c)]
@@ -146,15 +162,16 @@ class PyPICondaRepository(PyPIRepository, CondaRepository):
 class LockedCondaRepository(LockedRepository, CondaRepository):
     def _read_lockfile(self, lockfile: Mapping[str, Any]) -> None:
         packages = lockfile.get("package", [])
-        conda_packages = [copy(p) for p in packages if p.get("conda_managed", False)]
-        packages = [p for p in packages if not p.get("conda_managed", False)]
-        super()._read_lockfile({"package": packages, "metadata": lockfile.get("metadata", {})})
+        conda_packages = []
+        pypi_packages = []
+        for package in packages:
+            if package.get("conda_managed", False):
+                conda_packages.append(package)
+            else:
+                pypi_packages.append(package)
+        super()._read_lockfile({"package": pypi_packages, "metadata": lockfile.get("metadata", {})})
 
         for package in conda_packages:
-            link, _hash = list(self.file_hashes[(package["name"], package["version"])].items())[0]
-            name, value = _hash.split(":", maxsplit=1)
-            package[name] = value
-            package["url"] = link.url_without_fragment
             can = CondaCandidate.from_lock_package(package)
             can_id = self._identify_candidate(can)
             self.packages[can_id] = can

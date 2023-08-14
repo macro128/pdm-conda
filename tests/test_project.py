@@ -45,6 +45,7 @@ CONDA_MAPPING = dict(
 GROUPS = dict(argnames="group", argvalues=["default", "dev", "optional"])
 
 
+@pytest.mark.parametrize(**CONDA_MAPPING)
 class TestProject:
     def _parse_requirements(
         self,
@@ -86,7 +87,6 @@ class TestProject:
 
     @pytest.mark.parametrize(**DEPENDENCIES)
     @pytest.mark.parametrize(**GROUPS)
-    @pytest.mark.parametrize(**CONDA_MAPPING)
     @pytest.mark.parametrize("as_default_manager", [False, True], ids=["", "as_default_manager"])
     def test_get_dependencies(
         self,
@@ -151,7 +151,6 @@ class TestProject:
 
     @pytest.mark.parametrize(**DEPENDENCIES)
     @pytest.mark.parametrize(**GROUPS)
-    @pytest.mark.parametrize(**CONDA_MAPPING)
     @pytest.mark.parametrize("as_default_manager", [False, True], ids=["", "as_default_manager"])
     def test_add_dependencies(
         self,
@@ -180,7 +179,7 @@ class TestProject:
                     assert named_req not in project_requirements
 
         if conda_dependencies:
-            _dependencies, _ = project.get_pyproject_dependencies(group_name, dev)
+            _dependencies, _ = project.use_pyproject_dependencies(group_name, dev)
             _conda_dependencies = project.get_conda_pyproject_dependencies(group_name, dev)
             for d in conda_dependencies:
                 asserted = 0
@@ -215,7 +214,7 @@ class TestProject:
             ("optional_dependencies", {"other": ["package"]}, True),
         ],
     )
-    def test_pyproject_hash(self, project, config_name, config_value, must_be_different):
+    def test_pyproject_hash(self, project, config_name, config_value, must_be_different, mock_conda_mapping):
         original_hash = project.pyproject.content_hash()
         config = project.conda_config
         original_value = getattr(config, config_name)

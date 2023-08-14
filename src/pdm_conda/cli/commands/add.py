@@ -46,7 +46,7 @@ conda_group.add_argument(
 class Command(BaseCommand):
     description = BaseCommand.__doc__
     name = "add"
-    arguments = BaseCommand.arguments + [conda_group]
+    arguments = (*BaseCommand.arguments, conda_group)
 
     def handle(self, project: Project, options: argparse.Namespace) -> None:
         project = cast(CondaProject, project)
@@ -78,7 +78,7 @@ class Command(BaseCommand):
                     _p = None
 
                 # if not named we can't use Conda
-                if _p is None or (_p.is_named and _p.name not in config.excludes):
+                if _p is None or (_p.is_named and _p.identify() not in config.excluded_identifiers):
                     if package.startswith("conda:"):
                         package = package[len("conda:") :]
                     if not package_channel and channel:

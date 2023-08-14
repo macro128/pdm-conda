@@ -2,21 +2,12 @@ from typing import cast
 
 import pytest
 
-from tests.conftest import (
-    CONDA_INFO,
-    CONDA_MAPPING,
-    CONDA_REQUIREMENTS,
-    PREFERRED_VERSIONS,
-    PYTHON_REQUIREMENTS,
-)
+from tests.conftest import CONDA_REQUIREMENTS, PREFERRED_VERSIONS, PYTHON_REQUIREMENTS
 
 
-@pytest.mark.parametrize("conda_info", CONDA_INFO)
-@pytest.mark.parametrize("num_remove_fetch", [0])
-@pytest.mark.parametrize("conda_mapping", CONDA_MAPPING)
 @pytest.mark.parametrize("runner", [None, "micromamba", "conda"])
-@pytest.mark.usefixtures("working_set")
 @pytest.mark.parametrize("group", ["default", "other"])
+@pytest.mark.usefixtures("working_set")
 class TestAddRemove:
     default_runner = "micromamba"
 

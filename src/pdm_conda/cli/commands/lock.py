@@ -18,7 +18,10 @@ class Command(BaseCommand):
 
     def handle(self, project: Project, options: argparse.Namespace) -> None:
         project = cast(CondaProject, project)
+        if project.conda_config.is_initialized:
+            # conda don't produce cross-platform locks
+            options.cross_platform = False
         if options.groups:
             if ":all" in options.groups:
                 options.groups += list(project.iter_groups())
-        super().handle(project, options)
+        super().handle(project=project, options=options)

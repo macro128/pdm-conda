@@ -2,6 +2,7 @@ import pytest
 from pdm.exceptions import ProjectError
 
 
+@pytest.mark.usefixtures("mock_conda_mapping")
 class TestPluginConfig:
     @pytest.mark.parametrize(
         ("config_name", "config_value"),
@@ -10,6 +11,7 @@ class TestPluginConfig:
             ("channels", ["defaults"]),
             ("channels", ["other"]),
             ("channels", None),
+            ("excludes", ["another-dep-pip"]),
             ("batched-commands", True),
             ("batched-commands", False),
             ("dependencies", ["package"]),
@@ -53,6 +55,7 @@ class TestPluginConfig:
         [
             ("channels", []),
             ("channels", ["defaults"]),
+            ("excludes", ["another-dep-pip"]),
             ("batched-commands", True),
             ("batched-commands", False),
             ("dependencies", ["package"]),

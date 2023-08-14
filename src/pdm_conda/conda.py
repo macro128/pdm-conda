@@ -42,6 +42,10 @@ class CondaResolutionError(PdmException):
     pass
 
 
+class CondaSearchError(PdmException):
+    pass
+
+
 @contextlib.contextmanager
 def _optional_temporary_file(environment: dict | list):
     """
@@ -87,7 +91,7 @@ def run_conda(
                         for v in options:
                             f.write(f"  - {v}\n")
             f.seek(0)
-            cmd = cmd + ["--file", f.name]
+            cmd += ["--file", f.name]
         logger.debug(f"cmd: {' '.join(cmd)}")
         if environment:
             logger.debug(f"env: {environment}")
