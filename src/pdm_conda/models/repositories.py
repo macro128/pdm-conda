@@ -4,11 +4,17 @@ import uuid
 from copy import copy
 from typing import TYPE_CHECKING, cast
 
+from pdm import termui
 from pdm.models.repositories import BaseRepository, LockedRepository, PyPIRepository
 from pdm.models.specifiers import PySpecSet
 from pdm.resolver.python import PythonRequirement
 
-from pdm_conda.conda import conda_create, sort_candidates
+from pdm_conda.conda import (
+    CondaSearchError,
+    conda_create,
+    conda_search,
+    sort_candidates,
+)
 from pdm_conda.environments import CondaEnvironment
 from pdm_conda.models.candidates import CondaCandidate
 from pdm_conda.models.requirements import (
@@ -23,7 +29,7 @@ if TYPE_CHECKING:
     from pdm.models.repositories import RepositoryConfig
 
     from pdm_conda.environments import BaseEnvironment
-    from pdm_conda.models.candidates import Candidate
+    from pdm_conda.models.candidates import Candidate, FileHash
     from pdm_conda.models.requirements import Requirement
 
 
@@ -80,6 +86,17 @@ class CondaRepository(BaseRepository):
         else:
             dependencies, requires_python, summary = super().get_dependencies(candidate)
         return dependencies, requires_python, summary
+
+    def get_hashes(self, candidate: Candidate) -> list[FileHash]:
+        if isinstance(candidate, CondaCandidate):
+            if not candidate.hashes:
+                termui.logger.info("Fetching hashes for %s", candidate)
+                _candidates = conda_search(self.environment.project, candidate.req)
+                if not _candidates:
+                    raise CondaSearchError(f"Cannot find hashes for {candidate}")
+
+                candidate.hashes = _candidates[0].hashes
+        return super().get_hashes(candidate)
 
 
 class PyPICondaRepository(PyPIRepository, CondaRepository):
@@ -145,9 +162,14 @@ class PyPICondaRepository(PyPIRepository, CondaRepository):
 class LockedCondaRepository(LockedRepository, CondaRepository):
     def _read_lockfile(self, lockfile: Mapping[str, Any]) -> None:
         packages = lockfile.get("package", [])
-        conda_packages = [copy(p) for p in packages if p.get("conda_managed", False)]
-        packages = [p for p in packages if not p.get("conda_managed", False)]
-        super()._read_lockfile({"package": packages, "metadata": lockfile.get("metadata", {})})
+        conda_packages = []
+        pypi_packages = []
+        for package in packages:
+            if package.get("conda_managed", False):
+                conda_packages.append(package)
+            else:
+                pypi_packages.append(package)
+        super()._read_lockfile({"package": pypi_packages, "metadata": lockfile.get("metadata", {})})
 
         for package in conda_packages:
             can = CondaCandidate.from_lock_package(package)

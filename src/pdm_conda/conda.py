@@ -42,6 +42,10 @@ class CondaResolutionError(PdmException):
     pass
 
 
+class CondaSearchError(PdmException):
+    pass
+
+
 @contextlib.contextmanager
 def _optional_temporary_file(environment: dict | list):
     """

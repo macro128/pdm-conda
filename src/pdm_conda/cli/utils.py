@@ -51,26 +51,28 @@ def wrap_format_lockfile(func):
         **kwargs,
     ) -> dict:
         res = func(project, mapping, fetched_dependencies, *args, **kwargs)
-        conda_corrections = dict()
-        for name, can in mapping.items():
-            corrections = dict()
-            if isinstance(can, CondaCandidate):
-                corrections["files"] = [{"url": item["url"], "hash": item["hash"]} for item in can.hashes]
+        _mapping = {can.name: can for can in mapping.values()}
+        # ensure no duplicated groups in metadata
+        if groups := res.get("metadata", dict()).get("groups"):
+            res["metadata"]["groups"] = list({group: None for group in groups}.keys())
+        # fix conda packages
+        for package in res["package"]:
+            # only static-url allowed for conda packages
+            if isinstance(can := _mapping[package["name"]], CondaCandidate):
+                package["files"] = [{"url": item["url"], "hash": item["hash"]} for item in can.hashes]
 
+            # fix conda dependencies to include build string
             dependencies = []
             include_dependencies = False
-            for dep in fetched_dependencies[(can.name, can.version)]:
+            for dep in fetched_dependencies.get((can.name, can.version), []):
                 kwargs = {}
                 if isinstance(dep, CondaRequirement):
                     kwargs["with_build_string"] = True
                     include_dependencies = True
                 dependencies.append(dep.as_line(**kwargs))
             if include_dependencies:
-                corrections["dependencies"] = dependencies
-            if corrections:
-                conda_corrections[name] = corrections
-        for package in res["package"]:
-            package.update(conda_corrections.get(package["name"], {}))
+                package["dependencies"] = dependencies
+
         return res
 
     return wrapper
