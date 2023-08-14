@@ -1,13 +1,8 @@
 import pytest
 
-from tests.conftest import CONDA_INFO, CONDA_MAPPING
 
-
-@pytest.mark.parametrize("num_remove_fetch", [0])
 class TestList:
-    @pytest.mark.parametrize("conda_info", CONDA_INFO)
-    @pytest.mark.parametrize("conda_mapping", CONDA_MAPPING)
-    @pytest.mark.parametrize("runner", ["micromamba"])
+    @pytest.mark.parametrize("runner", ["micromamba", "conda"])
     def test_list(self, pdm, project, conda, conda_info, runner, mock_conda_mapping, installed_packages, working_set):
         """
         Test `list` command work as expected

@@ -80,8 +80,8 @@ for _p in _packages:
     PREFERRED_VERSIONS[_p["name"]] = _p
     _CONDA_INFO.append(_p)
 
-CONDA_MAPPING = [{f"{p['name']}-pip": p["name"] for p in _CONDA_INFO}]
-CONDA_INFO = [[*PYTHON_REQUIREMENTS, *_CONDA_INFO]]
+CONDA_MAPPING = {f"{p['name']}-pip": p["name"] for p in _CONDA_INFO}
+CONDA_INFO = [*PYTHON_REQUIREMENTS, *_CONDA_INFO]
 BUILD_BACKEND = generate_package_info("pdm-backend", "2.0")
 
 
@@ -147,8 +147,23 @@ def pdm_run(core, pdm):
     yield pdm
 
 
+@pytest.fixture
+def num_missing_info_on_create():
+    yield 0
+
+
+@pytest.fixture
+def conda_info():
+    yield CONDA_INFO
+
+
+@pytest.fixture
+def conda_mapping():
+    yield dict(CONDA_MAPPING)
+
+
 @pytest.fixture(name="conda")
-def mock_conda(mocker: MockerFixture, conda_info: dict | list, num_remove_fetch: int, installed_packages):
+def mock_conda(mocker: MockerFixture, conda_info: dict | list, num_missing_info_on_create: int, installed_packages):
     if isinstance(conda_info, dict):
         conda_info = [conda_info]
 
@@ -235,7 +250,7 @@ def mock_conda(mocker: MockerFixture, conda_info: dict | list, num_remove_fetch:
                 for i, p in enumerate(link_info):
                     p.pop("depends")
                     p.pop("constrains")
-                fetch_info = fetch_info[num_remove_fetch:]
+                fetch_info = fetch_info[num_missing_info_on_create:]
             return {"actions": {"FETCH": fetch_info, "LINK": link_info}}
         else:
             return {"message": "ok"}

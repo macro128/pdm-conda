@@ -4,6 +4,7 @@ import itertools
 from typing import TYPE_CHECKING, cast
 
 from pdm.models.repositories import BaseRepository
+from pdm.models.requirements import strip_extras
 from pdm.resolver.providers import BaseProvider, EagerUpdateProvider, ReusePinProvider
 from pdm.resolver.python import find_python_matches
 from pdm.utils import is_url
@@ -20,7 +21,7 @@ if TYPE_CHECKING:
     from typing import Callable, Iterable, Iterator, Mapping, Sequence
 
     from pdm.models.candidates import Candidate
-    from pdm.models.requirements import Requirement, strip_extras
+    from pdm.models.requirements import Requirement
     from pdm.resolver.providers import Comparable
     from resolvelib.resolvers import RequirementInformation
 
@@ -53,7 +54,8 @@ class CondaBaseProvider(BaseProvider):
                         if not isinstance(self.repository, CondaRepository) or not self.repository.is_conda_managed(
                             requirement,
                         ):
-                            requirement = parse_requirement(f"{identifier} {requested}")
+                            requirement.name = identifier
+                            requirement = parse_requirement(requirement.as_line())
                     self._overrides_requirements[self.identify(requirement)] = requirement
 
         return self._overrides_requirements

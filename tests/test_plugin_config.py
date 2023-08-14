@@ -1,11 +1,8 @@
 import pytest
 from pdm.exceptions import ProjectError
 
-from tests.conftest import CONDA_MAPPING
-
 
 @pytest.mark.usefixtures("mock_conda_mapping")
-@pytest.mark.parametrize("conda_mapping", CONDA_MAPPING)
 class TestPluginConfig:
     @pytest.mark.parametrize(
         ("config_name", "config_value"),

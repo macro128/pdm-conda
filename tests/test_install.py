@@ -2,19 +2,16 @@ import re
 
 import pytest
 
-from tests.conftest import CONDA_INFO, CONDA_MAPPING, PYTHON_REQUIREMENTS
+from tests.conftest import PYTHON_REQUIREMENTS
 from tests.utils import format_url
 
 
-@pytest.mark.parametrize("num_remove_fetch", [0])
 @pytest.mark.usefixtures("working_set")
 class TestInstall:
-    @pytest.mark.parametrize("conda_info", CONDA_INFO)
     @pytest.mark.parametrize("runner", ["conda", "micromamba"])
     @pytest.mark.parametrize("dry_run", [True, False])
     @pytest.mark.parametrize("conda_batched", [True, False, None])
     @pytest.mark.parametrize("install_self", [True, False])
-    @pytest.mark.parametrize("conda_mapping", CONDA_MAPPING)
     def test_install(
         self,
         pdm,
