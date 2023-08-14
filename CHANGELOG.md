@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+* Now compatible with `pdm>=v2.8.2`.
+
+### Changed
+
+* `pdm lock --no-cross-platform` is forced.
+
+### Fixed
+
+* Resolver now respects resolution overrides.
+* Only static URLs of the conda packages are stored in the lockfile.
+
 ## [0.11.0] - 10/06/2023
 
 ### Added

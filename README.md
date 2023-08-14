@@ -58,6 +58,7 @@ The following commands were tested and work:
     * You also can specify a default Conda channel with `-c` or `--channel`.
     * With flag `-r` or `--runner` you can specify the Conda runner to use.
 * `pdm remove`
+* `pdm update`
 * `pdm list`
 * `pdm info`
 
@@ -89,6 +90,11 @@ Some environment variables were overridden too:
   variables are set then this variable is set to `True`.
 * `PDM_IGNORE_ACTIVE_VENV` if conda settings detected in `pyproject.toml` and `VIRTUAL_ENV` or `CONDA_PREFIX` environment
   variables are set then this variable is set to `False`.
+
+Also, some commands were changed:
+
+* Flag `--no-cross-platform` for `pdm lock` is always forced as Conda is don't produce cross-platform locks.
+* Always store static URLs in lockfile for Conda managed packages.
 
 ## Development
 
