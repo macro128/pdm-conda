@@ -10,6 +10,7 @@ def main(core: Core):
     from pdm_conda import utils
     from pdm_conda.cli import utils as cli_utils
     from pdm_conda.cli.commands.add import Command as AddCommand
+    from pdm_conda.cli.commands.init import Command as InitCommand
     from pdm_conda.cli.commands.install import Command as InstallCommand
     from pdm_conda.cli.commands.lock import Command as LockCommand
     from pdm_conda.cli.commands.remove import Command as RemoveCommand
@@ -19,7 +20,7 @@ def main(core: Core):
 
     core.project_class = CondaProject
 
-    for cmd in [AddCommand, RemoveCommand, LockCommand, InstallCommand]:
+    for cmd in [InitCommand, AddCommand, RemoveCommand, LockCommand, InstallCommand]:
         core.register_command(cmd)
 
     for name, config in CONFIGS:

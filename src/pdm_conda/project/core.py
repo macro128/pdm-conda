@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from pathlib import Path
     from typing import Iterable
 
+    from findpython import Finder
     from pdm.core import Core
     from pdm.environments import BaseEnvironment
     from pdm.models.repositories import LockedRepository
@@ -227,3 +228,11 @@ class CondaProject(Project):
             )
             args = [provider.preferred_pins, provider.tracked_names] + args
         return provider_class(*args)
+
+    def _get_python_finder(self) -> Finder:
+        finder = super()._get_python_finder()
+        from pdm_conda.cli.commands.venv.utils import CondaProvider
+
+        if self.conda_config.is_initialized:
+            finder.add_provider(CondaProvider(self), 0)
+        return finder

@@ -4,6 +4,7 @@ import contextlib
 import json
 import subprocess
 from functools import lru_cache
+from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import TYPE_CHECKING
 
@@ -30,7 +31,6 @@ from pdm_conda.models.setup import CondaSetupDistribution
 from pdm_conda.utils import normalize_name
 
 if TYPE_CHECKING:
-    from pathlib import Path
     from typing import Iterable
 
     from pdm_conda.project import CondaProject
@@ -43,6 +43,10 @@ class CondaResolutionError(PdmException):
 
 
 class CondaSearchError(PdmException):
+    pass
+
+
+class CondaExecutionError(PdmException):
     pass
 
 
@@ -62,7 +66,7 @@ def _optional_temporary_file(environment: dict | list):
 
 def run_conda(
     cmd,
-    exception_cls: type[PdmException] = RequirementError,
+    exception_cls: type[PdmException] = CondaExecutionError,
     exception_msg: str = "Error locking dependencies",
     **environment,
 ) -> dict:
@@ -279,6 +283,7 @@ def conda_create(
     prefix: Path | str | None = None,
     name: str = "",
     dry_run: bool = False,
+    fetch_candidates: bool = True,
 ) -> dict[str, list[CondaCandidate]]:
     """
     Creates environment using conda
@@ -327,34 +332,73 @@ def conda_create(
         exception_cls=CondaResolutionError if dry_run else VirtualenvCreateError,
         exception_msg=f"Error resolving requirements with {config.runner}" if dry_run else "Error creating environment",
     )
+    if fetch_candidates:
+        actions = result.get("actions", dict())
+        fetch_packages = {pkg["name"]: pkg for pkg in actions.get("FETCH", [])}
+        packages = actions.get("LINK", [])
+        for i, pkg in enumerate(packages):
+            pkg = fetch_packages.get(pkg["name"], pkg)
+            if any(True for n in ("constrains", "depends") if n not in pkg):
+                pkg = conda_search(
+                    project,
+                    f'{pkg["name"]}={pkg["version"]}={pkg["build_string"]}',
+                    parse_channel(pkg["channel"]),
+                )
+            packages[i] = pkg
 
-    actions = result.get("actions", dict())
-    fetch_packages = {pkg["name"]: pkg for pkg in actions.get("FETCH", [])}
-    packages = actions.get("LINK", [])
-    for i, pkg in enumerate(packages):
-        pkg = fetch_packages.get(pkg["name"], pkg)
-        if any(True for n in ("constrains", "depends") if n not in pkg):
-            pkg = conda_search(
-                project,
-                f'{pkg["name"]}={pkg["version"]}={pkg["build_string"]}',
-                parse_channel(pkg["channel"]),
-            )
-        packages[i] = pkg
-
-    _requirements = {req.conda_name: req for req in requirements}
-    for pkg in packages:
-        # if is list of candidates then it comes from search
-        if isinstance(pkg, list):
-            if pkg:
-                candidates[pkg[0].name] = pkg
-        else:
-            name = pkg["name"]
-            candidates[name] = _parse_candidates(
-                project,
-                packages=[pkg],
-                requirement=_requirements.get(name, None),
-            )
+        _requirements = {req.conda_name: req for req in requirements}
+        for pkg in packages:
+            # if is list of candidates then it comes from search
+            if isinstance(pkg, list):
+                if pkg:
+                    candidates[pkg[0].name] = pkg
+            else:
+                name = pkg["name"]
+                candidates[name] = _parse_candidates(
+                    project,
+                    packages=[pkg],
+                    requirement=_requirements.get(name, None),
+                )
     return candidates
+
+
+def conda_env_remove(project: CondaProject, prefix: Path | str | None = None, name: str = "", dry_run: bool = False):
+    """
+    Removes environment using conda
+    :param project: PDM project
+    :param prefix: environment prefix
+    :param name: environment name
+    :param dry_run: don't install if dry run
+    """
+    config = project.conda_config
+    if not config.is_initialized:
+        raise VirtualenvCreateError("Error removing environment, no pdm-conda configs were found on pyproject.toml.")
+    command = config.command("env remove")
+    command.append("--json")
+    if prefix is not None:
+        command += ["--prefix", str(prefix)]
+    elif name:
+        command += ["--name", name]
+    else:
+        raise VirtualenvCreateError("Error removing environment, name or prefix must be specified.")
+
+    if dry_run:
+        command.append("--dry-run")
+
+    run_conda(command, exception_cls=VirtualenvCreateError, exception_msg="Error removing environment")
+
+
+def conda_env_list(project: CondaProject) -> list[Path]:
+    """
+    List Conda environments
+    :param project: PDM project
+    :return: list of conda environments
+    """
+    config = project.conda_config
+    command = config.command("env list")
+    command.append("--json")
+    environments = run_conda(command, exception_cls=CondaExecutionError, exception_msg="Error listing environments")
+    return [Path(env) for env in environments.get("envs", [])]
 
 
 def _conda_install(
