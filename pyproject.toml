@@ -29,6 +29,7 @@ classifiers = [
 dependencies = [
     "pdm~=2.8.2",
     "requests~=2.31.0",
+    "typing-extensions>=4.7.1",
 ]
 
 [tool.pdm.dev-dependencies]
