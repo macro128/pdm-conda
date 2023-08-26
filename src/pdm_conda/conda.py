@@ -293,6 +293,7 @@ def conda_create(
     :param prefix: environment prefix
     :param name: environment name
     :param dry_run: don't install if dry run
+    :param fetch_candidates: if True ensure ensure candidates were fetched
     """
     config = project.conda_config
     if not config.is_initialized:
