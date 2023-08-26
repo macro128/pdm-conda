@@ -49,6 +49,8 @@ This plugin adds capabilities to the default PDM commands.
 
 The following commands were tested and work:
 
+* `pdm init`:
+    * To list/use Conda managed python you must specify the Conda runner with `-r` or `--runner`.
 * `pdm lock`
 * `pdm install`
 * `pdm add`:
