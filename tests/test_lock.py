@@ -6,18 +6,6 @@ from pytest_mock import MockerFixture
 from tests.conftest import PREFERRED_VERSIONS, PYTHON_PACKAGE, PYTHON_REQUIREMENTS
 
 
-@pytest.fixture
-def debug_fix(mocker: MockerFixture):
-    from findpython import PythonVersion
-    from packaging.version import Version
-    from pdm.environments import BaseEnvironment
-
-    mocker.patch.object(PythonVersion, "_get_version", return_value=Version("3.10.12"))
-    mocker.patch.object(PythonVersion, "_get_architecture", return_value="aarch64")
-    mocker.patch.object(PythonVersion, "_get_interpreter", return_value="/opt/conda/envs/app/bin/python")
-    mocker.patch.object(BaseEnvironment, "_patch_target_python")
-
-
 @pytest.mark.parametrize("runner", ["conda", "micromamba"])
 @pytest.mark.parametrize("solver", ["conda", "libmamba"])
 @pytest.mark.parametrize("group", ["default", "dev", "other"])
