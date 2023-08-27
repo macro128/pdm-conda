@@ -4,19 +4,20 @@ A PDM plugin to resolve/install/uninstall project dependencies with Conda.
 
 ## Configuration
 
-| Config item                       | Description                                                                                          | Default value       | Possible values                | Environment variable            |
-|-----------------------------------|------------------------------------------------------------------------------------------------------|---------------------|--------------------------------|---------------------------------|
-| `conda.runner`                    | Conda runner executable                                                                              | `conda`             | `conda`, `mamba`, `micromamba` | `PDM_CONDA_RUNNER`              |
-| `conda.solver`                    | Solver to use for Conda resolution                                                                   | `conda`             | `conda`, `libmamba`            | `PDM_CONDA_SOLVER`              |
-| `conda.channels`                  | Conda channels to use, order will be enforced                                                        | `[]`                |                                |                                 |
-| `conda.as-default-manager`        | Use Conda to install all possible requirements                                                       | `False`             |                                | `PDM_CONDA_AS_DEFAULT_MANAGER`  |
-| `conda.batched-commands`          | Execute batched install and remove Conda commands, when True the command is executed only at the end | `False`             |                                | `PDM_CONDA_BATCHED_COMMANDS`    |
-| `conda.excludes`                  | Array of dependencies to exclude from Conda resolution                                               | `[]`                |                                |                                 |
-| `conda.installation-method`       | Installation method to use when installing dependencies with Conda                                   | `hard-link`         | `hard-link`, `copy`            | `PDM_CONDA_INSTALLATION_METHOD` |
-| `conda.dependencies`              | Array of dependencies to install with Conda, analogue to `project.dependencies`                      | `[]`                |                                |                                 |
-| `conda.optional-dependencies`     | Groups of optional dependencies to install with Conda, analogue to `project.optional-dependencies`   | `{}`                |                                |                                 |
-| `conda.dev-dependencies`          | Groups of development dependencies to install with Conda, analogue to `tool.pdm.dev-dependencies`    | `{}`                |                                |                                 |
-| `conda.pypi-mapping.download-dir` | PyPI-Conda mapping download directory                                                                | `$HOME/.pdm-conda/` |                                | `PDM_CONDA_PYPI_MAPPING_DIR`    |
+| Config item                       | Description                                                                                          | Default value                                                                                       | Possible values                | Environment variable            |
+|-----------------------------------|------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------|--------------------------------|---------------------------------|
+| `conda.runner`                    | Conda runner executable                                                                              | `conda`                                                                                             | `conda`, `mamba`, `micromamba` | `PDM_CONDA_RUNNER`              |
+| `conda.solver`                    | Solver to use for Conda resolution                                                                   | `conda`                                                                                             | `conda`, `libmamba`            | `PDM_CONDA_SOLVER`              |
+| `conda.channels`                  | Conda channels to use, order will be enforced                                                        | `[]`                                                                                                |                                |                                 |
+| `conda.as-default-manager`        | Use Conda to install all possible requirements                                                       | `False`                                                                                             |                                | `PDM_CONDA_AS_DEFAULT_MANAGER`  |
+| `conda.batched-commands`          | Execute batched install and remove Conda commands, when True the command is executed only at the end | `False`                                                                                             |                                | `PDM_CONDA_BATCHED_COMMANDS`    |
+| `conda.excludes`                  | Array of dependencies to exclude from Conda resolution                                               | `[]`                                                                                                |                                |                                 |
+| `conda.installation-method`       | Installation method to use when installing dependencies with Conda                                   | `hard-link`                                                                                         | `hard-link`, `copy`            | `PDM_CONDA_INSTALLATION_METHOD` |
+| `conda.dependencies`              | Array of dependencies to install with Conda, analogue to `project.dependencies`                      | `[]`                                                                                                |                                |                                 |
+| `conda.optional-dependencies`     | Groups of optional dependencies to install with Conda, analogue to `project.optional-dependencies`   | `{}`                                                                                                |                                |                                 |
+| `conda.dev-dependencies`          | Groups of development dependencies to install with Conda, analogue to `tool.pdm.dev-dependencies`    | `{}`                                                                                                |                                |                                 |
+| `conda.pypi-mapping.download-dir` | PyPI-Conda mapping download directory                                                                | `$HOME/.pdm-conda/`                                                                                 |                                | `PDM_CONDA_PYPI_MAPPING_DIR`    |
+| `conda.pypi-mapping.url`          | PyPI-Conda mapping url                                                                               | `https://github.com/regro/cf-graph-countyfair/raw/master/mappings/pypi/grayskull_pypi_mapping.yaml` |                                | `PDM_CONDA_PYPI_MAPPING_URL`    |
 
 All configuration items use prefix `pdm.tool`, this is a viable configuration:
 
@@ -33,6 +34,7 @@ batched-commands = true
 
 [tool.pdm.conda.pypi-mapping]
 download-dir = "/tmp"
+url = "https://url/to/mapping.yaml"
 
 [tool.pdm.conda.optional-dependencies]
 extra = ["anaconda:ffmpeg"] # non python dependency, obtained from anaconda channel
@@ -86,9 +88,11 @@ In order to use Conda to install packages some settings were overriden:
 
 Some environment variables were overridden too:
 
-* `PDM_IGNORE_SAVED_PYTHON` if conda settings detected in `pyproject.toml` and `VIRTUAL_ENV` or `CONDA_PREFIX` environment
+* `PDM_IGNORE_SAVED_PYTHON` if conda settings detected in `pyproject.toml` and `VIRTUAL_ENV` or `CONDA_PREFIX`
+  environment
   variables are set then this variable is set to `True`.
-* `PDM_IGNORE_ACTIVE_VENV` if conda settings detected in `pyproject.toml` and `VIRTUAL_ENV` or `CONDA_PREFIX` environment
+* `PDM_IGNORE_ACTIVE_VENV` if conda settings detected in `pyproject.toml` and `VIRTUAL_ENV` or `CONDA_PREFIX`
+  environment
   variables are set then this variable is set to `False`.
 
 Also, some commands were changed:
