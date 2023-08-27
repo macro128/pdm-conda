@@ -8,8 +8,9 @@ from pathlib import Path
 
 import requests
 
-MAPPINGS_URL = "https://github.com/regro/cf-graph-countyfair/raw/master/mappings/pypi/grayskull_pypi_mapping.yaml"
-DOWNLOAD_DIR_ENV_VAR = "PDM_CONDA_PYPI_MAPPING_DIR"
+MAPPING_URL = "https://github.com/regro/cf-graph-countyfair/raw/master/mappings/pypi/grayskull_pypi_mapping.yaml"
+MAPPING_DOWNLOAD_DIR_ENV_VAR = "PDM_CONDA_PYPI_MAPPING_DIR"
+MAPPING_URL_ENV_VAR = "PDM_CONDA_PYPI_MAPPING_URL"
 
 
 def process_mapping(yaml_path: Path, dict_path: Path):
@@ -51,7 +52,7 @@ def download_mapping(download_dir: Path, update_interval: timedelta | None = Non
     dict_path = yaml_path.with_suffix(".json")
 
     if not yaml_path.exists() or datetime.fromtimestamp(yaml_path.stat().st_mtime) + update_interval < datetime.now():
-        response = requests.get(MAPPINGS_URL, stream=True)
+        response = requests.get(os.getenv(MAPPING_URL_ENV_VAR, MAPPING_URL), stream=True)
         with yaml_path.open("wb") as f:
             for chunk in response.iter_content(chunk_size=128):
                 f.write(chunk)
@@ -73,7 +74,7 @@ def get_mapping_fixes() -> dict:
 
 @lru_cache
 def get_pypi_mapping() -> dict[str, str]:
-    download_dir = os.getenv(DOWNLOAD_DIR_ENV_VAR)
+    download_dir = os.getenv(MAPPING_DOWNLOAD_DIR_ENV_VAR)
     mapping = download_mapping(Path(str(download_dir)))
     mapping.update(get_mapping_fixes())
     return mapping

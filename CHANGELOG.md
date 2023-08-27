@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 * Now compatible with `pdm>=v2.8.2`.
+* Now PyPI-Conda mapping url can be set with `conda.pypi-mapping.url` config.
 
 ### Changed
 

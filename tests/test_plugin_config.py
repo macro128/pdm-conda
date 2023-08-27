@@ -17,12 +17,15 @@ class TestPluginConfig:
             ("dependencies", ["package"]),
             ("dev-dependencies", {"dev": ["package"]}),
             ("optional-dependencies", {"other": ["package"]}),
+            ("pypi-mapping.url", "https://example.com/mapping.yaml"),
+            ("pypi-mapping", {"url": "https://example.com/mapping.yaml"}),
         ],
     )
     def test_set_configs(self, project, mocker, config_name, config_value):
         """
         Test settings configs correctly
         """
+        from pdm_conda.models.config import _CONFIG_MAP
 
         config = project.conda_config
         subscribed = mocker.spy(project.pyproject._data, "update")
@@ -41,12 +44,18 @@ class TestPluginConfig:
                 },
             },
         )
-        conda_config_name = config_name.replace("-", "_")
+        conda_config_name = config_name
+        if config_name == "pypi-mapping" and isinstance(config_value, dict):
+            for k, v in config_value.items():
+                conda_config_name = f"{config_name}.{k}"
+                assert_value = v
+                break
+        conda_config_name = _CONFIG_MAP[conda_config_name]
         assert getattr(config, conda_config_name) == assert_value
 
         assert subscribed.call_count == 1
         if config_value is not None:
-            setattr(config, conda_config_name, config_value)
+            setattr(config, conda_config_name, assert_value)
             project.pyproject.write(False)
             assert config_value == project.pyproject.settings["conda"][config_name]
 

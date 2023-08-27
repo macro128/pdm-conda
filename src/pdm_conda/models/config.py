@@ -11,7 +11,11 @@ from typing import TYPE_CHECKING
 from pdm.exceptions import ProjectError
 from pdm.project import ConfigItem
 
-from pdm_conda.mapping import DOWNLOAD_DIR_ENV_VAR
+from pdm_conda.mapping import (
+    MAPPING_DOWNLOAD_DIR_ENV_VAR,
+    MAPPING_URL,
+    MAPPING_URL_ENV_VAR,
+)
 from pdm_conda.models.requirements import parse_requirement
 
 if TYPE_CHECKING:
@@ -30,9 +34,6 @@ class CondaSolver(str, Enum):
     CONDA = "conda"
     MAMBA = "libmamba"
 
-
-_CONFIG_MAP = {"pypi-mapping.download-dir": "mapping_download_dir"}
-_CONFIG_MAP |= {v: k for k, v in _CONFIG_MAP.items()}
 
 CONFIGS = [
     ("runner", ConfigItem("Conda runner executable", CondaRunner.CONDA.value, env_var="PDM_CONDA_RUNNER")),
@@ -63,10 +64,25 @@ CONFIGS = [
         ConfigItem(
             "PyPI-Conda mapping download directory",
             Path().home() / ".pdm-conda/",
-            env_var=DOWNLOAD_DIR_ENV_VAR,
+            env_var=MAPPING_DOWNLOAD_DIR_ENV_VAR,
+        ),
+    ),
+    (
+        "pypi-mapping.url",
+        ConfigItem(
+            "PyPI-Conda mapping url",
+            MAPPING_URL,
+            env_var=MAPPING_URL_ENV_VAR,
         ),
     ),
 ]
+
+_CONFIG_MAP = {name: name.replace("-", "_") for (name, _) in CONFIGS}
+_CONFIG_MAP |= {
+    "pypi-mapping.download-dir": "mapping_download_dir",
+    "pypi-mapping.url": "mapping_url",
+}
+_CONFIG_MAP |= {v: k for k, v in _CONFIG_MAP.items()}
 
 CONFIGS = [(f"conda.{name}", config) for name, config in CONFIGS]
 
@@ -97,6 +113,7 @@ class PluginConfig:
     optional_dependencies: dict[str, list] = field(default_factory=dict)
     dev_dependencies: dict[str, list] = field(default_factory=dict)
     mapping_download_dir: Path = field(repr=False, default=Path())
+    mapping_url: str = field(repr=False, default=MAPPING_URL)
 
     def __post_init__(self):
         if self.runner not in list(CondaRunner):
@@ -129,7 +146,7 @@ class PluginConfig:
         super().__setattr__(name, value)
         # if plugin config is set then maybe update pyproject settings
         if not name.startswith("_") and not callable(getattr(self, name)):
-            name = f"conda.{_CONFIG_MAP.get(name, name)}".replace("_", "-")
+            name = f"conda.{_CONFIG_MAP[name]}"
             name, config_item = next(filter(lambda n: name == n[0], CONFIGS))
             if self._set_project_config:
                 name_path = name.split(".")
@@ -219,21 +236,33 @@ class PluginConfig:
         :param kwargs: settings overwrites
         :return: plugin configs
         """
-        config = {k: v for k, v in project.pyproject.settings.get("conda", {}).items()}
+
+        def flatten_config(config, allowed_levels, parent_key="", result=None) -> dict:
+            if result is None:
+                result = dict()
+            for key, v in config.items():
+                key = ".".join(k for k in (parent_key, key) if k)
+                if isinstance(v, dict) and key in allowed_levels:
+                    return flatten_config(v, allowed_levels, key, result)
+                else:
+                    result[_CONFIG_MAP[key]] = v
+            return result
+
+        config = flatten_config(project.pyproject.settings.get("conda", {}), ["pypi-mapping"])
         kwargs["_initialized"] = is_conda_config_initialized(project)
         for n, c in CONFIGS:
-            n = n[len("conda.") :]
-            if (prop_name := _CONFIG_MAP.get(n, n)) not in config and c.env_var:
-                value = project.config[f"conda.{n}"]
+            if (prop_name := _CONFIG_MAP[n[len("conda.") :]]) not in config and c.env_var:
+                value = project.config[n]
                 if prop_name == "mapping_download_dir":
                     value = Path(value)
-                elif prop_name in ("as-default-manager", "batched-commands"):
+                elif prop_name in ("as_default_manager", "batched_commands"):
                     value = str(value).lower() in ("true", "1")
                 config[prop_name] = value
-        config = {k.replace("-", "_"): v for k, v in config.items()} | kwargs
+        config |= kwargs
         excludes = config.pop("excludes", [])
         plugin_config = PluginConfig(_project=project, **config)
-        plugin_config.excludes = excludes
+        if excludes:
+            plugin_config.excludes = excludes
         return plugin_config
 
     def command(self, cmd="install"):
