@@ -38,10 +38,11 @@ class TestVenv:
                 project.global_config["venv.location"] = venv_location
             else:
                 conda_venv_path.mkdir(exist_ok=True)
-                with project.conda_config.with_conda_venv_location() as _venv_location:
+                with project.conda_config.with_conda_venv_location() as (_venv_location, _):
                     assert _venv_location == conda_venv_path
 
-            del project.config
+            if project.config:
+                del project.config
 
             pdm(cmd, obj=project, strict=True)
 
