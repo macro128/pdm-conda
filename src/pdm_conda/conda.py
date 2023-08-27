@@ -5,10 +5,10 @@ import json
 import subprocess
 from functools import lru_cache
 from pathlib import Path
+from shutil import which
 from tempfile import NamedTemporaryFile
 from typing import TYPE_CHECKING
 
-from pdm import termui
 from pdm.cli.commands.venv.backends import VirtualenvCreateError
 from pdm.exceptions import (
     InstallationError,
@@ -19,6 +19,7 @@ from pdm.exceptions import (
 from pdm.models.setup import Setup
 from pdm.termui import Verbosity
 
+from pdm_conda import logger
 from pdm_conda.models.candidates import CondaCandidate, parse_channel
 from pdm_conda.models.conda import ChannelSorter
 from pdm_conda.models.config import CondaRunner
@@ -35,18 +36,20 @@ if TYPE_CHECKING:
 
     from pdm_conda.project import CondaProject
 
-logger = termui.logger
-
-
-class CondaResolutionError(PdmException):
-    pass
-
-
-class CondaSearchError(PdmException):
-    pass
-
 
 class CondaExecutionError(PdmException):
+    pass
+
+
+class CondaResolutionError(CondaExecutionError):
+    pass
+
+
+class CondaSearchError(CondaExecutionError):
+    pass
+
+
+class CondaRunnerNotFoundError(CondaExecutionError):
     pass
 
 
@@ -78,6 +81,10 @@ def run_conda(
     :param environment: environment or lockfile data
     :return: conda command response
     """
+    executable = which(cmd[0])
+    if executable is None:
+        raise CondaRunnerNotFoundError(f"Conda runner {cmd[0]} not found.")
+
     lockfile = environment.get("lockfile", [])
     with _optional_temporary_file(lockfile or environment) as f:
         if lockfile or environment:

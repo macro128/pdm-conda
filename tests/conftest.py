@@ -35,6 +35,7 @@ PREFERRED_VERSIONS = dict(python=PYTHON_PACKAGE)
 _python_dep = f"python >={PYTHON_VERSION}"
 _packages = [
     generate_package_info("python-only-dep", "1.0"),
+    generate_package_info("pip", "1.0"),
     generate_package_info("openssl", "1.1.1b"),
     generate_package_info("lib2", "1.0.0g"),
     generate_package_info("lib", "1.0", ["lib2 ==1.0.0g", "openssl >=1.1.1a,<1.1.1c"]),
@@ -257,6 +258,7 @@ def mock_conda(mocker: MockerFixture, conda_info: dict | list, num_missing_info_
         else:
             return {"message": "ok"}
 
+    mocker.patch("pdm_conda.conda.which")
     yield mocker.patch("pdm_conda.conda.run_conda", side_effect=_mock)
 
 
@@ -386,3 +388,10 @@ def debug_fix(mocker: MockerFixture):
     mocker.patch.object(PythonVersion, "_get_architecture", return_value="aarch64")
     mocker.patch.object(PythonVersion, "_get_interpreter", return_value="/opt/conda/envs/app/bin/python")
     mocker.patch.object(BaseEnvironment, "_patch_target_python")
+
+
+@pytest.fixture
+def temp_working_path(request, monkeypatch):
+    with TemporaryDirectory() as td:
+        monkeypatch.chdir(td)
+        yield

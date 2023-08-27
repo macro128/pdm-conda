@@ -1,17 +1,8 @@
-from tempfile import TemporaryDirectory
-
 import pytest
 from pytest_mock import MockFixture
 
 
-@pytest.fixture
-def change_test_dir(request, monkeypatch):
-    with TemporaryDirectory() as td:
-        monkeypatch.chdir(td)
-        yield
-
-
-@pytest.mark.usefixtures("change_test_dir")
+@pytest.mark.usefixtures("temp_working_path")
 class TestInit:
     @pytest.mark.parametrize("runner", ["micromamba", "conda", "mamba"])
     @pytest.mark.parametrize("conda_info", [["/opt/conda/bin"], []])
