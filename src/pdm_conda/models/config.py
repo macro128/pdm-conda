@@ -131,10 +131,8 @@ class PluginConfig:
         # if plugin config is set then maybe update pyproject settings
         if (
             not name.startswith("_")
-            and not isinstance(getattr(type(self), name, None), property)
-            and not callable(
-                getattr(self, name),
-            )
+            and (not isinstance(getattr(type(self), name, None), property) or name == "excludes")
+            and not callable(getattr(self, name))
         ):
             name = f"conda.{_CONFIG_MAP.get(name, name)}".replace("_", "-")
             name, config_item = next(filter(lambda n: name == n[0], CONFIGS))
@@ -271,9 +269,10 @@ class PluginConfig:
                     value = str(value).lower() in ("true", "1")
                 config[prop_name] = value
         config = {k.replace("-", "_"): v for k, v in config.items()} | kwargs
-        excludes = config.pop("excludes", [])
+        excludes = config.pop("excludes", None)
         plugin_config = PluginConfig(_project=project, **config)
-        plugin_config.excludes = excludes
+        if excludes is not None:
+            plugin_config.excludes = excludes
         return plugin_config
 
     def command(self, cmd="install"):
