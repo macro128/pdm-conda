@@ -60,11 +60,17 @@ The following commands were tested and work:
       to `--editable`).
     * You can specify per package Conda channel using conda notation `channel::package`.
     * You also can specify a default Conda channel with `-c` or `--channel`.
-    * With flag `-r` or `--runner` you can specify the Conda runner to use.
+    * With flag `-cr` or `--runner` you can specify the Conda runner to use.
 * `pdm remove`
 * `pdm update`
 * `pdm list`
 * `pdm info`
+* `pdm venv`:
+  * `create`:
+      * To list/use Conda managed python you must specify the Conda runner with `-w` or `--with`.
+      * You can completely override the Conda environment name with `-cn` or `--conda-name`, the resulting environment
+        won't follow PDM environment naming conventions.
+  * `list`
 
 ### How it works
 
