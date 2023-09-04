@@ -52,7 +52,7 @@ This plugin adds capabilities to the default PDM commands.
 The following commands were tested and work:
 
 * `pdm init`:
-    * To list/use Conda managed python you must specify the Conda runner with `-r` or `--runner`.
+    * To list/use Conda managed python you must specify the Conda runner with `-cr` or `--runner`.
 * `pdm lock`
 * `pdm install`
 * `pdm add`:
@@ -60,7 +60,7 @@ The following commands were tested and work:
       to `--editable`).
     * You can specify per package Conda channel using conda notation `channel::package`.
     * You also can specify a default Conda channel with `-c` or `--channel`.
-    * With flag `-cr` or `--runner` you can specify the Conda runner to use.
+    * With flag `-r` or `--runner` you can specify the Conda runner to use.
 * `pdm remove`
 * `pdm update`
 * `pdm list`
