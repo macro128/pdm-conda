@@ -53,6 +53,7 @@ The following commands were tested and work:
 
 * `pdm init`:
     * To list/use Conda managed python you must specify the Conda runner with `-cr` or `--runner`.
+    * You also can specify a default Conda channel with `-c` or `--channel`.
 * `pdm lock`
 * `pdm install`
 * `pdm add`:
