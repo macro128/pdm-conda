@@ -246,6 +246,7 @@ class PluginConfig:
     @contextmanager
     def with_conda_venv_location(self):
         conf_name = "venv.location"
+        overriden = False
         if (previous_value := self._project.config[conf_name]) == Config.get_defaults()[conf_name] and (
             venv_location := os.getenv("VIRTUAL_ENV", os.getenv("CONDA_PREFIX", None))
         ) is not None:
@@ -255,8 +256,8 @@ class PluginConfig:
                     logger.info(f"Using detected Conda path for environment: [success]{venv_path}[/]")
                     self._project.global_config[conf_name] = str(venv_path)
                     del self._project.config
+                    overriden = True
                     break
-        overriden = self._project.config[conf_name] != previous_value
         try:
             yield Path(self._project.config[conf_name]), overriden
         finally:

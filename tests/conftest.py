@@ -379,14 +379,23 @@ def mock_conda_mapping(mocker: MockerFixture, mocked_responses, conda_mapping):
 
 
 @pytest.fixture
-def debug_fix(mocker: MockerFixture):
+def interpreter_path():
+    return None
+
+
+@pytest.fixture(name="fake_python")
+def mock_python(mocker: MockerFixture, interpreter_path):
     from findpython import PythonVersion
     from packaging.version import Version
     from pdm.environments import BaseEnvironment
 
     mocker.patch.object(PythonVersion, "_get_version", return_value=Version("3.10.12"))
     mocker.patch.object(PythonVersion, "_get_architecture", return_value="aarch64")
-    mocker.patch.object(PythonVersion, "_get_interpreter", return_value="/opt/conda/envs/app/bin/python")
+    mocker.patch.object(
+        PythonVersion,
+        "_get_interpreter",
+        return_value=interpreter_path or "/opt/conda/envs/app/bin/python",
+    )
     mocker.patch.object(BaseEnvironment, "_patch_target_python")
 
 

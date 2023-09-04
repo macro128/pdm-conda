@@ -5,7 +5,41 @@ import pytest
 from pdm.project import Config
 
 
-@pytest.mark.usefixtures("debug_fix")
+@pytest.fixture(name="conda_envs_path")
+def patch_listed_envs(project, monkeypatch):
+    with TemporaryDirectory() as td:
+        venvs_path = Path(td) / "envs"
+        yield venvs_path
+
+
+@pytest.fixture
+def venv_path(project, conda_name, monkeypatch, conda_envs_path):
+    from pdm.cli.commands.venv.utils import get_venv_prefix
+
+    venv_path = conda_envs_path / (conda_name if conda_name else get_venv_prefix(project))
+    monkeypatch.setenv("CONDA_PREFIX", str(venv_path))
+    yield venv_path
+
+
+@pytest.fixture
+def active():
+    return True
+
+
+@pytest.fixture
+def initialized():
+    return True
+
+
+@pytest.fixture
+def interpreter_path(venv_path, active, initialized):
+    path = venv_path / "bin/python"
+    if initialized:
+        path.mkdir(exist_ok=True, parents=True)
+    yield path if active else None
+
+
+@pytest.mark.usefixtures("fake_python")
 class TestVenv:
     @pytest.mark.parametrize("runner", ["micromamba", "conda", "mamba"])
     @pytest.mark.parametrize("with_pip", [True, False])
@@ -21,61 +55,93 @@ class TestVenv:
         venv_location,
         monkeypatch,
         conda,
+        conda_envs_path,
     ):
         """
         Test `venv create` command work as expected
         """
-        with TemporaryDirectory() as tmpdir:
-            monkeypatch.setenv("VIRTUAL_ENV", tmpdir)
-            project.global_config["venv.location"] = Config.get_defaults()["venv.location"]
-            cmd = ["venv", "create", "-w", runner]
-            if conda_name:
-                cmd.extend(["-n", f"{conda_name}", "-cn", conda_name])
-            if with_pip:
-                cmd.append("--with-pip")
-            conda_venv_path = Path(tmpdir) / "envs/"
-            if venv_location:
-                project.global_config["venv.location"] = venv_location
-            else:
-                conda_venv_path.mkdir(exist_ok=True)
-                with project.conda_config.with_conda_venv_location() as (_venv_location, _):
-                    assert _venv_location == conda_venv_path
+        project.global_config["venv.location"] = Config.get_defaults()["venv.location"]
+        cmd = ["venv", "create", "-w", runner, "--force"]
+        if conda_name:
+            cmd.extend(["-n", f"{conda_name}", "-cn", conda_name])
+        if with_pip:
+            cmd.append("--with-pip")
+        if venv_location:
+            project.global_config["venv.location"] = venv_location
+        with project.conda_config.with_conda_venv_location() as (_venv_location, overriden):
+            assert overriden is not venv_location
+            assert _venv_location == Path(conda_envs_path if overriden else venv_location)
 
-            if project.config:
-                del project.config
+        if project.config:
+            del project.config
 
-            pdm(cmd, obj=project, strict=True)
+        pdm(cmd, obj=project, strict=True)
 
-        assert conda.call_count == 1
+        cmd_order = ["create"]
+        if conda_name and not venv_location:
+            cmd_order = ["env"] + cmd_order
+        venv_name = conda_name if conda_name else f"{project.root.name}-"
+        assert conda.call_count == len(cmd_order)
         for (cmd,), kwargs in conda.call_args_list:
-            assert cmd[1] == "create"
-            assert (env_prefix := cmd.index("--prefix")) != -1
-            env_prefix = Path(cmd[env_prefix + 1])
-            if conda_name:
-                assert env_prefix.name == conda_name
+            assert (conda_venv_command := cmd[1]) in cmd_order
+            if conda_venv_command == "create":
+                assert (env_prefix := cmd.index("--prefix")) != -1
+                env_prefix = Path(cmd[env_prefix + 1])
+                assert venv_name in env_prefix.name
+                if with_pip:
+                    assert "pip" in cmd
+                if venv_location:
+                    assert env_prefix.parent == Path(venv_location)
+                else:
+                    assert env_prefix.parent == conda_envs_path
+                    assert conda_envs_path != project.config["venv.location"]
             else:
-                assert f"{project.root.name}-" in env_prefix.name
-            if with_pip:
-                assert "pip" in cmd
-            if venv_location:
-                assert env_prefix.parent == Path(venv_location)
-            else:
-                assert env_prefix.parent == conda_venv_path
-                assert conda_venv_path != project.config["venv.location"]
+                assert (prefix_index := cmd.index("--prefix")) != -1
+                assert venv_name in cmd[prefix_index + 1]
 
         assert project.conda_config.runner == runner
 
-    # @pytest.mark.parametrize("runner", ["micromamba", "conda", "mamba"])
-    # def test_venv_list(
-    #     self,
-    #     pdm,
-    #     project,
-    #     runner,
-    #     monkeypatch,
-    #     conda
-    # ):
-    #     """
-    #     Test `venv list` command work as expected
-    #     """
-    #     project.conda_config.runner = runner
-    #     pdm(["venv", "list"], obj=project, strict=True)
+    @pytest.mark.parametrize("runner", ["micromamba", "conda", "mamba"])
+    @pytest.mark.parametrize(
+        "initialized,conda_name,active",
+        [[True, "test", True], [True, None, False], [True, "test", False], [False, None, False]],
+    )
+    def test_venv_list(
+        self,
+        pdm,
+        project,
+        runner,
+        initialized,
+        conda_name,
+        monkeypatch,
+        mocker,
+        conda_envs_path,
+        active,
+        interpreter_path,
+        venv_path,
+        conda,
+    ):
+        """
+        Test `venv list` command work as expected
+        """
+        project.global_config["venv.location"] = Config.get_defaults()["venv.location"]
+        # Ignore saved python and search for activated venv
+        if active:
+            monkeypatch.setenv("PDM_IGNORE_SAVED_PYTHON", "1")
+            if conda_name:
+                mocker.patch.object(project, "root", new=venv_path)
+        if initialized:
+            project.conda_config.runner = runner
+
+        result = pdm(["venv", "list"], obj=project, strict=True)
+        if initialized:
+            if conda_name:
+                if active:
+                    assert conda_name in result.output
+                else:
+                    assert conda_name not in result.output
+            else:
+                assert f"{project.root.name}-" in result.output
+
+        assert "Virtualenv is created successfully" not in result.output
+        assert conda.call_count == 0

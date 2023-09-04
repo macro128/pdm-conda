@@ -192,6 +192,9 @@ class CondaProject(Project):
         super().add_dependencies(requirements, to_group, dev, show_message)
 
     def get_environment(self) -> BaseEnvironment:
+        if not self.conda_config.is_initialized:
+            return super().get_environment()
+
         if not self.config["python.use_venv"]:
             raise ProjectError("python.use_venv is required to use Conda.")
         if get_venv_like_prefix(self.python.executable) is None:

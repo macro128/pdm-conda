@@ -21,7 +21,7 @@ class Command(BaseCommand):
         super().add_arguments(parser)
         conda_group = ArgumentGroup("Conda Options")
         conda_group.add_argument(
-            "-r",
+            "-cr",
             "--runner",
             dest="conda_runner",
             type=str,

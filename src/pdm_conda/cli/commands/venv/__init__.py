@@ -3,9 +3,9 @@ from __future__ import annotations
 import argparse
 
 from pdm.cli.commands.venv import Command as BaseCommand
-from pdm_conda.cli.commands.venv.create import CreateCommand
 
-# from pdm_conda.cli.commands.venv.list import ListCommand
+from pdm_conda.cli.commands.venv.create import CreateCommand
+from pdm_conda.cli.commands.venv.list import ListCommand
 
 
 class Command(BaseCommand):
@@ -16,4 +16,4 @@ class Command(BaseCommand):
         super().add_arguments(parser)
         subparser = parser._actions[-1]
         CreateCommand.register_to(subparser, "create")
-        # ListCommand.register_to(subparser, "list")
+        ListCommand.register_to(subparser, "list")
