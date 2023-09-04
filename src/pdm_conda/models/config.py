@@ -9,8 +9,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from pdm.exceptions import ProjectError
-from pdm.project import ConfigItem
+from pdm.project import Config, ConfigItem
 
+from pdm_conda import logger
 from pdm_conda.mapping import (
     MAPPING_DOWNLOAD_DIR_ENV_VAR,
     MAPPING_URL,
@@ -85,6 +86,9 @@ _CONFIG_MAP |= {
 _CONFIG_MAP |= {v: k for k, v in _CONFIG_MAP.items()}
 
 CONFIGS = [(f"conda.{name}", config) for name, config in CONFIGS]
+PDM_CONFIG = {
+    "conda.runner": "venv.backend",
+}
 
 
 def is_decorated(func):
@@ -131,21 +135,19 @@ class PluginConfig:
             func = getattr(obj, name)
             if not is_decorated(func):
                 setattr(obj, name, self.suscribe(self, func))
+        if not self.is_initialized:
+            self.is_initialized = is_conda_config_initialized(self._project)
+
         self._set_project_config = True
-        if self.is_initialized:
-            config = self._project.project_config
-            config["python.use_venv"] = True
-            config["python.use_pyenv"] = False
-            config["venv.backend"] = self.runner
-            if (venv_location := os.getenv("VIRTUAL_ENV", os.getenv("CONDA_PREFIX", None))) is not None:
-                self._project.global_config["venv.location"] = str(Path(venv_location).parent)
-                os.environ["PDM_IGNORE_SAVED_PYTHON"] = "true"
-                os.environ.pop("PDM_IGNORE_ACTIVE_VENV", None)
 
     def __setattr__(self, name: str, value: Any) -> None:
         super().__setattr__(name, value)
         # if plugin config is set then maybe update pyproject settings
-        if not name.startswith("_") and not callable(getattr(self, name)):
+        if (
+            not name.startswith("_")
+            and (not isinstance(getattr(type(self), name, None), property) or name == "excludes")
+            and not callable(getattr(self, name))
+        ):
             name = f"conda.{_CONFIG_MAP[name]}"
             name, config_item = next(filter(lambda n: name == n[0], CONFIGS))
             if self._set_project_config:
@@ -155,7 +157,9 @@ class PluginConfig:
                 for p in name_path:
                     config = config.setdefault(p, dict())
                 config[name] = value
-                self._initialized = True
+                self.is_initialized |= self._project.pyproject.exists()
+                if (project_config := PDM_CONFIG.get(name, None)) is not None:
+                    self._project.project_config[project_config] = value
             if config_item.env_var:
                 os.environ.setdefault(config_item.env_var, str(value))
 
@@ -228,6 +232,39 @@ class PluginConfig:
     def is_initialized(self):
         return self._initialized
 
+    @is_initialized.setter
+    def is_initialized(self, value):
+        if value and not self._initialized:
+            config = self._project.project_config
+            config["python.use_venv"] = True
+            config["python.use_pyenv"] = False
+            config["venv.backend"] = self.runner
+            config.setdefault("venv.in_project", False)
+            os.environ.pop("PDM_IGNORE_ACTIVE_VENV", None)
+        self._initialized = value
+
+    @contextmanager
+    def with_conda_venv_location(self):
+        conf_name = "venv.location"
+        overriden = False
+        if (previous_value := self._project.config[conf_name]) == Config.get_defaults()[conf_name] and (
+            venv_location := os.getenv("VIRTUAL_ENV", os.getenv("CONDA_PREFIX", None))
+        ) is not None:
+            venv_location = Path(venv_location)
+            for parent in (venv_location, *venv_location.parents):
+                if (venv_path := (parent / "envs")).is_dir():
+                    logger.info(f"Using detected Conda path for environment: [success]{venv_path}[/]")
+                    self._project.global_config[conf_name] = str(venv_path)
+                    del self._project.config
+                    overriden = True
+                    break
+        try:
+            yield Path(self._project.config[conf_name]), overriden
+        finally:
+            self._project.global_config[conf_name] = previous_value
+            if overriden:
+                del self._project.config
+
     @classmethod
     def load_config(cls, project: Project, **kwargs) -> "PluginConfig":
         """
@@ -249,7 +286,6 @@ class PluginConfig:
             return result
 
         config = flatten_config(project.pyproject.settings.get("conda", {}), ["pypi-mapping"])
-        kwargs["_initialized"] = is_conda_config_initialized(project)
         for n, c in CONFIGS:
             if (prop_name := _CONFIG_MAP[n[len("conda.") :]]) not in config and c.env_var:
                 value = project.config[n]
@@ -259,9 +295,9 @@ class PluginConfig:
                     value = str(value).lower() in ("true", "1")
                 config[prop_name] = value
         config |= kwargs
-        excludes = config.pop("excludes", [])
+        excludes = config.pop("excludes", None)
         plugin_config = PluginConfig(_project=project, **config)
-        if excludes:
+        if excludes is not None:
             plugin_config.excludes = excludes
         return plugin_config
 
@@ -281,7 +317,7 @@ class PluginConfig:
 
         if self.runner != CondaRunner.CONDA and cmd == "search":
             _command.insert(1, "repoquery")
-        if cmd in ("install", "remove", "create"):
+        if cmd in ("install", "remove", "create", "env remove"):
             _command.append("-y")
         if cmd in ("install", "create") or (cmd == "search" and self.runner == CondaRunner.MICROMAMBA):
             _command.append("--strict-channel-priority")

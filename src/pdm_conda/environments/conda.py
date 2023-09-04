@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import sysconfig
 import uuid
+from collections import ChainMap
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
@@ -51,9 +52,14 @@ class CondaEnvironment(PythonEnvironment):
         Get the working set based on local packages directory, include Conda managed packages.
         """
         working_set = super().get_working_set()
-        working_set._dist_map = conda_list(self.project) | {
-            normalize_name(pypi_to_conda(dist.metadata["Name"])): dist for dist in working_set._dist_map.values()
-        }
+        if self.project.conda_config.is_initialized:
+            dist_map = conda_list(self.project) | {
+                normalize_name(pypi_to_conda(dist.metadata["Name"])): dist
+                for dist in getattr(working_set, "_dist_map").values()
+            }
+            setattr(working_set, "_dist_map", dist_map)
+            shared_map = getattr(working_set, "_shared_map", {})
+            setattr(working_set, "_iter_map", ChainMap(dist_map, shared_map))
         return working_set
 
     @property

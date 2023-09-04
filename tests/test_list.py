@@ -1,6 +1,7 @@
 import pytest
 
 
+@pytest.mark.usefixtures("fake_python")
 class TestList:
     @pytest.mark.parametrize("runner", ["micromamba", "conda"])
     def test_list(self, pdm, project, conda, conda_info, runner, mock_conda_mapping, installed_packages, working_set):
@@ -23,8 +24,7 @@ class TestList:
         for p in conda_info:
             if p["name"] not in [ip["name"] for ip in installed_packages]:
                 installed_packages.append(p)
-        result = pdm(["list"], obj=project)
-        assert result.exception is None
+        result = pdm(["list"], obj=project, strict=True)
 
         for p in conda_info:
             assert p["name"] in result.stdout

@@ -35,6 +35,7 @@ PREFERRED_VERSIONS = dict(python=PYTHON_PACKAGE)
 _python_dep = f"python >={PYTHON_VERSION}"
 _packages = [
     generate_package_info("python-only-dep", "1.0"),
+    generate_package_info("pip", "1.0"),
     generate_package_info("openssl", "1.1.1b"),
     generate_package_info("lib2", "1.0.0g"),
     generate_package_info("lib", "1.0", ["lib2 ==1.0.0g", "openssl >=1.1.1a,<1.1.1c"]),
@@ -182,6 +183,8 @@ def mock_conda(mocker: MockerFixture, conda_info: dict | list, num_missing_info_
             for name in (arg for arg in cmd[2:] if not arg.startswith("-")):
                 installed_packages.pop(installed_packages.index(PREFERRED_VERSIONS[name]))
             return {"message": "ok"}
+        elif subcommand == "env" and cmd[2] == "list":
+            return {"envs": conda_info}
         elif subcommand == "list":
             res = [deepcopy(p) for p in installed_packages]
             if runner in ("conda", "mamba"):
@@ -255,6 +258,7 @@ def mock_conda(mocker: MockerFixture, conda_info: dict | list, num_missing_info_
         else:
             return {"message": "ok"}
 
+    mocker.patch("pdm_conda.conda.which")
     yield mocker.patch("pdm_conda.conda.run_conda", side_effect=_mock)
 
 
@@ -372,3 +376,31 @@ def mocked_responses():
 def mock_conda_mapping(mocker: MockerFixture, mocked_responses, conda_mapping):
     mocker.patch("pdm_conda.mapping.get_mapping_fixes", return_value={})
     yield mocker.patch("pdm_conda.mapping.get_pypi_mapping", return_value=conda_mapping)
+
+
+@pytest.fixture
+def interpreter_path():
+    return None
+
+
+@pytest.fixture(name="fake_python")
+def mock_python(mocker: MockerFixture, interpreter_path):
+    from findpython import PythonVersion
+    from packaging.version import Version
+    from pdm.environments import BaseEnvironment
+
+    mocker.patch.object(PythonVersion, "_get_version", return_value=Version("3.10.12"))
+    mocker.patch.object(PythonVersion, "_get_architecture", return_value="aarch64")
+    mocker.patch.object(
+        PythonVersion,
+        "_get_interpreter",
+        return_value=interpreter_path or "/opt/conda/envs/app/bin/python",
+    )
+    mocker.patch.object(BaseEnvironment, "_patch_target_python")
+
+
+@pytest.fixture
+def temp_working_path(request, monkeypatch):
+    with TemporaryDirectory() as td:
+        monkeypatch.chdir(td)
+        yield

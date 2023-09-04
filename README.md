@@ -51,6 +51,9 @@ This plugin adds capabilities to the default PDM commands.
 
 The following commands were tested and work:
 
+* `pdm init`:
+    * To list/use Conda managed python you must specify the Conda runner with `-cr` or `--runner`.
+    * You also can specify a default Conda channel with `-c` or `--channel`.
 * `pdm lock`
 * `pdm install`
 * `pdm add`:
@@ -63,6 +66,12 @@ The following commands were tested and work:
 * `pdm update`
 * `pdm list`
 * `pdm info`
+* `pdm venv`:
+    * `create`:
+        * To list/use Conda managed python you must specify the Conda runner with `-w` or `--with`.
+        * You can completely override the Conda environment name with `-cn` or `--conda-name`, the resulting environment
+          won't follow PDM environment naming conventions.
+    * `list`
 
 ### How it works
 
@@ -79,25 +88,23 @@ solver is invoked only once.
 In order to use Conda to install packages some settings were overriden:
 
 * `python.use_venv` if conda settings detected in `pyproject.toml` this setting is set to `True`.
+* `python.in_project` if conda settings detected in `pyproject.toml` and this setting was not previously set then is set
+  to `False`.
 * `python.use_pyenv` if conda settings detected in `pyproject.toml` this setting is set to `False`.
 * `venv.backend` if conda settings detected in `pyproject.toml` this setting is set to `conda.runner`.
-* `venv.location` if conda settings detected in `pyproject.toml` and `VIRTUAL_ENV` or `CONDA_PREFIX` environment
-  variables are set then this setting is set to the value of the environment variable.
+* `venv.location` if conda settings detected in `pyproject.toml`, `VIRTUAL_ENV` or `CONDA_PREFIX` environment
+  variables are set and this setting was not previously set then is set to the value of the environment variable.
 * `install.parallel` if some Conda managed packages are to be uninstalled or updated this option is disabled
   momentarily.
 
 Some environment variables were overridden too:
 
-* `PDM_IGNORE_SAVED_PYTHON` if conda settings detected in `pyproject.toml` and `VIRTUAL_ENV` or `CONDA_PREFIX`
-  environment
-  variables are set then this variable is set to `True`.
 * `PDM_IGNORE_ACTIVE_VENV` if conda settings detected in `pyproject.toml` and `VIRTUAL_ENV` or `CONDA_PREFIX`
-  environment
-  variables are set then this variable is set to `False`.
+  environment variables are set then this variable is set to `False`.
 
 Also, some commands were changed:
 
-* Flag `--no-cross-platform` for `pdm lock` is always forced as Conda is don't produce cross-platform locks.
+* Flag `--no-cross-platform` for `pdm lock` is always forced as Conda doesn't produce cross-platform locks.
 * Always store static URLs in lockfile for Conda managed packages.
 
 ## Development

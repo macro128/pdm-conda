@@ -107,10 +107,6 @@ class TestAddRemove:
                 cmd_order.append("create")
             else:
                 num_searches = len({p["name"] for p in PYTHON_REQUIREMENTS})
-                if runner == "conda":
-                    num_searches += 1
-                elif runner == "mamba":
-                    num_searches += 2
                 cmd_order += ["search" if runner == "conda" else "repoquery"] * num_searches
             cmd_order += ["remove"] * (1 if batch_commands else len(packages_to_remove))
         assert conda.call_count == len(cmd_order)

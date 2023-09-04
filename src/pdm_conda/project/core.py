@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from pathlib import Path
     from typing import Iterable
 
+    from findpython import Finder
     from pdm.core import Core
     from pdm.environments import BaseEnvironment
     from pdm.models.repositories import LockedRepository
@@ -191,6 +192,9 @@ class CondaProject(Project):
         super().add_dependencies(requirements, to_group, dev, show_message)
 
     def get_environment(self) -> BaseEnvironment:
+        if not self.conda_config.is_initialized:
+            return super().get_environment()
+
         if not self.config["python.use_venv"]:
             raise ProjectError("python.use_venv is required to use Conda.")
         if get_venv_like_prefix(self.python.executable) is None:
@@ -227,3 +231,11 @@ class CondaProject(Project):
             )
             args = [provider.preferred_pins, provider.tracked_names] + args
         return provider_class(*args)
+
+    def _get_python_finder(self) -> Finder:
+        finder = super()._get_python_finder()
+        from pdm_conda.cli.commands.venv.utils import CondaProvider
+
+        if self.conda_config.is_initialized:
+            finder.add_provider(CondaProvider(self), 0)
+        return finder
