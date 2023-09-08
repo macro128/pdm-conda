@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.1] - 07/09/2023
+
+### Fixed
+
+* Exclude packages defined with extras if base requirement in `conda.excludes`.
+
 ## [0.12.0] - 03/09/2023
 
 ### Added

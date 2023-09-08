@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, cast
 
 from pdm import termui
 from pdm.models.repositories import BaseRepository, LockedRepository, PyPIRepository
+from pdm.models.requirements import strip_extras
 from pdm.models.specifiers import PySpecSet
 from pdm.resolver.python import PythonRequirement
 
@@ -53,7 +54,7 @@ class CondaRepository(BaseRepository):
         if not isinstance(self.environment, CondaEnvironment):
             return False
         conda_config = self.environment.project.conda_config
-        return requirement.identify() not in conda_config.excluded_identifiers and (
+        return strip_extras(requirement.identify())[0] not in conda_config.excluded_identifiers and (
             isinstance(requirement, (CondaRequirement, PythonRequirement))
             or (isinstance(requirement, NamedRequirement) and conda_config.as_default_manager)
         )
