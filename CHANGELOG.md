@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.2] - 10/09/2023
+
+### Fixed
+
+* Ensure excluded packaged defined with extras in base requirements are correctly treated on resolution.
+
 ## [0.12.1] - 07/09/2023
 
 ### Fixed

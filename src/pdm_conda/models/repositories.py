@@ -6,9 +6,7 @@ from typing import TYPE_CHECKING, cast
 
 from pdm import termui
 from pdm.models.repositories import BaseRepository, LockedRepository, PyPIRepository
-from pdm.models.requirements import strip_extras
 from pdm.models.specifiers import PySpecSet
-from pdm.resolver.python import PythonRequirement
 
 from pdm_conda.conda import (
     CondaSearchError,
@@ -18,11 +16,7 @@ from pdm_conda.conda import (
 )
 from pdm_conda.environments import CondaEnvironment
 from pdm_conda.models.candidates import CondaCandidate
-from pdm_conda.models.requirements import (
-    CondaRequirement,
-    NamedRequirement,
-    as_conda_requirement,
-)
+from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement
 
 if TYPE_CHECKING:
     from typing import Any, Iterable, Mapping
@@ -53,11 +47,9 @@ class CondaRepository(BaseRepository):
         """
         if not isinstance(self.environment, CondaEnvironment):
             return False
-        conda_config = self.environment.project.conda_config
-        return strip_extras(requirement.identify())[0] not in conda_config.excluded_identifiers and (
-            isinstance(requirement, (CondaRequirement, PythonRequirement))
-            or (isinstance(requirement, NamedRequirement) and conda_config.as_default_manager)
-        )
+        from pdm_conda.models.requirements import is_conda_managed as _is_conda_managed
+
+        return _is_conda_managed(requirement, self.environment.project.conda_config)
 
     def update_conda_resolution(
         self,
@@ -156,6 +148,8 @@ class PyPICondaRepository(PyPIRepository, CondaRepository):
                 requirement.version_mapping |= can.req.version_mapping
                 can.req = requirement
         else:
+            if isinstance(requirement, CondaRequirement):
+                requirement = requirement.as_named_requirement()
             candidates = super()._find_candidates(requirement)
         return candidates
 
