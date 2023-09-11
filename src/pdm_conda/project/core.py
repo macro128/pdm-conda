@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, cast
 
 from pdm.exceptions import ProjectError
 from pdm.project import Project
+from pdm.project.lockfile import Lockfile
 from pdm.utils import get_venv_like_prefix
 from tomlkit.items import Array
 
@@ -91,6 +92,18 @@ class CondaProject(Project):
     @cached_property
     def pyproject(self) -> PyProject:
         return PyProject(self.root / self.PYPROJECT_FILENAME, ui=self.core.ui)
+
+    @property
+    def lockfile(self) -> Lockfile:
+        if self._lockfile is None:
+            self.set_lockfile(self.root / self.LOCKFILE_FILENAME)
+        return self._lockfile
+
+    def set_lockfile(self, path: str | Path) -> None:
+        self._lockfile = Lockfile(path, ui=self.core.ui)
+        # conda don't produce cross-platform locks
+        if self.conda_config.is_initialized and not self._lockfile.empty():
+            self._lockfile._data.setdefault("metadata", {})["cross_platform"] = False
 
     def _get_conda_info(self):
         from pdm_conda.conda import conda_info
