@@ -100,6 +100,7 @@ class TestLock:
 
         lockfile = project.lockfile
         assert set(lockfile.groups) == {"default", group}
+        assert not lockfile.cross_platform
         packages = lockfile["package"]
         num_extras = 0
         for p in packages:
@@ -194,6 +195,76 @@ class TestLock:
             False,
             refresh=True,
         )
+
+
+class TestGroupsLock:
+    def test_lock_prod_dev(
+        self,
+        pdm,
+        project,
+        conda,
+        conda_info,
+        mock_conda_mapping,
+    ):
+        from pdm_conda.models.requirements import parse_requirement
+
+        python_dependencies = {c["name"] for c in PYTHON_REQUIREMENTS}
+        conda_packages = [c for c in conda_info if c["name"] not in python_dependencies]
+        project.add_dependencies(
+            {conda_packages[0]["name"]: parse_requirement(conda_packages[0]["name"])},
+            to_group="dev",
+            dev=True,
+            show_message=False,
+        )
+        project.conda_config.as_default_manager = True
+        project.conda_config.runner = True
+
+        cmd = ["lock", "-vv", "-G", ":all"]
+        pdm(cmd + ["--dev"], obj=project, strict=True)
+
+        dev_lock = set(project.lockfile.groups)
+        assert not project.lockfile.cross_platform
+
+        pdm(cmd + ["--prod"], obj=project, strict=True)
+
+        prod_lock = set(project.lockfile.groups)
+        dev_lock.remove("dev")
+        assert dev_lock == prod_lock
+        assert not project.lockfile.cross_platform
+
+    @pytest.mark.parametrize("use_default", [True, False])
+    @pytest.mark.parametrize("use_dev", [True, False])
+    def test_equal_groups_resolution(self, pdm, project, use_default, use_dev, mocker: MockerFixture):
+        from pdm_conda.models.requirements import parse_requirement
+
+        dev_groups = {f"group_{i}": [f"dep_{i}"] for i in range(3)}
+        optional_groups = {f"op_group_{i}": [f"dep_{i}"] for i in range(3)}
+
+        for resolution, is_dev in ((dev_groups, True), (optional_groups, False)):
+            for group, deps in resolution.items():
+                project.add_dependencies(
+                    {dep: parse_requirement(dep) for dep in deps},
+                    to_group=group,
+                    dev=is_dev,
+                    show_message=False,
+                )
+        resolutions = [
+            ({"default"} if use_default else set()) | (set(dev_groups) if use_dev else set()) | set(optional_groups),
+        ]
+
+        for initialized in (True, False):
+            mocker.patch.object(project.conda_config, "_initialized", initialized)
+
+            assert project.conda_config.is_initialized == initialized
+            handle = mocker.patch("pdm.cli.commands.lock.actions.do_lock")
+            cmd = ["lock", "-G", ":all"]
+            if not use_default:
+                cmd.append("--no-default")
+
+            pdm(cmd, obj=project, strict=True)
+            handle.assert_called_once()
+
+            resolutions.append(set(handle.call_args[1]["groups"]))
 
 
 class TestLockOverrides:

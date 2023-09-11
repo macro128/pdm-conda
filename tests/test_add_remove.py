@@ -5,6 +5,7 @@ import pytest
 from tests.conftest import CONDA_REQUIREMENTS, PREFERRED_VERSIONS, PYTHON_REQUIREMENTS
 
 
+@pytest.mark.usefixtures("fake_python")
 @pytest.mark.parametrize("runner", [None, "micromamba", "conda"])
 @pytest.mark.parametrize("group", ["default", "other"])
 @pytest.mark.usefixtures("working_set")
@@ -16,6 +17,7 @@ class TestAddRemove:
         [["'dep'"], ["'another-dep==1!0.1gg'"], ['"dep"', "another-dep"], ["'channel::dep'", "another-dep"]],
     )
     @pytest.mark.parametrize("channel", [None, "another_channel"])
+    @pytest.mark.parametrize("excludes", [[], ["excluded-dep1", "excluded-dep2"]])
     def test_add(
         self,
         pdm,
@@ -26,6 +28,7 @@ class TestAddRemove:
         runner,
         mock_conda_mapping,
         installed_packages,
+        excludes,
         group,
     ):
         """
@@ -38,16 +41,17 @@ class TestAddRemove:
         conf.runner = runner or self.default_runner
         conf.channels = []
         conf.batched_commands = True
-        conf.as_default_manager = True
-        command = ["add", "-vv", "--no-self", "--group", group]
+        command = ["add", "-vv", "--no-self", "--group", group, "--conda-as-default-manager"]
         for package in packages:
             command += ["--conda", package]
         if channel:
-            command += ["--channel", channel]
+            command += ["--channel" if runner == "conda" else "-c", channel]
         if runner:
             command += ["--runner", runner]
         else:
             runner = self.default_runner
+        if excludes:
+            command += ["-ce", ",".join(excludes)]
         pdm(command, obj=project, strict=True)
 
         project.pyproject.reload()
@@ -57,7 +61,10 @@ class TestAddRemove:
             channels.add(channel)
 
         assert channels.issubset(conf.channels)
+        assert set(conf.excludes) == set(excludes)
         assert conf.runner == runner
+        assert conf.as_default_manager
+        assert set(project.lockfile.groups) == {group, "default"}
         cmd_order = ["create", "info", "list", "install"]
         assert conda.call_count == len(cmd_order)
         for (cmd,), kwargs in conda.call_args_list:
@@ -86,7 +93,18 @@ class TestAddRemove:
         batch_commands,
         group,
     ):
-        self.test_add(pdm, project, conda, packages, None, runner, mock_conda_mapping, installed_packages, group)
+        self.test_add(
+            pdm,
+            project,
+            conda,
+            packages,
+            None,
+            runner,
+            mock_conda_mapping,
+            installed_packages,
+            group=group,
+            excludes=[],
+        )
         conda.reset_mock()
         project.conda_config.batched_commands = batch_commands
         pdm(["remove", "--no-self", "-vv", "--group", group] + packages, obj=project, strict=True)
