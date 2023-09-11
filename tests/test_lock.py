@@ -9,7 +9,7 @@ from tests.conftest import PREFERRED_VERSIONS, PYTHON_PACKAGE, PYTHON_REQUIREMEN
 @pytest.mark.parametrize("runner", ["conda", "micromamba"])
 @pytest.mark.parametrize("solver", ["conda", "libmamba"])
 @pytest.mark.parametrize("group", ["default", "dev", "other"])
-# @pytest.mark.usefixtures("fake_python")
+@pytest.mark.usefixtures("fake_python")
 class TestLock:
     @pytest.mark.parametrize(
         "add_conflict,as_default_manager,num_missing_info_on_create",
@@ -78,7 +78,7 @@ class TestLock:
             project.pyproject._data.update(
                 {
                     "project": {
-                        "dependencies": [name],
+                        "dependencies": [f"{name}[extra]"],
                         "requires-python": project.pyproject.metadata["requires-python"],
                     },
                 },
@@ -101,12 +101,15 @@ class TestLock:
         lockfile = project.lockfile
         assert set(lockfile.groups) == {"default", group}
         packages = lockfile["package"]
+        num_extras = 0
         for p in packages:
             name = p["name"]
             if add_conflict and conda_mapping.get(name, name) == (pkg := conda_packages[0])["name"]:
                 from pdm_conda.models.requirements import parse_conda_version
 
                 assert p["version"] == parse_conda_version(pkg["version"])
+                if "extras" in p:
+                    num_extras += 1
             else:
                 preferred_package = PREFERRED_VERSIONS[name]
                 version = overrides_versions.get(name, preferred_package["version"])
@@ -121,7 +124,8 @@ class TestLock:
                 assert "file" not in _hash
                 assert _hash["url"] == preferred_package["url"]
                 assert _hash["hash"] == f"md5:{preferred_package['md5']}"
-
+        if add_conflict:
+            assert num_extras > 0
         search_command = "search" if runner == "conda" else "repoquery"
         packages_to_search = {PYTHON_PACKAGE["name"], *requirements}
         cmd_order = (
@@ -130,7 +134,7 @@ class TestLock:
             + [
                 "info",
             ]
-            + [search_command] * (len(packages) if refresh else 0)
+            + [search_command] * ((len(packages) - num_extras - 1) if refresh else 0)
         )
 
         assert conda.call_count == len(cmd_order)
@@ -166,7 +170,7 @@ class TestLock:
             solver,
             pypi,
             group,
-            False,
+            True,
             conda_mapping,
             mock_conda_mapping,
             True,
@@ -182,7 +186,7 @@ class TestLock:
             solver,
             pypi,
             group,
-            False,
+            True,
             conda_mapping,
             mock_conda_mapping,
             True,
