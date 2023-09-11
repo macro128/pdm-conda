@@ -84,6 +84,7 @@ _CONFIG_MAP |= {
     "pypi-mapping.url": "mapping_url",
 }
 _CONFIG_MAP |= {v: k for k, v in _CONFIG_MAP.items()}
+_CONFIG_MAP["_excludes"] = "excludes"
 
 CONFIGS = [(f"conda.{name}", config) for name, config in CONFIGS]
 PDM_CONFIG = {
@@ -144,8 +145,8 @@ class PluginConfig:
         super().__setattr__(name, value)
         # if plugin config is set then maybe update pyproject settings
         if (
-            not name.startswith("_")
-            and (not isinstance(getattr(type(self), name, None), property) or name == "excludes")
+            ((not name.startswith("_")) or name == "_excludes")
+            and not isinstance(getattr(type(self), name, None), property)
             and not callable(getattr(self, name))
         ):
             name = f"conda.{_CONFIG_MAP[name]}"
