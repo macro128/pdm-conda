@@ -116,12 +116,15 @@ class CondaProject(Project):
             settings = _getter(settings, f"{name}-dependencies", dict(), set_defaults)
         return _getter(settings, group, [], set_defaults)
 
-    def iter_groups(self) -> Iterable[str]:
+    def iter_groups(self, dev: bool = True) -> Iterable[str]:
         groups = set(super().iter_groups())
         config = self.conda_config
-        for deps in (config.optional_dependencies, config.dev_dependencies):
-            if deps:
+        for is_dev, deps in ((False, config.optional_dependencies), (True, config.dev_dependencies)):
+            if deps and (dev or not is_dev):
                 groups.update(deps.keys())
+        if not dev:
+            for group in self.pyproject.settings.get("dev-dependencies", {}):
+                groups.remove(group)
         return groups
 
     def get_dependencies(self, group: str | None = None) -> dict[str, Requirement]:
