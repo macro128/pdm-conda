@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, cast
 
 from pdm.exceptions import ProjectError
 from pdm.project import Project
+from pdm.project.lockfile import Lockfile
 from pdm.utils import get_venv_like_prefix
 from tomlkit.items import Array
 
@@ -92,6 +93,18 @@ class CondaProject(Project):
     def pyproject(self) -> PyProject:
         return PyProject(self.root / self.PYPROJECT_FILENAME, ui=self.core.ui)
 
+    @property
+    def lockfile(self) -> Lockfile:
+        if self._lockfile is None:
+            self.set_lockfile(self.root / self.LOCKFILE_FILENAME)
+        return self._lockfile
+
+    def set_lockfile(self, path: str | Path) -> None:
+        self._lockfile = Lockfile(path, ui=self.core.ui)
+        # conda don't produce cross-platform locks
+        if self.conda_config.is_initialized and not self._lockfile.empty():
+            self._lockfile._data.setdefault("metadata", {})["cross_platform"] = False
+
     def _get_conda_info(self):
         from pdm_conda.conda import conda_info
 
@@ -116,12 +129,15 @@ class CondaProject(Project):
             settings = _getter(settings, f"{name}-dependencies", dict(), set_defaults)
         return _getter(settings, group, [], set_defaults)
 
-    def iter_groups(self) -> Iterable[str]:
+    def iter_groups(self, dev: bool = True) -> Iterable[str]:
         groups = set(super().iter_groups())
         config = self.conda_config
-        for deps in (config.optional_dependencies, config.dev_dependencies):
-            if deps:
+        for is_dev, deps in ((False, config.optional_dependencies), (True, config.dev_dependencies)):
+            if deps and (dev or not is_dev):
                 groups.update(deps.keys())
+        if not dev:
+            for group in self.pyproject.settings.get("dev-dependencies", {}):
+                groups.remove(group)
         return groups
 
     def get_dependencies(self, group: str | None = None) -> dict[str, Requirement]:

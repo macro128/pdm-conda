@@ -62,6 +62,8 @@ The following commands were tested and work:
     * You can specify per package Conda channel using conda notation `channel::package`.
     * You also can specify a default Conda channel with `-c` or `--channel`.
     * With flag `-r` or `--runner` you can specify the Conda runner to use.
+    * With flag `-ce` or `--conda-excludes` you can add PyPi packages to the excluded from Conda resolution.
+    * With flag `--conda-as-default-manager` you can set `conda.as-default-manager` to `True`.
 * `pdm remove`
 * `pdm update`
 * `pdm list`

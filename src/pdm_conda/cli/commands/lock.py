@@ -21,7 +21,7 @@ class Command(BaseCommand):
         if project.conda_config.is_initialized:
             # conda don't produce cross-platform locks
             options.cross_platform = False
-        if options.groups:
-            if ":all" in options.groups:
-                options.groups += list(project.iter_groups())
+            if options.groups:
+                if ":all" in options.groups:
+                    options.groups += list(project.iter_groups(dev=True if options.dev is None else options.dev))
         super().handle(project=project, options=options)

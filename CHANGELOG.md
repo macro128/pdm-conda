@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 11/09/2023
+
+### Added
+
+* `pdm add -ce` or `--conda-excludes` add PyPi packages to the excluded from Conda resolution.
+* `pdm add --conda-as-default-manager` sets Conda as default manager.
+
+### Fixed
+
+* Conda channels are correctly saved when added using `pdm add -c` command and Conda configuration was not initialized
+  before.
+* Don't include dev groups when invoking `pdm lock -G :all --prod`.
+* Ensure `cross_platform` is always false when using Conda.
+
 ## [0.12.2] - 10/09/2023
 
 ### Fixed
@@ -46,7 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-* If `conda.as-defualt-manager` is `true` then add requirements to `conda.dependencies` if they aren't python packages
+* If `conda.as-default-manager` is `true` then add requirements to `conda.dependencies` if they aren't python packages
   when using `pdm add` without `--conda` flag.
 
 ## [0.10.0] - 22/05/2023
