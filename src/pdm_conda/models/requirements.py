@@ -19,6 +19,8 @@ if TYPE_CHECKING:
     from pdm.models.candidates import Candidate
     from pdm.models.requirements import T
 
+    from pdm_conda.models.config import PluginConfig
+
 _conda_meta_req_re = re.compile(r"conda:([\w\-_/]+::)?(.+)$")
 _prev_spec = ",|<>!~="
 _specifier_re = re.compile(rf"(?<![{_prev_spec}])(=|==|~=|!=|<|>|<=|>=)([^{_prev_spec}\s]+)")
@@ -163,6 +165,21 @@ def as_conda_requirement(requirement: NamedRequirement | CondaRequirement) -> Co
         conda_req = requirement
 
     return conda_req
+
+
+def is_conda_managed(requirement: Requirement, conda_config: PluginConfig) -> bool:
+    """
+    True if requirement is conda requirement or (not excluded and named requirement
+    and conda as default manager or used by another conda requirement)
+    :param requirement: requirement to evaluate
+    :param conda_config: conda config
+    """
+    from pdm.resolver.python import PythonRequirement
+
+    return strip_extras(requirement.identify())[0] not in conda_config.excluded_identifiers and (
+        isinstance(requirement, (CondaRequirement, PythonRequirement))
+        or (isinstance(requirement, NamedRequirement) and conda_config.as_default_manager)
+    )
 
 
 def correct_specifier_star(match):
