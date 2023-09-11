@@ -148,6 +148,8 @@ class PyPICondaRepository(PyPIRepository, CondaRepository):
                 requirement.version_mapping |= can.req.version_mapping
                 can.req = requirement
         else:
+            if isinstance(requirement, CondaRequirement):
+                requirement = requirement.as_named_requirement()
             candidates = super()._find_candidates(requirement)
         return candidates
 

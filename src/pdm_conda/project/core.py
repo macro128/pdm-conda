@@ -12,6 +12,7 @@ from pdm_conda.models.config import PluginConfig
 from pdm_conda.models.requirements import (
     CondaRequirement,
     as_conda_requirement,
+    is_conda_managed,
     parse_requirement,
 )
 from pdm_conda.project.project_file import PyProject
@@ -154,11 +155,7 @@ class CondaProject(Project):
 
         if self.conda_config.as_default_manager:
             for k in list(result):
-                req = result[k]
-                if req.identify() not in self.conda_config.excluded_identifiers and not isinstance(
-                    req,
-                    CondaRequirement,
-                ):
+                if is_conda_managed(req := result[k], config):
                     result[k] = as_conda_requirement(req)
 
         return result
