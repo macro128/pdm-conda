@@ -6,7 +6,7 @@ groups = ["default", "dev"]
 cross_platform = true
 static_urls = false
 lock_version = "4.3"
-content_hash = "sha256:9ac2919d791097b69ae82a0f8ee6450c14879b024c781ffe712752f337957496"
+content_hash = "sha256:66a5e1cdf2aa4af33212f6a804ee2be8c9424d8d55ea1d907c08fa0239eb1cf0"
 
 [[package]]
 name = "blinker"
@@ -171,15 +171,15 @@ files = [
 
 [[package]]
 name = "findpython"
-version = "0.3.1"
+version = "0.4.0"
 requires_python = ">=3.7"
 summary = "A utility to find python versions on your system"
 dependencies = [
     "packaging>=20",
 ]
 files = [
-    {file = "findpython-0.3.1-py3-none-any.whl", hash = "sha256:b57a67fc95cc687bfcfa4944c730a5e368b8cbe20f84ad4cdbc9d6bfe128f50b"},
-    {file = "findpython-0.3.1.tar.gz", hash = "sha256:7621f8a9c199a70d219831cddaeb84ca7e83e20b8358172bff47871a18a5eda4"},
+    {file = "findpython-0.4.0-py3-none-any.whl", hash = "sha256:087148ac5935f9be458f36a05f3fa479efdf2c629f5d386c73ea481cfecff15e"},
+    {file = "findpython-0.4.0.tar.gz", hash = "sha256:18b14d115678da18ae92ee22d7001cc30915ea531053f77010ee05a39680f438"},
 ]
 
 [[package]]
@@ -266,14 +266,14 @@ files = [
 
 [[package]]
 name = "pdm"
-version = "2.9.1"
+version = "2.10.0"
 requires_python = ">=3.7"
 summary = "A modern Python package and dependency manager supporting the latest PEP standards"
 dependencies = [
     "blinker",
     "cachecontrol[filecache]>=0.13.0",
     "certifi",
-    "findpython<1.0.0a0,>=0.3.0",
+    "findpython<1.0.0a0,>=0.4.0",
     "installer<0.8,>=0.7",
     "packaging!=22.0,>=20.9",
     "platformdirs",
@@ -286,12 +286,12 @@ dependencies = [
     "tomli>=1.1.0; python_version < \"3.11\"",
     "tomlkit<1,>=0.11.1",
     "truststore; python_version >= \"3.10\"",
-    "unearth>=0.10.0",
+    "unearth>=0.12.1",
     "virtualenv>=20",
 ]
 files = [
-    {file = "pdm-2.9.1-py3-none-any.whl", hash = "sha256:7ac3b81eb299d64ce9598f047af3edbb911ed2363297954d8caebafd284cab8a"},
-    {file = "pdm-2.9.1.tar.gz", hash = "sha256:fc8014dd2ffb727179a8ec0243cfac9ed3a9dc45348be1d7f97d1f290ad60fcb"},
+    {file = "pdm-2.10.0-py3-none-any.whl", hash = "sha256:2486cb9e66d4a3e3723fd5a8178ebb285d50f8448ecc165e1a2e80124ff066a9"},
+    {file = "pdm-2.10.0.tar.gz", hash = "sha256:ce2249595af9f61b0926a0899632df49b1c711261e8056a4fae14b53f93d9193"},
 ]
 
 [[package]]
@@ -550,7 +550,7 @@ files = [
 
 [[package]]
 name = "unearth"
-version = "0.10.0"
+version = "0.12.1"
 requires_python = ">=3.7"
 summary = "A utility to fetch and download python packages"
 dependencies = [
@@ -558,8 +558,8 @@ dependencies = [
     "requests>=2.25",
 ]
 files = [
-    {file = "unearth-0.10.0-py3-none-any.whl", hash = "sha256:e8b36f6efd6b677a3ff86354675368a79e98ee8ba01aaa601858e2cc043bc51a"},
-    {file = "unearth-0.10.0.tar.gz", hash = "sha256:d5b152a5ab2aa3e5149a11cf7b3ba5c5d493176dca38f66ca8969dadd5a8f645"},
+    {file = "unearth-0.12.1-py3-none-any.whl", hash = "sha256:a5a5c51ca44965cbe3618116bd592bb0bbe3705af5fe14e5792660d904aad7c8"},
+    {file = "unearth-0.12.1.tar.gz", hash = "sha256:4caad941b60f51e50fdc109866234d407910aef77f1233aa1b6b5d168c7427ee"},
 ]
 
 [[package]]

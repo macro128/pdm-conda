@@ -32,8 +32,9 @@ class CondaBaseProvider(BaseProvider):
         repository: BaseRepository,
         allow_prereleases: bool | None = None,
         overrides: dict[str, str] | None = None,
+        direct_minimal_versions: bool = False,
     ) -> None:
-        super().__init__(repository, allow_prereleases, overrides)
+        super().__init__(repository, allow_prereleases, overrides, direct_minimal_versions)
         self._overrides_requirements: dict | None = None
 
     @property

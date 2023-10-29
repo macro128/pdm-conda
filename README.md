@@ -106,8 +106,9 @@ Some environment variables were overridden too:
 
 Also, some commands were changed:
 
-* Flag `--no-cross-platform` for `pdm lock` is always forced as Conda doesn't produce cross-platform locks.
-* Always store static URLs in lockfile for Conda managed packages.
+* Lock strategy `no_cross_platform` for `pdm lock` is always forced as Conda doesn't produce cross-platform locks.
+* Always use lock strategy `static_urls` for Conda managed packages, independently of the lock strategy used for
+  PyPi packages.
 
 ## Development
 

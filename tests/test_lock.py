@@ -1,6 +1,7 @@
 import itertools
 
 import pytest
+from pdm.project.lockfile import FLAG_CROSS_PLATFORM
 from pytest_mock import MockerFixture
 
 from tests.conftest import PREFERRED_VERSIONS, PYTHON_PACKAGE, PYTHON_REQUIREMENTS
@@ -100,7 +101,7 @@ class TestLock:
 
         lockfile = project.lockfile
         assert set(lockfile.groups) == {"default", group}
-        assert not lockfile.cross_platform
+        assert FLAG_CROSS_PLATFORM not in lockfile.strategy
         packages = lockfile["package"]
         num_extras = 0
         for p in packages:
@@ -223,14 +224,14 @@ class TestGroupsLock:
         pdm(cmd + ["--dev"], obj=project, strict=True)
 
         dev_lock = set(project.lockfile.groups)
-        assert not project.lockfile.cross_platform
+        assert FLAG_CROSS_PLATFORM not in project.lockfile.strategy
 
         pdm(cmd + ["--prod"], obj=project, strict=True)
 
         prod_lock = set(project.lockfile.groups)
         dev_lock.remove("dev")
         assert dev_lock == prod_lock
-        assert not project.lockfile.cross_platform
+        assert FLAG_CROSS_PLATFORM not in project.lockfile.strategy
 
     @pytest.mark.parametrize("use_default", [True, False])
     @pytest.mark.parametrize("use_dev", [True, False])
@@ -275,10 +276,10 @@ class TestLockOverrides:
 
         assert project.conda_config.is_initialized == initialized
         handle = mocker.patch("pdm_conda.cli.commands.lock.BaseCommand.handle")
-        cmd = ["lock"]
-        if not cross_platform:
-            cmd.append("--no-cross-platform")
+        cmd = ["lock", "-S", ("" if cross_platform else "no_") + "cross_platform"]
         pdm(cmd, obj=project, strict=True)
         handle.assert_called_once()
 
-        assert handle.call_args[1]["options"].cross_platform == (False if initialized else cross_platform)
+        strategy = handle.call_args[1]["options"].strategy_change
+        assert ("cross_platform" in strategy) == (cross_platform and not initialized)
+        assert ("no_cross_platform" in strategy) == (initialized or not cross_platform)

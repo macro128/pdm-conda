@@ -389,7 +389,7 @@ def mock_python(mocker: MockerFixture, interpreter_path):
     from packaging.version import Version
     from pdm.environments import BaseEnvironment
 
-    mocker.patch.object(PythonVersion, "_get_version", return_value=Version("3.10.12"))
+    mocker.patch.object(PythonVersion, "_get_version", return_value=Version(PYTHON_VERSION))
     mocker.patch.object(PythonVersion, "_get_architecture", return_value="aarch64")
     mocker.patch.object(
         PythonVersion,

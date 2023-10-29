@@ -137,7 +137,7 @@ class PyPICondaRepository(PyPIRepository, CondaRepository):
 
         return changed
 
-    def _find_candidates(self, requirement: Requirement) -> Iterable[Candidate]:
+    def _find_candidates(self, requirement: Requirement, minimal_version: bool) -> Iterable[Candidate]:
         if self.is_conda_managed(requirement):
             requirement = as_conda_requirement(requirement)
             candidates = self._conda_resolution.get(requirement.identify(), [])
@@ -150,7 +150,7 @@ class PyPICondaRepository(PyPIRepository, CondaRepository):
         else:
             if isinstance(requirement, CondaRequirement):
                 requirement = requirement.as_named_requirement()
-            candidates = super()._find_candidates(requirement)
+            candidates = super()._find_candidates(requirement, minimal_version)
         return candidates
 
 
@@ -164,7 +164,7 @@ class LockedCondaRepository(LockedRepository, CondaRepository):
                 conda_packages.append(package)
             else:
                 pypi_packages.append(package)
-        super()._read_lockfile({"package": pypi_packages, "metadata": lockfile.get("metadata", {})})
+        super()._read_lockfile({"package": pypi_packages, **{k: v for k, v in lockfile.items() if k != "package"}})
 
         for package in conda_packages:
             can = CondaCandidate.from_lock_package(package)

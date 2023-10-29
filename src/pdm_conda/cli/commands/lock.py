@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, cast
 
 from pdm.cli.commands.lock import Command as BaseCommand
+from pdm.project.lockfile import FLAG_CROSS_PLATFORM
 
 from pdm_conda.project import CondaProject
 
@@ -20,7 +21,11 @@ class Command(BaseCommand):
         project = cast(CondaProject, project)
         if project.conda_config.is_initialized:
             # conda don't produce cross-platform locks
-            options.cross_platform = False
+            options.strategy_change = [
+                s for s in (options.strategy_change or []) if not s.replace("-", "_").endswith(FLAG_CROSS_PLATFORM)
+            ] + [
+                f"no_{FLAG_CROSS_PLATFORM}",
+            ]
             if options.groups:
                 if ":all" in options.groups:
                     options.groups += list(project.iter_groups(dev=True if options.dev is None else options.dev))
