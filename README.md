@@ -104,10 +104,13 @@ Some environment variables were overridden too:
 * `PDM_IGNORE_ACTIVE_VENV` if conda settings detected in `pyproject.toml` and `VIRTUAL_ENV` or `CONDA_PREFIX`
   environment variables are set then this variable is set to `False`.
 
-Also, some commands were changed:
+#### Lock strategy
 
-* Flag `--no-cross-platform` for `pdm lock` is always forced as Conda doesn't produce cross-platform locks.
-* Always store static URLs in lockfile for Conda managed packages.
+* Lock strategy `no_cross_platform` for `pdm lock` is always forced as Conda doesn't produce cross-platform locks.
+* Lock strategy `static_urls` for Conda managed packages is always forced, independently of the lock strategy used for
+  PyPi packages.
+* Lock strategy `direct_minimal_versions` for Conda managed packages will partially work as Conda doesn't have an option
+  to force this mode on a resolution.
 
 ## Development
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import re
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
@@ -23,6 +24,7 @@ if TYPE_CHECKING:
     from typing import Any
 
     from pdm.models.candidates import FileHash
+    from pdm.models.reporter import BaseReporter
 
     from pdm_conda.models.requirements import Requirement
 
@@ -39,10 +41,9 @@ def parse_channel(channel_url: str) -> str:
     return channel
 
 
+@dataclasses.dataclass
 class CondaPreparedCandidate(PreparedCandidate):
-    def __init__(self, candidate: CondaCandidate, environment: BaseEnvironment) -> None:
-        super().__init__(candidate, environment)
-        self.candidate = cast(CondaCandidate, self.candidate)  # type: ignore[has-type]
+    candidate: CondaCandidate
 
     def get_dependencies_from_metadata(self) -> list[str]:
         """
@@ -138,7 +139,7 @@ class CondaCandidate(Candidate):
         result["version"] = self.conda_version
         return result
 
-    def prepare(self, environment: BaseEnvironment) -> CondaPreparedCandidate:
+    def prepare(self, environment: BaseEnvironment, reporter: BaseReporter | None = None) -> PreparedCandidate:
         """Prepare the candidate for installation."""
         if self._prepared is None:
             self._prepared = CondaPreparedCandidate(self, environment)

@@ -16,6 +16,7 @@ from pdm.exceptions import (
     RequirementError,
     UninstallError,
 )
+from pdm.models.finder import ReverseVersion
 from pdm.models.setup import Setup
 from pdm.termui import Verbosity
 
@@ -149,7 +150,11 @@ def _get_channel_sorter(platform: str, channels: tuple[str]) -> ChannelSorter:
     return ChannelSorter(platform, channels)
 
 
-def sort_candidates(project: CondaProject, packages: list[CondaCandidate]) -> Iterable[CondaCandidate]:
+def sort_candidates(
+    project: CondaProject,
+    packages: list[CondaCandidate],
+    minimal_version: bool,
+) -> Iterable[CondaCandidate]:
     """
     Sort candidates following mamba specification
     (https://mamba.readthedocs.io/en/latest/advanced_usage/package_resolution.html).
@@ -164,7 +169,7 @@ def sort_candidates(project: CondaProject, packages: list[CondaCandidate]) -> It
     def get_preference(candidate: CondaCandidate):
         return (
             not candidate.track_feature,
-            candidate.version,
+            ReverseVersion(candidate.version) if minimal_version else candidate.version,
             candidate.build_number,
             -channels_sorter.get_priority(candidate.channel or ""),
             candidate.timestamp,

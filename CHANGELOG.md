@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 29/10/2023
+
+### Added
+
+* Now compatible with `pdm>=v2.10.0`.
+
+### Changed
+
+* Use lock strategies instead of flags.
+
 ## [0.13.0] - 11/09/2023
 
 ### Added

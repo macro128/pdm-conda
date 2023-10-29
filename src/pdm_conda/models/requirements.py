@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import fnmatch
 import re
 from copy import copy
 from typing import TYPE_CHECKING
@@ -176,7 +177,8 @@ def is_conda_managed(requirement: Requirement, conda_config: PluginConfig) -> bo
     """
     from pdm.resolver.python import PythonRequirement
 
-    return strip_extras(requirement.identify())[0] not in conda_config.excluded_identifiers and (
+    identifier = strip_extras(requirement.identify())[0]
+    return all(not fnmatch.fnmatch(identifier, pattern) for pattern in conda_config.excluded_identifiers) and (
         isinstance(requirement, (CondaRequirement, PythonRequirement))
         or (isinstance(requirement, NamedRequirement) and conda_config.as_default_manager)
     )
