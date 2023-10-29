@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from pdm.core import Core
 
 logger = termui.logger
-__version__ = "0.13.0"
+__version__ = "0.14.0b1"
 
 
 def main(core: Core):
