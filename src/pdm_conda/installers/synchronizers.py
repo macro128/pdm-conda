@@ -57,7 +57,8 @@ class CondaSynchronizer(Synchronizer):
             for pks in (to_update, to_remove)
         )
         if self.parallel and (num_update + num_remove > 0):
-            self.environment.project.core.ui.echo("Deactivating parallel uninstall.")
+            if not self.dry_run:
+                self.environment.project.core.ui.echo("Deactivating parallel uninstall.")
             self.parallel = False
 
         if self.environment.project.conda_config.batched_commands:
