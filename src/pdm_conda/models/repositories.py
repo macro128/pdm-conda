@@ -142,7 +142,7 @@ class PyPICondaRepository(PyPIRepository, CondaRepository):
             requirement = as_conda_requirement(requirement)
             candidates = self._conda_resolution.get(requirement.identify(), [])
             candidates = [copy(c) for c in candidates if requirement.is_compatible(c)]
-            candidates = list(sort_candidates(self.environment.project, candidates))
+            candidates = list(sort_candidates(self.environment.project, candidates, minimal_version))
             for can in candidates:
                 requirement.is_python_package &= can.req.is_python_package
                 requirement.version_mapping |= can.req.version_mapping

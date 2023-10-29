@@ -17,6 +17,7 @@ class TestLock:
         [[True, True, 1], [True, True, 0], [False, True, 2], [False, False, 0]],
     )
     @pytest.mark.parametrize("overrides", [True, False])
+    @pytest.mark.parametrize("direct_minimal_versions", [True, False])
     def test_lock(
         self,
         pdm,
@@ -33,6 +34,7 @@ class TestLock:
         as_default_manager,
         num_missing_info_on_create,
         overrides,
+        direct_minimal_versions,
         refresh=False,
     ):
         """
@@ -97,6 +99,8 @@ class TestLock:
         cmd = ["lock", "-vv", "-G", ":all"]
         if refresh:
             cmd.append("--refresh")
+        if direct_minimal_versions:
+            cmd += ["-S", "direct_minimal_versions"]
         pdm(cmd, obj=project, strict=True)
 
         lockfile = project.lockfile
