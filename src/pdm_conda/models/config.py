@@ -305,7 +305,7 @@ class PluginConfig:
                 value = project.config[n]
                 if prop_name == "mapping_download_dir":
                     value = Path(value)
-                elif prop_name in ("as_default_manager", "batched_commands"):
+                elif prop_name in ("as_default_manager", "batched_commands", "custom_behavior"):
                     value = str(value).lower() in ("true", "1")
                 config[prop_name] = value
         config |= kwargs

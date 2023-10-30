@@ -13,6 +13,7 @@ class TestUpdate:
     @pytest.mark.parametrize("group", ["default", "other"])
     @pytest.mark.parametrize("dev", [True, False])
     @pytest.mark.parametrize("save_strategy", ["minimum", "compatible", "exact", None])
+    @pytest.mark.parametrize("custom_behavior", [True, False])
     def test_update_custom_behavior(
         self,
         pdm,
@@ -25,6 +26,7 @@ class TestUpdate:
         group,
         save_strategy,
         dev,
+        custom_behavior,
     ):
         """
         Test `update` command work as expected using custom behavior
@@ -36,7 +38,7 @@ class TestUpdate:
         conf.runner = runner or self.default_runner
         conf.channels = []
         conf.batched_commands = True
-        conf.custom_behavior = True
+        conf.custom_behavior = custom_behavior
         conf.as_default_manager = True
         command = ["add", "--no-self", "--group", group, "--save-minimum"]
         for package in packages:
@@ -58,7 +60,7 @@ class TestUpdate:
         for group in project.iter_groups():
             updated_requirements[group] = project.get_dependencies(group)
 
-        if not save_strategy:
+        if not save_strategy or not custom_behavior:
             assert requirements == updated_requirements
         else:
             candidates = project.locked_repository.all_candidates
