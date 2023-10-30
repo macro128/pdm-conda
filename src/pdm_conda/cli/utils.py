@@ -51,20 +51,21 @@ def wrap_format_lockfile(func):
         **kwargs,
     ) -> dict:
         res = func(project, mapping, fetched_dependencies, *args, **kwargs)
-        _mapping = {can.name: can for can in mapping.values()}
         # ensure no duplicated groups in metadata
         if groups := res.get("metadata", dict()).get("groups"):
             res["metadata"]["groups"] = list({group: None for group in groups}.keys())
+
+        assert len(res["package"]) == len(mapping)
         # fix conda packages
-        for package in res["package"]:
+        for package, (_, can) in zip(res["package"], sorted(mapping.items())):
             # only static-url allowed for conda packages
-            if isinstance(can := _mapping[package["name"]], CondaCandidate):
+            if isinstance(can, CondaCandidate):
                 package["files"] = [{"url": item["url"], "hash": item["hash"]} for item in can.hashes]
 
             # fix conda dependencies to include build string
             dependencies = []
             include_dependencies = False
-            for dep in fetched_dependencies.get((can.name, can.version), []):
+            for dep in fetched_dependencies.get(can.dep_key, []):
                 kwargs = {}
                 if isinstance(dep, CondaRequirement):
                     kwargs["with_build_string"] = True
