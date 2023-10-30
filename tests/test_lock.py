@@ -182,6 +182,7 @@ class TestLock:
             True,
             0,
             False,
+            direct_minimal_versions=False,
         )
         self.test_lock(
             pdm,
@@ -199,6 +200,7 @@ class TestLock:
             0,
             False,
             refresh=True,
+            direct_minimal_versions=False,
         )
 
 

@@ -227,6 +227,8 @@ def mock_conda(mocker: MockerFixture, conda_info: dict | list, num_missing_info_
 
             def _fetch_package(req, packages, fetch_info):
                 name = req.split(" ")[0].split(":")[-1].split("=")[0].split("<")[0].split(">")[0]
+                for comma in ("'", '"'):
+                    name = name.removeprefix(comma).removesuffix(comma)
                 if name not in packages and not name.startswith("__"):
                     packages.add(name)
                     pkg = PREFERRED_VERSIONS[name]
