@@ -83,15 +83,20 @@ class Command(BaseCommand):
             config.as_default_manager = True
 
         conda_packages = options.conda_packages
+        for i, p in enumerate(conda_packages):
+            if not p.startswith("conda:"):
+                conda_packages[i] = f"conda:{remove_quotes(p)}"
         if config.as_default_manager:
             conda_packages += options.packages
             options.packages = []
         for package in conda_packages:
             package_channel = None
             package = remove_quotes(package)
+            conda_package = package.startswith("conda:")
 
             if "::" in package:
                 package_channel, package = package.split("conda:", maxsplit=1)[-1].split("::", maxsplit=1)
+            _p = None
 
             try:
                 _p = parse_requirement(package)
@@ -99,10 +104,10 @@ class Command(BaseCommand):
                     _p = _p.as_named_requirement()
             except RequirementError:
                 # if requirement error it can have an unparsable version
-                _p = None
+                pass
 
             # if not named we can't use Conda
-            if _p is None or is_conda_managed(_p, config):
+            if conda_package or _p is None or is_conda_managed(_p, config):
                 if package.startswith("conda:"):
                     package = package[len("conda:") :]
                 if not package_channel and channel:

@@ -13,6 +13,7 @@ class TestPluginConfig:
             ("channels", None),
             ("excludes", ["another-dep-pip"]),
             ("batched-commands", True),
+            ("custom-behavior", True),
             ("batched-commands", False),
             ("dependencies", ["package"]),
             ("dev-dependencies", {"dev": ["package"]}),

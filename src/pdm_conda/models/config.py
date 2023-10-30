@@ -8,7 +8,8 @@ from functools import wraps
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from pdm.exceptions import ProjectError
+import tomlkit
+from pdm.exceptions import NoConfigError, ProjectError
 from pdm.project import Config, ConfigItem
 
 from pdm_conda import logger
@@ -76,6 +77,7 @@ CONFIGS = [
             env_var=MAPPING_URL_ENV_VAR,
         ),
     ),
+    ("custom-behavior", ConfigItem("Use pdm-conda custom behavior", False, env_var="PDM_CONDA_CUSTOM_BEHAVIOR")),
 ]
 
 _CONFIG_MAP = {name: name.replace("-", "_") for (name, _) in CONFIGS}
@@ -112,6 +114,7 @@ class PluginConfig:
     runner: str = CondaRunner.CONDA
     solver: str = CondaSolver.CONDA
     as_default_manager: bool = False
+    custom_behavior: bool = False
     batched_commands: bool = False
     installation_method: str = "hard-link"
     dependencies: list[str] = field(default_factory=list, repr=False)
@@ -157,7 +160,15 @@ class PluginConfig:
                 config = self._project.pyproject.settings
                 for p in name_path:
                     config = config.setdefault(p, dict())
-                config[name] = value
+
+                _value = value
+                if isinstance(value, list):
+                    _value = tomlkit.array()
+                    for v in value:
+                        _value.append(v)
+                    _value.multiline(len(value) > 1)
+
+                config[name] = _value
                 self.is_initialized |= self._project.pyproject.exists()
                 if (project_config := PDM_CONFIG.get(name, None)) is not None:
                     self._project.project_config[project_config] = value
@@ -283,6 +294,8 @@ class PluginConfig:
                 if isinstance(v, dict) and key in allowed_levels:
                     return flatten_config(v, allowed_levels, key, result)
                 else:
+                    if key not in _CONFIG_MAP:
+                        raise NoConfigError(key)
                     result[_CONFIG_MAP[key]] = v
             return result
 
@@ -292,7 +305,7 @@ class PluginConfig:
                 value = project.config[n]
                 if prop_name == "mapping_download_dir":
                     value = Path(value)
-                elif prop_name in ("as_default_manager", "batched_commands"):
+                elif prop_name in ("as_default_manager", "batched_commands", "custom_behavior"):
                     value = str(value).lower() in ("true", "1")
                 config[prop_name] = value
         config |= kwargs

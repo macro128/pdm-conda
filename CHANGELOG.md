@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.1] - 30/10/2023
+
+### Changed
+
+* Raise `NoConfigError` when specifies incorrect Conda related configs.
+* Add `conda.custom-behavior` config.
+
+### Fixed
+
+* Add PyPi mapping fixes.
+* Ensure `pdm.conda` arrays can be saved as multiline array.
+* Fix Conda dependencies not being treated correctly when using `--conda` option with `conda.as-default-manager` set to
+  `false`.
+* Fix lockfile formatting when `conda.as-default-manager` set to `false` and Conda dependencies are present.
+
 ## [0.14.0] - 29/10/2023
 
 ### Added
