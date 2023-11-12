@@ -82,6 +82,7 @@ multi_line_output = 3
 check = true
 remove-all-unused-imports = true
 remove-unused-variables = true
+in-place = true
 
 
 [tool.black]
