@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import re
+from copy import copy
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 from urllib.parse import urlparse
@@ -97,6 +98,16 @@ class CondaCandidate(Candidate):
         self.track_feature = track_feature
         self.conda_version = version
         self.version = parse_conda_version(version)
+
+    def copy_with(self, requirement: Requirement, merge_requirements: bool = False) -> Candidate:
+        can = copy(self)
+        if isinstance(requirement, CondaRequirement) and merge_requirements:
+            requirement.is_python_package &= can.req.is_python_package
+            requirement.version_mapping |= can.req.version_mapping
+        can.req = requirement
+        if can._prepared:
+            can._prepared.req = can.req
+        return can
 
     @property
     def req(self):
