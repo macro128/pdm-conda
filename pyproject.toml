@@ -80,9 +80,8 @@ multi_line_output = 3
 
 [tool.autoflake]
 check = true
-remove-all-unused-imports = true
-remove-unused-variables = true
-in-place = true
+remove_all_unused_imports = true
+remove_unused_variables = true
 
 
 [tool.black]
