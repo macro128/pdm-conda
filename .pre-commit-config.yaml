@@ -20,7 +20,8 @@ repos:
     rev: v2.2.1
     hooks:
     -   id: autoflake
-        args: ["--config", "pyproject.toml"]
+        additional_dependencies: [tomli]
+        args: ["--config", "pyproject.toml", "--in-place"]
 
   - repo: https://github.com/PyCQA/flake8
     rev: 6.1.0
