@@ -12,7 +12,10 @@ class PyProject(PyProjectBase):
         :param algo: hash algorithm name
         :return: pyproject.toml hash
         """
-        pdm_conda_data = self.settings.get("conda", {})
+        pdm_conda_data = self.settings.get("conda", None)
+        if pdm_conda_data is None:
+            return super().content_hash(algo)
+
         dump_data = {
             "sources": self.settings.get("source", []),
             "dependencies": self.metadata.get("dependencies", []),

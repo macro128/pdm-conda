@@ -12,9 +12,9 @@ conda = "pdm_conda:main"
 [project]
 name = "pdm-conda"
 description = "A PDM plugin to resolve/install/uninstall project dependencies with Conda"
-requires-python = "~=3.10.0"
+requires-python = ">=3.10,<3.13"
 authors = [
-    { name = "Marcos Pastorini" },
+    { name = "Marcos Pastorini" }
 ]
 keywords = ["pdm", "plugin", "conda"]
 readme = "README.md"
@@ -23,13 +23,14 @@ dynamic = ["version"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12"
 ]
 
 dependencies = [
-    "pdm~=2.10.0",
+    "pdm==2.10.1",
     "requests~=2.31.0",
-    "typing-extensions>=4.7.1",
+    "typing-extensions>=4.7.1"
 ]
 
 [tool.pdm.dev-dependencies]
@@ -38,7 +39,7 @@ dev = [
     "pytest-mock~=3.11.1",
     "pytest-cov~=4.1.0",
     "pytest-random-num~=1.0.13",
-    "responses~=0.23.3",
+    "responses~=0.23.3"
 ]
 
 [tool.pdm]
