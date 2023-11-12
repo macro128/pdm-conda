@@ -14,7 +14,7 @@ name = "pdm-conda"
 description = "A PDM plugin to resolve/install/uninstall project dependencies with Conda"
 requires-python = ">=3.10,<3.13"
 authors = [
-    { name = "Marcos Pastorini" },
+    { name = "Marcos Pastorini" }
 ]
 keywords = ["pdm", "plugin", "conda"]
 readme = "README.md"
@@ -24,13 +24,13 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.12"
 ]
 
 dependencies = [
     "pdm==2.10.1",
     "requests~=2.31.0",
-    "typing-extensions>=4.7.1",
+    "typing-extensions>=4.7.1"
 ]
 
 [tool.pdm.dev-dependencies]
@@ -39,12 +39,12 @@ dev = [
     "pytest-mock~=3.11.1",
     "pytest-cov~=4.1.0",
     "pytest-random-num~=1.0.13",
-    "responses~=0.23.3",
+    "responses~=0.23.3"
 ]
 
 [tool.pdm]
 plugins = [
-    "pdm-backend",
+    "pdm-backend"
 ]
 
 [tool.pdm.version]
@@ -98,7 +98,7 @@ extend-ignore = [
     # Missing docstring in __init__
     "D107",
     # Found `__init__.py` module with logic
-    "WPS412", "WPS326",
+    "WPS412", "WPS326"
 ]
 
 per-file-ignores = [
@@ -123,12 +123,12 @@ per-file-ignores = [
     # Missing parameter(s) in Docstring
     "DAR101",
     # Found too many arguments
-    "WPS211",
+    "WPS211"
 ]
 
 exclude = [
     "./.git",
     "./venv",
     "migrations",
-    "./var",
+    "./var"
 ]
