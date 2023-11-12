@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.2] - 11/11/2023
+
+### Changed
+
+* Now compatible with `pdm==v2.10.1` and `python>=3.10,<3.13`.
+
+### Fixed
+
+* `pdm lock --check` don't return error if Conda configuration is not found.
+
 ## [0.14.1] - 30/10/2023
 
 ### Changed
