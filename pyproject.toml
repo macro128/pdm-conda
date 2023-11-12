@@ -44,7 +44,7 @@ dev = [
 
 [tool.pdm]
 plugins = [
-    "pdm-backend"
+    "pdm-backend",
 ]
 
 [tool.pdm.version]
@@ -78,12 +78,6 @@ combine_star = true
 remove_redundant_aliases = true
 multi_line_output = 3
 
-[tool.autoflake]
-check = true
-remove_all_unused_imports = true
-remove_unused_variables = true
-
-
 [tool.black]
 line-length = 120
 
@@ -98,7 +92,7 @@ extend-ignore = [
     # Missing docstring in __init__
     "D107",
     # Found `__init__.py` module with logic
-    "WPS412", "WPS326"
+    "WPS412", "WPS326",
 ]
 
 per-file-ignores = [
@@ -123,12 +117,12 @@ per-file-ignores = [
     # Missing parameter(s) in Docstring
     "DAR101",
     # Found too many arguments
-    "WPS211"
+    "WPS211",
 ]
 
 exclude = [
     "./.git",
     "./venv",
     "migrations",
-    "./var"
+    "./var",
 ]

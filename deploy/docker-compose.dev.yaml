@@ -7,7 +7,6 @@ services:
       args:
         env: "dev"
         dependencies: ":all"
-        lockfile: "pdm.dev.lock"
     image: pdm-conda:latest-dev
     platform: linux/arm64
     volumes:
