@@ -52,6 +52,7 @@ class Command(BaseCommand):
 
         super().handle(project, options)
         if runner:
-            for key, value in overriden.items():
-                setattr(config, key, value)
+            with config.force_set_project_config():
+                for key, value in overriden.items():
+                    setattr(config, key, value)
             project.pyproject.write(show_message=False)

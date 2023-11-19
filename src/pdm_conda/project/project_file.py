@@ -12,8 +12,19 @@ class PyProject(PyProjectBase):
         :param algo: hash algorithm name
         :return: pyproject.toml hash
         """
-        pdm_conda_data = self.settings.get("conda", None)
-        if pdm_conda_data is None:
+        pdm_conda_data = self.settings.get("conda", dict())
+        pdm_conda_dump_data = dict()
+        for hash_config in (
+            "channels",
+            "as-default-manager",
+            "excludes",
+            "dependencies",
+            "dev-dependencies",
+            "optional-dependencies",
+        ):
+            if hash_config in pdm_conda_data:
+                pdm_conda_dump_data[hash_config] = pdm_conda_data[hash_config]
+        if not pdm_conda_dump_data:
             return super().content_hash(algo)
 
         dump_data = {
@@ -22,14 +33,7 @@ class PyProject(PyProjectBase):
             "dev-dependencies": self.settings.get("dev-dependencies", {}),
             "optional-dependencies": self.metadata.get("optional-dependencies", {}),
             "requires-python": self.metadata.get("requires-python", ""),
-            "pdm-conda": {
-                "channels": pdm_conda_data.get("channels", []),
-                "as-default-manager": pdm_conda_data.get("as-default-manager", False),
-                "excludes": pdm_conda_data.get("excludes", []),
-                "dependencies": pdm_conda_data.get("dependencies", []),
-                "dev-dependencies": pdm_conda_data.get("dev-dependencies", {}),
-                "optional-dependencies": pdm_conda_data.get("optional-dependencies", {}),
-            },
+            "pdm-conda": pdm_conda_dump_data,
             "overrides": self.resolution_overrides,
         }
         pyproject_content = json.dumps(dump_data, sort_keys=True)
