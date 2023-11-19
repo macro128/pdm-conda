@@ -2,7 +2,7 @@ import pytest
 from pytest_mock import MockFixture
 
 
-@pytest.mark.usefixtures("temp_working_path")
+@pytest.mark.usefixtures("temp_working_path", "fake_python")
 class TestInit:
     @pytest.mark.parametrize("runner", ["micromamba", "conda", "mamba"])
     @pytest.mark.parametrize("channel", ["conda-forge", None])
