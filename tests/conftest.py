@@ -108,7 +108,14 @@ def core_with_plugin(core, monkeypatch) -> Core:
 
     Config._config_map["python.use_venv"].default = True
     monkeypatch.setenv("_CONDA_PREFIX", os.getenv("CONDA_PREFIX"))
-    for conf in ["INSTALLATION_METHOD", "RUNNER", "SOLVER", "AS_DEFAULT_MANAGER", "BATCHED_COMMANDS"]:
+    for conf in [
+        "INSTALLATION_METHOD",
+        "RUNNER",
+        "SOLVER",
+        "AS_DEFAULT_MANAGER",
+        "BATCHED_COMMANDS",
+        "CUSTOM_BEHAVIOR",
+    ]:
         monkeypatch.delenv(f"PDM_CONDA_{conf}", raising=False)
     main(core)
     yield core
