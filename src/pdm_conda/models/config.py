@@ -230,6 +230,10 @@ class PluginConfig:
         return self._excluded_identifiers
 
     @property
+    def project_name(self) -> str | None:
+        return self._project.name
+
+    @property
     def excludes(self) -> list[str]:
         return self._excludes
 
