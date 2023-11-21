@@ -15,8 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Stop trying to recognize the project name as a Conda package name.
-- Don't write configs with default values to `pyproject.toml`.
+* Stop trying to recognize the project name as a Conda package name.
+* Don't write configs with default values to `pyproject.toml`.
 
 ## [0.14.2] - 11/11/2023
 
