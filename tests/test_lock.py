@@ -153,6 +153,7 @@ class TestLock:
                     assert any(True for arg in cmd if req in arg)
 
         assert not cmd_order
+        return project.lockfile
 
     def test_lock_refresh(
         self,
@@ -167,7 +168,7 @@ class TestLock:
         conda_mapping,
         mock_conda_mapping,
     ):
-        self.test_lock(
+        old_lockfile = self.test_lock(
             pdm,
             project,
             conda,
@@ -184,7 +185,7 @@ class TestLock:
             False,
             direct_minimal_versions=False,
         )
-        self.test_lock(
+        lockfile = self.test_lock(
             pdm,
             project,
             conda,
@@ -202,6 +203,7 @@ class TestLock:
             refresh=True,
             direct_minimal_versions=False,
         )
+        assert old_lockfile == lockfile
 
 
 class TestGroupsLock:
