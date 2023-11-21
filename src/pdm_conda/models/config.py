@@ -8,8 +8,8 @@ from functools import wraps
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import tomlkit
 from pdm.exceptions import NoConfigError, ProjectError
+from pdm.formats.base import make_array
 from pdm.project import Config, ConfigItem
 
 from pdm_conda import logger
@@ -40,7 +40,7 @@ class CondaSolver(str, Enum):
 CONFIGS = [
     ("runner", ConfigItem("Conda runner executable", CondaRunner.CONDA.value, env_var="PDM_CONDA_RUNNER")),
     ("solver", ConfigItem("Solver to use for Conda resolution", CondaSolver.CONDA.value, env_var="PDM_CONDA_SOLVER")),
-    ("channels", ConfigItem("Conda channels to use")),
+    ("channels", ConfigItem("Conda channels to use", [])),
     (
         "as-default-manager",
         ConfigItem("Use Conda to install all possible requirements", False, env_var="PDM_CONDA_AS_DEFAULT_MANAGER"),
@@ -57,10 +57,10 @@ CONFIGS = [
             env_var="PDM_CONDA_INSTALLATION_METHOD",
         ),
     ),
-    ("dependencies", ConfigItem("Dependencies to install with Conda")),
-    ("optional-dependencies", ConfigItem("Optional dependencies to install with Conda")),
-    ("dev-dependencies", ConfigItem("Development dependencies to install with Conda")),
-    ("excludes", ConfigItem("Excluded dependencies from Conda")),
+    ("dependencies", ConfigItem("Dependencies to install with Conda", [])),
+    ("optional-dependencies", ConfigItem("Optional dependencies to install with Conda", dict())),
+    ("dev-dependencies", ConfigItem("Development dependencies to install with Conda", dict())),
+    ("excludes", ConfigItem("Excluded dependencies from Conda", [])),
     (
         "pypi-mapping.download-dir",
         ConfigItem(
@@ -107,6 +107,7 @@ class PluginConfig:
     _project: Project = field(repr=False, default=None)
     _initialized: bool = field(repr=False, default=False, compare=False)
     _set_project_config: bool = field(repr=False, default=False, compare=False, init=False)
+    _force_set_project_config: bool = field(repr=False, default=False, compare=False, init=False)
     _excludes: list[str] = field(repr=False, compare=False, init=False, default_factory=list)
     _excluded_identifiers: set[str] | None = field(default=None, repr=False, init=False)
 
@@ -158,20 +159,31 @@ class PluginConfig:
                 name_path = name.split(".")
                 name = name_path.pop(-1)
                 config = self._project.pyproject.settings
+                should_delete = value == config_item.default and not self._force_set_project_config
                 for p in name_path:
+                    if should_delete and p not in config:
+                        break
                     config = config.setdefault(p, dict())
 
-                _value = value
-                if isinstance(value, list):
-                    _value = tomlkit.array()
-                    for v in value:
-                        _value.append(v)
-                    _value.multiline(len(value) > 1)
+                if should_delete:
+                    # if value is default and was not setted before then delete it
+                    if config.get(name, value) != value:
+                        config.pop(name)
+                    else:
+                        should_delete = False
+                else:
+                    _value = value
+                    if isinstance(value, list):
+                        _value = make_array(value, multiline=len(value) > 1)
 
-                config[name] = _value
+                    config[name] = _value
                 self.is_initialized |= self._project.pyproject.exists()
-                if (project_config := PDM_CONFIG.get(name, None)) is not None:
-                    self._project.project_config[project_config] = value
+                if (project_config_name := PDM_CONFIG.get(name, None)) is not None:
+                    project_config = self._project.project_config
+                    if should_delete:
+                        project_config.pop(project_config_name, None)
+                    else:
+                        project_config[project_config_name] = value
             if config_item.env_var:
                 os.environ.setdefault(config_item.env_var, str(value))
 
@@ -204,7 +216,7 @@ class PluginConfig:
         Context manager that temporarily updates configs without updating pyproject settings
         """
         configs = ["_set_project_config"] + list(kwargs)
-        kwargs["_set_project_config"] = False
+        kwargs["_set_project_config"] = False or kwargs.get("_force_set_project_config", False)
         old_values = {}
         for name in configs:
             old_values[name] = getattr(self, name)
@@ -223,11 +235,23 @@ class PluginConfig:
         with self.with_config():
             yield
 
+    @contextmanager
+    def force_set_project_config(self):
+        """
+        Context manager that forces setting pyproject settings, even default values
+        """
+        with self.with_config(_force_set_project_config=True):
+            yield
+
     @property
     def excluded_identifiers(self) -> set[str]:
         if self._excluded_identifiers is None:
             self._excluded_identifiers = {parse_requirement(name).identify() for name in self._excludes}
         return self._excluded_identifiers
+
+    @property
+    def project_name(self) -> str | None:
+        return self._project.name
 
     @property
     def excludes(self) -> list[str]:

@@ -178,9 +178,13 @@ def is_conda_managed(requirement: Requirement, conda_config: PluginConfig) -> bo
     from pdm.resolver.python import PythonRequirement
 
     identifier = strip_extras(requirement.identify())[0]
-    return all(not fnmatch.fnmatch(identifier, pattern) for pattern in conda_config.excluded_identifiers) and (
-        isinstance(requirement, (CondaRequirement, PythonRequirement))
-        or (isinstance(requirement, NamedRequirement) and conda_config.as_default_manager)
+    return (
+        identifier != conda_config.project_name
+        and all(not fnmatch.fnmatch(identifier, pattern) for pattern in conda_config.excluded_identifiers)
+        and (
+            isinstance(requirement, (CondaRequirement, PythonRequirement))
+            or (isinstance(requirement, NamedRequirement) and conda_config.as_default_manager)
+        )
     )
 
 

@@ -40,7 +40,9 @@ class TestUpdate:
         conf.batched_commands = True
         conf.custom_behavior = custom_behavior
         conf.as_default_manager = True
-        command = ["add", "--no-self", "--group", group, "--save-minimum"]
+        command = ["add", "--no-self", "--group", group]
+        if save_strategy:
+            command.append(f"--save-{save_strategy}")
         for package in packages:
             command += ["--conda", package]
         pdm(command, obj=project, strict=True)
@@ -52,7 +54,8 @@ class TestUpdate:
 
         command = ["update", "--no-sync", "-G", ":all"]
         if save_strategy:
-            command += [f"--save-{save_strategy}"]
+            command.append(f"--save-{save_strategy}")
+        assert conf.custom_behavior == custom_behavior
         pdm(command, obj=project, strict=True)
 
         project.pyproject.reload()
@@ -60,7 +63,7 @@ class TestUpdate:
         for group in project.iter_groups():
             updated_requirements[group] = project.get_dependencies(group)
 
-        if not save_strategy or not custom_behavior:
+        if not custom_behavior:
             assert requirements == updated_requirements
         else:
             candidates = project.locked_repository.all_candidates

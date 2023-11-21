@@ -76,7 +76,10 @@ class TestAddRemove:
         for package in packages:
             pkg = PREFERRED_VERSIONS[package.split("::")[-1].split("=")[0]]
             assert (dep := dependencies.get(pkg["name"], None)) is not None
-            assert pkg["version"] in dep.as_line()
+            allowed_versions = [pkg["version"]]
+            if pkg["version"].endswith(".0"):
+                allowed_versions.append(f">={pkg['version'][:-2]}")
+            assert any(v in dep.as_line() for v in allowed_versions)
 
     @pytest.mark.parametrize("packages", [["dep"], ["dep", "another-dep"], ["channel::dep"]])
     @pytest.mark.parametrize("batch_commands", [True, False])

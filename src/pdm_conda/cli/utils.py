@@ -3,6 +3,8 @@ from __future__ import annotations
 import functools
 from typing import TYPE_CHECKING
 
+from pdm.formats.base import array_of_inline_tables, make_array
+
 from pdm_conda.models.candidates import CondaCandidate
 from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement
 
@@ -60,7 +62,10 @@ def wrap_format_lockfile(func):
         for package, (_, can) in zip(res["package"], sorted(mapping.items())):
             # only static-url allowed for conda packages
             if isinstance(can, CondaCandidate):
-                package["files"] = [{"url": item["url"], "hash": item["hash"]} for item in can.hashes]
+                package["files"] = array_of_inline_tables(
+                    [{"url": item["url"], "hash": item["hash"]} for item in can.hashes],
+                    multiline=True,
+                )
 
             # fix conda dependencies to include build string
             dependencies = []
@@ -72,7 +77,7 @@ def wrap_format_lockfile(func):
                     include_dependencies = True
                 dependencies.append(dep.as_line(**kwargs))
             if include_dependencies:
-                package["dependencies"] = dependencies
+                package["dependencies"] = make_array(sorted(dependencies), True)
 
         return res
 
