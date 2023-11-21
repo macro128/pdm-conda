@@ -8,8 +8,8 @@ from functools import wraps
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import tomlkit
 from pdm.exceptions import NoConfigError, ProjectError
+from pdm.formats.base import make_array
 from pdm.project import Config, ConfigItem
 
 from pdm_conda import logger
@@ -174,10 +174,7 @@ class PluginConfig:
                 else:
                     _value = value
                     if isinstance(value, list):
-                        _value = tomlkit.array()
-                        for v in value:
-                            _value.append(v)
-                        _value.multiline(len(value) > 1)
+                        _value = make_array(value, multiline=len(value) > 1)
 
                     config[name] = _value
                 self.is_initialized |= self._project.pyproject.exists()
