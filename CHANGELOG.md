@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.3] - 21/11/2023
+
+### Changed
+
+* Now compatible with `pdm==v2.10.3`.
+
+### Fixed
+
+- Stop trying to recognize the project name as a Conda package name.
+- Don't write configs with default values to `pyproject.toml`.
+
 ## [0.14.2] - 11/11/2023
 
 ### Changed
