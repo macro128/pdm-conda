@@ -160,7 +160,6 @@ class TestProject:
         group,
         mock_conda_mapping,
         as_default_manager,
-        test_id,
     ):
         from pdm_conda.mapping import conda_to_pypi
         from pdm_conda.models.requirements import CondaRequirement
@@ -226,3 +225,23 @@ class TestProject:
             assert original_hash == project.pyproject.content_hash()
         setattr(config, config_name, original_value)
         assert original_hash == project.pyproject.content_hash()
+
+
+@pytest.mark.usefixtures("fake_python")
+class TestProjectProviders:
+    @pytest.mark.parametrize("strategy", ["all", "reuse", "eager", "reuse-installed"])
+    def test_provider(self, project, strategy):
+        from pdm_conda.resolver.providers import (
+            CondaBaseProvider,
+            CondaEagerUpdateProvider,
+            CondaReuseInstalledProvider,
+            CondaReusePinProvider,
+        )
+
+        provider = {
+            "all": CondaBaseProvider,
+            "reuse": CondaReusePinProvider,
+            "eager": CondaEagerUpdateProvider,
+            "reuse-installed": CondaReuseInstalledProvider,
+        }
+        assert isinstance(project.get_provider(strategy=strategy), provider[strategy])

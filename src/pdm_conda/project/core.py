@@ -223,29 +223,13 @@ class CondaProject(Project):
         ignore_compatibility: bool = True,
         direct_minimal_versions: bool = False,
     ) -> BaseProvider:
-        from pdm_conda.resolver.providers import (
-            BaseProvider,
-            CondaBaseProvider,
-            CondaEagerUpdateProvider,
-            CondaReusePinProvider,
-            EagerUpdateProvider,
-        )
+        from pdm_conda.resolver.providers import BaseProvider, CondaBaseProvider
 
         kwargs = dict(direct_minimal_versions=direct_minimal_versions)
         provider = super().get_provider(strategy, tracked_names, for_install, ignore_compatibility, **kwargs)
-        args = [provider.repository, provider.allow_prereleases, provider.overrides]
-        provider_class = CondaBaseProvider
-        if not isinstance(provider, BaseProvider):
-            provider_class = (
-                CondaEagerUpdateProvider  # type: ignore
-                if isinstance(
-                    provider,
-                    EagerUpdateProvider,
-                )
-                else CondaReusePinProvider  # type: ignore
-            )
-            args = [provider.preferred_pins, provider.tracked_names] + args
-        return provider_class(*args, **kwargs)  # type: ignore[arg-type]
+        if isinstance(provider, BaseProvider) and not isinstance(provider, CondaBaseProvider):
+            return CondaBaseProvider(provider.repository, provider.allow_prereleases, provider.overrides, **kwargs)
+        return provider
 
     def _get_python_finder(self) -> Finder:
         finder = super()._get_python_finder()

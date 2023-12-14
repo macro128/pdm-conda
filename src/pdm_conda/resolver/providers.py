@@ -5,7 +5,13 @@ from typing import TYPE_CHECKING, cast
 
 from pdm.models.repositories import BaseRepository
 from pdm.models.requirements import strip_extras
-from pdm.resolver.providers import BaseProvider, EagerUpdateProvider, ReusePinProvider
+from pdm.resolver.providers import (
+    BaseProvider,
+    EagerUpdateProvider,
+    ReuseInstalledProvider,
+    ReusePinProvider,
+    register_provider,
+)
 from pdm.resolver.python import find_python_matches
 from pdm.utils import is_url
 from unearth.utils import LazySequence
@@ -26,6 +32,7 @@ if TYPE_CHECKING:
     from resolvelib.resolvers import RequirementInformation
 
 
+@register_provider("all")
 class CondaBaseProvider(BaseProvider):
     def __init__(
         self,
@@ -118,9 +125,16 @@ class CondaBaseProvider(BaseProvider):
         return self._find_candidates(self.overrides_requirements[identifier])
 
 
+@register_provider("reuse")
 class CondaReusePinProvider(ReusePinProvider, CondaBaseProvider):
     pass
 
 
+@register_provider("eager")
 class CondaEagerUpdateProvider(EagerUpdateProvider, CondaBaseProvider):
+    pass
+
+
+@register_provider("reuse-installed")
+class CondaReuseInstalledProvider(ReuseInstalledProvider, CondaBaseProvider):
     pass
