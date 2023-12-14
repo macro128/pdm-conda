@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from functools import cached_property
 from typing import TYPE_CHECKING, cast
 
 from pdm.installers import Synchronizer
 
 from pdm_conda.environments import CondaEnvironment
 from pdm_conda.models.candidates import CondaCandidate
+from pdm_conda.models.requirements import strip_extras
 from pdm_conda.models.setup import CondaSetupDistribution
 
 if TYPE_CHECKING:
@@ -43,6 +45,18 @@ class CondaSynchronizer(Synchronizer):
         )
         self.environment = cast(CondaEnvironment, environment)
         self.parallel = bool(self.parallel)  # type: ignore
+
+    @cached_property
+    def candidates(self) -> dict[str, Candidate]:
+        candidates = super().candidates
+        # if key is requirement with extras, add candidate without extras if it doesn't exist
+        for key in list(candidates):
+            if (
+                isinstance(can := candidates[key], CondaCandidate)
+                and candidates.get(name := strip_extras(key)[0], None) is None
+            ):
+                candidates[name] = can
+        return candidates
 
     def compare_with_working_set(self) -> tuple[list[str], list[str], list[str]]:
         if not isinstance(self.environment, CondaEnvironment):

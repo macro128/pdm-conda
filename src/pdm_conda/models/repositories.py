@@ -20,7 +20,7 @@ from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement
 if TYPE_CHECKING:
     from typing import Any, Iterable, Mapping
 
-    from pdm.models.repositories import RepositoryConfig
+    from pdm.models.repositories import CandidateKey, RepositoryConfig
 
     from pdm_conda.environments import BaseEnvironment
     from pdm_conda.models.candidates import Candidate, FileHash
@@ -152,6 +152,15 @@ class PyPICondaRepository(PyPIRepository, CondaRepository):
 
 
 class LockedCondaRepository(LockedRepository, CondaRepository):
+    def _matching_keys(self, requirement: Requirement) -> Iterable[CandidateKey]:
+        yield from super()._matching_keys(requirement)
+        if self.is_conda_managed(requirement):
+            req_id = as_conda_requirement(requirement).identify()
+
+            for key, can in self.packages.items():
+                if isinstance(can, CondaCandidate) and req_id == key[0]:
+                    yield key
+
     def _read_lockfile(self, lockfile: Mapping[str, Any]) -> None:
         packages = lockfile.get("package", [])
         conda_packages = []
