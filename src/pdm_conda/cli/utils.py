@@ -79,6 +79,7 @@ def wrap_format_lockfile(func):
             if include_dependencies:
                 package["dependencies"] = make_array(sorted(dependencies), True)
 
+        res["package"] = sorted(res["package"], key=lambda x: x["name"])
         return res
 
     return wrapper
