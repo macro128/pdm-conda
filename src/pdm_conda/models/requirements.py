@@ -161,6 +161,7 @@ def as_conda_requirement(requirement: NamedRequirement | CondaRequirement) -> Co
         req.name = req.conda_name
         conda_req = parse_requirement(f"conda:{req.as_line()}")
         conda_req.groups = req.groups
+        conda_req.extras = req.extras
     else:
         conda_req = requirement
 

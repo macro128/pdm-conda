@@ -1,4 +1,5 @@
 import itertools
+from copy import copy
 
 import pytest
 from pdm.project.lockfile import FLAG_CROSS_PLATFORM, FLAG_INHERIT_METADATA
@@ -78,12 +79,14 @@ class TestLock:
         if add_conflict:
             from pdm_conda.mapping import conda_to_pypi
 
-            pkg = conda_packages[0]
+            pkg = copy(conda_packages[0])
             name = conda_to_pypi(pkg["name"])
+            extras = ["extra"]
+            pkg["extras"] = extras
             project.pyproject._data.update(
                 {
                     "project": {
-                        "dependencies": [f"{name}[extra]"],
+                        "dependencies": [f"{name}[{','.join(extras)}]"],
                         "requires-python": project.pyproject.metadata["requires-python"],
                     },
                 },
@@ -126,6 +129,7 @@ class TestLock:
                 from pdm_conda.models.requirements import parse_conda_version
 
                 assert p["version"] == parse_conda_version(pkg["version"])
+                assert f"{name}=={p['version']}" in p["dependencies"]
                 if "extras" in p:
                     num_extras += 1
             else:
