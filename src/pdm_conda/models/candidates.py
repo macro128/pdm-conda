@@ -211,6 +211,7 @@ class CondaCandidate(Candidate):
 
         assert requirement is not None
         requirement.is_python_package = requires_python is not None
+        requirement.groups = package.get("groups", [])
         return CondaCandidate(
             req=requirement,
             name=name,

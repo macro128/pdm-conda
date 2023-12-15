@@ -34,21 +34,13 @@ _patched = False
 @dataclasses.dataclass(eq=False)
 class CondaRequirement(NamedRequirement):
     channel: str | None = None
-    _is_python_package: bool = dataclasses.field(default=True, repr=False, init=False)
+    is_python_package: bool = dataclasses.field(default=True, repr=False)
     version_mapping: dict = dataclasses.field(default_factory=dict, repr=False)
     build_string: str | None = None
 
     @property
     def conda_name(self) -> str | None:
         return self.name
-
-    @property
-    def is_python_package(self):
-        return self._is_python_package
-
-    @is_python_package.setter
-    def is_python_package(self, value):
-        self._is_python_package = value
 
     @classmethod
     def create(cls: type[T], **kwargs: Any) -> T:
@@ -94,7 +86,13 @@ class CondaRequirement(NamedRequirement):
         )
 
     def as_named_requirement(self) -> NamedRequirement:
-        return NamedRequirement.create(name=conda_to_pypi(self.name), version=self.specifier)
+        return NamedRequirement.create(
+            name=conda_to_pypi(self.name),
+            version=self.specifier,
+            marker=self.marker,
+            extras=self.extras,
+            groups=self.groups,
+        )
 
     def is_compatible(self, requirement_or_candidate: Requirement | Candidate):
         _compatible = True
@@ -162,6 +160,7 @@ def as_conda_requirement(requirement: NamedRequirement | CondaRequirement) -> Co
         req.marker = None
         req.name = req.conda_name
         conda_req = parse_requirement(f"conda:{req.as_line()}")
+        conda_req.groups = req.groups
     else:
         conda_req = requirement
 

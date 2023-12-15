@@ -161,12 +161,14 @@ class CondaProject(Project):
 
         for line in deps:
             req = parse_requirement(f"conda:{line}")
+            req.groups = [group]
             # search for package with extras to remove it
             pypi_req = next((v for v in result.values() if v.conda_name == req.conda_name), None)
             if pypi_req is not None:
                 result.pop(pypi_req.identify())
                 if not req.specifier:
                     req.specifier = pypi_req.specifier
+                req.groups = pypi_req.groups
             result[req.identify()] = req
 
         if self.conda_config.as_default_manager:
