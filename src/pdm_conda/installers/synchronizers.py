@@ -59,10 +59,9 @@ class CondaSynchronizer(Synchronizer):
         return candidates
 
     def compare_with_working_set(self) -> tuple[list[str], list[str], list[str]]:
-        if not isinstance(self.environment, CondaEnvironment):
-            return super().compare_with_working_set()
-
         to_add, to_update, to_remove = super().compare_with_working_set()
+        if not isinstance(self.environment, CondaEnvironment):
+            return to_add, to_update, to_remove
 
         # deactivate parallel execution if uninstall
         self.parallel = self.environment.project.config["install.parallel"]

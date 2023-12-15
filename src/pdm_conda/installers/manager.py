@@ -44,7 +44,7 @@ class CondaInstallManager(InstallManager):
                     requirements.clear()
                 raise
 
-    def install(self, candidate: Candidate) -> None:
+    def install(self, candidate: Candidate) -> Distribution:
         """
         Install candidate, use conda if conda package else default installer
         :param candidate: candidate to install
@@ -56,8 +56,9 @@ class CondaInstallManager(InstallManager):
                 self._batch_install,
                 self._num_install,
             )
+            return candidate.distribution
         else:
-            super().install(candidate)
+            return super().install(candidate)
 
     def uninstall(self, dist: Distribution) -> None:
         """
