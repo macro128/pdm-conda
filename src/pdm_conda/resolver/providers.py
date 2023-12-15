@@ -113,7 +113,7 @@ class CondaBaseProvider(BaseProvider):
                     # this will miss the extra dependencies if any. So we associate the original
                     # requirement back with the candidate since it is used by `get_dependencies()`.
                     (
-                        can.copy_with(original_req, merge=True)  # type: ignore[call-arg]
+                        can.copy_with(original_req, merge_requirements=True)
                         if isinstance(can, CondaCandidate)
                         else can.copy_with(original_req)
                     )
