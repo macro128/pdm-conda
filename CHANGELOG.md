@@ -7,9 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0]
+
+### Added
+
+* Now compatible with `pdm==v2.11.1`.
+
 ### Fixed
 
 * Fix base candidate not appearing when used with extras.
+* Fix error installing self.
 
 ## [0.14.3] - 21/11/2023
 
