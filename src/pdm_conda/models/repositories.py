@@ -90,6 +90,16 @@ class CondaRepository(BaseRepository):
                 candidate.hashes = _candidates[0].hashes
         return super().get_hashes(candidate)
 
+    def is_this_package(self, requirement: Requirement) -> bool:
+        project = self.environment.project
+        if (
+            isinstance(self.environment, CondaEnvironment)
+            and project.conda_config.is_initialized
+            and project.conda_config.custom_behavior
+        ):
+            return requirement.is_named and requirement.key == project.conda_config.project_name
+        return super().is_this_package(requirement)
+
 
 class PyPICondaRepository(PyPIRepository, CondaRepository):
     def update_conda_resolution(

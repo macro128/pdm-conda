@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 from pdm.exceptions import NoConfigError, ProjectError
 from pdm.formats.base import make_array
 from pdm.project import Config, ConfigItem
+from pdm.utils import normalize_name
 
 from pdm_conda import logger
 from pdm_conda.mapping import (
@@ -251,7 +252,7 @@ class PluginConfig:
 
     @property
     def project_name(self) -> str | None:
-        return self._project.name
+        return normalize_name(self._project.name) if self._project.name else None
 
     @property
     def excludes(self) -> list[str]:
