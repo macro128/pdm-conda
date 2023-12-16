@@ -76,7 +76,7 @@ class CondaInstallManager(InstallManager):
         :param dist: distribution to uninstall
         :param candidate: candidate to install
         """
-        if isinstance(candidate, CondaCandidate):
+        if isinstance(candidate, CondaCandidate) or isinstance(dist, CondaSetupDistribution):
             self.uninstall(dist)
             self.install(candidate)
         else:
