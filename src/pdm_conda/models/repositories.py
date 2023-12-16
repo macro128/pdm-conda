@@ -20,7 +20,7 @@ from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement
 if TYPE_CHECKING:
     from typing import Any, Iterable, Mapping
 
-    from pdm.models.repositories import RepositoryConfig
+    from pdm.models.repositories import CandidateKey, RepositoryConfig
 
     from pdm_conda.environments import BaseEnvironment
     from pdm_conda.models.candidates import Candidate, FileHash
@@ -90,6 +90,16 @@ class CondaRepository(BaseRepository):
                 candidate.hashes = _candidates[0].hashes
         return super().get_hashes(candidate)
 
+    def is_this_package(self, requirement: Requirement) -> bool:
+        project = self.environment.project
+        if (
+            isinstance(self.environment, CondaEnvironment)
+            and project.conda_config.is_initialized
+            and project.conda_config.custom_behavior
+        ):
+            return requirement.is_named and requirement.key == project.conda_config.project_name
+        return super().is_this_package(requirement)
+
 
 class PyPICondaRepository(PyPIRepository, CondaRepository):
     def update_conda_resolution(
@@ -152,6 +162,18 @@ class PyPICondaRepository(PyPIRepository, CondaRepository):
 
 
 class LockedCondaRepository(LockedRepository, CondaRepository):
+    def _matching_keys(self, requirement: Requirement) -> Iterable[CandidateKey]:
+        yield from super()._matching_keys(requirement)
+        if self.is_conda_managed(requirement):
+            req_id = as_conda_requirement(requirement).identify()
+
+            for key, can in self.packages.items():
+                if isinstance(can, CondaCandidate) and req_id == key[0]:
+                    yield key
+
+    def is_this_package(self, requirement: Requirement) -> bool:
+        return super(LockedRepository, self).is_this_package(requirement)
+
     def _read_lockfile(self, lockfile: Mapping[str, Any]) -> None:
         packages = lockfile.get("package", [])
         conda_packages = []

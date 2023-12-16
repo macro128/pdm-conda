@@ -4,7 +4,7 @@ default_language_version:
   python: python3.10
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.4.0
+    rev: v4.5.0
     hooks:
       - id: check-ast
       - id: trailing-whitespace
@@ -12,7 +12,7 @@ repos:
       - id: end-of-file-fixer
 
   - repo: https://github.com/asottile/add-trailing-comma
-    rev: v3.0.1
+    rev: v3.1.0
     hooks:
       - id: add-trailing-comma
 
@@ -24,18 +24,18 @@ repos:
           - Flake8-pyproject==1.2.3
 
   - repo: https://github.com/PyCQA/isort
-    rev: 5.12.0
+    rev: 5.13.2
     hooks:
       - id: isort
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: 'v1.5.1'
+    rev: 'v1.7.1'
     hooks:
       - id: mypy
         additional_dependencies:
           - types-requests
 
   - repo: https://github.com/psf/black
-    rev: 23.7.0
+    rev: 23.12.0
     hooks:
       - id: black

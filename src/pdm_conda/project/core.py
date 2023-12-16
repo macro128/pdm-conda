@@ -161,12 +161,14 @@ class CondaProject(Project):
 
         for line in deps:
             req = parse_requirement(f"conda:{line}")
+            req.groups = [group]
             # search for package with extras to remove it
             pypi_req = next((v for v in result.values() if v.conda_name == req.conda_name), None)
             if pypi_req is not None:
                 result.pop(pypi_req.identify())
                 if not req.specifier:
                     req.specifier = pypi_req.specifier
+                req.groups = pypi_req.groups
             result[req.identify()] = req
 
         if self.conda_config.as_default_manager:
@@ -223,29 +225,13 @@ class CondaProject(Project):
         ignore_compatibility: bool = True,
         direct_minimal_versions: bool = False,
     ) -> BaseProvider:
-        from pdm_conda.resolver.providers import (
-            BaseProvider,
-            CondaBaseProvider,
-            CondaEagerUpdateProvider,
-            CondaReusePinProvider,
-            EagerUpdateProvider,
-        )
+        from pdm_conda.resolver.providers import BaseProvider, CondaBaseProvider
 
         kwargs = dict(direct_minimal_versions=direct_minimal_versions)
         provider = super().get_provider(strategy, tracked_names, for_install, ignore_compatibility, **kwargs)
-        args = [provider.repository, provider.allow_prereleases, provider.overrides]
-        provider_class = CondaBaseProvider
-        if not isinstance(provider, BaseProvider):
-            provider_class = (
-                CondaEagerUpdateProvider  # type: ignore
-                if isinstance(
-                    provider,
-                    EagerUpdateProvider,
-                )
-                else CondaReusePinProvider  # type: ignore
-            )
-            args = [provider.preferred_pins, provider.tracked_names] + args
-        return provider_class(*args, **kwargs)  # type: ignore[arg-type]
+        if isinstance(provider, BaseProvider) and not isinstance(provider, CondaBaseProvider):
+            return CondaBaseProvider(provider.repository, provider.allow_prereleases, provider.overrides, **kwargs)
+        return provider
 
     def _get_python_finder(self) -> Finder:
         finder = super()._get_python_finder()

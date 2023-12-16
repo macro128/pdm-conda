@@ -7,15 +7,13 @@ from collections import ChainMap
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
-from pdm.environments import PythonEnvironment
 from pdm.exceptions import ProjectError
 from pdm.models.specifiers import PySpecSet
 
 from pdm_conda.conda import conda_create, conda_list, conda_search
-from pdm_conda.mapping import pypi_to_conda
+from pdm_conda.environments.python import PythonEnvironment
 from pdm_conda.models.config import CondaRunner, CondaSolver
 from pdm_conda.project import CondaProject
-from pdm_conda.utils import normalize_name
 
 if TYPE_CHECKING:
     from pdm.models.working_set import WorkingSet
@@ -53,10 +51,7 @@ class CondaEnvironment(PythonEnvironment):
         """
         working_set = super().get_working_set()
         if self.project.conda_config.is_initialized:
-            dist_map = conda_list(self.project) | {
-                normalize_name(pypi_to_conda(dist.metadata["Name"])): dist
-                for dist in getattr(working_set, "_dist_map").values()
-            }
+            dist_map = getattr(working_set, "_dist_map") | conda_list(self.project)
             setattr(working_set, "_dist_map", dist_map)
             shared_map = getattr(working_set, "_shared_map", {})
             setattr(working_set, "_iter_map", ChainMap(dist_map, shared_map))

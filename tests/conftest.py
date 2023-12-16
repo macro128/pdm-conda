@@ -284,6 +284,11 @@ def mock_pypi(mocked_responses):
             dependencies = list(package["depends"])
             requires_python = ""
             to_delete = []
+            name = conda_to_pypi(package["name"])
+            version = parse_conda_version(package["version"])
+            if package.get("extras", []):
+                dependencies.append(f"{name}=={version}")
+
             for d in dependencies:
                 if d.startswith("__"):
                     to_delete.append(d)
@@ -293,8 +298,6 @@ def mock_pypi(mocked_responses):
                         requires_python = d.split(" ")[-1]
             for d in to_delete:
                 dependencies.remove(d)
-            name = conda_to_pypi(package["name"])
-            version = parse_conda_version(package["version"])
             url = f"{REPO_BASE}/simple/{name}/"
             _responses[url] = mocked_responses.get(
                 url,

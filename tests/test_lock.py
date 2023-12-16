@@ -1,7 +1,8 @@
 import itertools
+from copy import copy
 
 import pytest
-from pdm.project.lockfile import FLAG_CROSS_PLATFORM
+from pdm.project.lockfile import FLAG_CROSS_PLATFORM, FLAG_INHERIT_METADATA
 from pytest_mock import MockerFixture
 
 from tests.conftest import PREFERRED_VERSIONS, PYTHON_PACKAGE, PYTHON_REQUIREMENTS
@@ -18,6 +19,7 @@ class TestLock:
     )
     @pytest.mark.parametrize("overrides", [True, False])
     @pytest.mark.parametrize("direct_minimal_versions", [True, False])
+    @pytest.mark.parametrize("inherit_metadata", [True, False])
     def test_lock(
         self,
         pdm,
@@ -35,6 +37,7 @@ class TestLock:
         num_missing_info_on_create,
         overrides,
         direct_minimal_versions,
+        inherit_metadata,
         refresh=False,
     ):
         """
@@ -76,12 +79,14 @@ class TestLock:
         if add_conflict:
             from pdm_conda.mapping import conda_to_pypi
 
-            pkg = conda_packages[0]
+            pkg = copy(conda_packages[0])
             name = conda_to_pypi(pkg["name"])
+            extras = ["extra"]
+            pkg["extras"] = extras
             project.pyproject._data.update(
                 {
                     "project": {
-                        "dependencies": [f"{name}[extra]"],
+                        "dependencies": [f"{name}[{','.join(extras)}]"],
                         "requires-python": project.pyproject.metadata["requires-python"],
                     },
                 },
@@ -101,19 +106,30 @@ class TestLock:
             cmd.append("--refresh")
         if direct_minimal_versions:
             cmd += ["-S", "direct_minimal_versions"]
+        if not inherit_metadata:
+            cmd += ["-S", "no_inherit_metadata"]
         pdm(cmd, obj=project, strict=True)
 
         lockfile = project.lockfile
         assert set(lockfile.groups) == {"default", group}
         assert FLAG_CROSS_PLATFORM not in lockfile.strategy
+        if inherit_metadata:
+            assert FLAG_INHERIT_METADATA in lockfile.strategy
+        else:
+            assert FLAG_INHERIT_METADATA not in lockfile.strategy
         packages = lockfile["package"]
         num_extras = 0
         for p in packages:
             name = p["name"]
+            if inherit_metadata:
+                assert p.get("groups", [])
+            else:
+                assert not p.get("groups", [])
             if add_conflict and conda_mapping.get(name, name) == (pkg := conda_packages[0])["name"]:
                 from pdm_conda.models.requirements import parse_conda_version
 
                 assert p["version"] == parse_conda_version(pkg["version"])
+                assert f"{name}=={p['version']}" in p["dependencies"]
                 if "extras" in p:
                     num_extras += 1
             else:
@@ -184,6 +200,7 @@ class TestLock:
             0,
             False,
             direct_minimal_versions=False,
+            inherit_metadata=False,
         )
         lockfile = self.test_lock(
             pdm,
@@ -202,6 +219,7 @@ class TestLock:
             False,
             refresh=True,
             direct_minimal_versions=False,
+            inherit_metadata=False,
         )
         assert old_lockfile == lockfile
 

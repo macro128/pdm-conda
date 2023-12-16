@@ -1,11 +1,28 @@
 import functools
+from collections import ChainMap
 from copy import copy
 
 from pdm.environments import PythonEnvironment
 
+from pdm_conda.mapping import pypi_to_conda
 from pdm_conda.project import CondaProject
+from pdm_conda.utils import normalize_name
 
 _patched = False
+
+
+def wrap_get_working_set(func):
+    @functools.wraps(func)
+    def wrapper(self, *args, **kwargs):
+        res = func(self, *args, **kwargs)
+        dist_map = {
+            normalize_name(pypi_to_conda(dist.metadata["Name"])): dist for dist in getattr(res, "_dist_map").values()
+        }
+        setattr(res, "_dist_map", dist_map)
+        setattr(res, "_iter_map", ChainMap(dist_map, getattr(res, "_shared_map", {})))
+        return res
+
+    return wrapper
 
 
 def wrap_init(func):
@@ -22,4 +39,5 @@ def wrap_init(func):
 
 if not _patched:
     setattr(PythonEnvironment, "__init__", wrap_init(PythonEnvironment.__init__))
+    setattr(PythonEnvironment, "get_working_set", wrap_get_working_set(PythonEnvironment.get_working_set))
     _patched = True

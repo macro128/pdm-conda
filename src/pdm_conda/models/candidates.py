@@ -77,8 +77,15 @@ class CondaCandidate(Candidate):
         self._req = cast(CondaRequirement, req)  # type: ignore
         self._preferred = None
         self._prepared: CondaPreparedCandidate | None = None
+        self.conda_version = version
+        self.version = parse_conda_version(version)
+        dependencies = dependencies or []
+        if self.req.extras:
+            dependencies.append(
+                self.req.as_pinned_version(self.version).as_line(with_build_string=True, with_channel=True),
+            )
         self.dependencies: list[CondaRequirement] = [
-            cast(CondaRequirement, parse_requirement(f"conda:{r}")) for r in (dependencies or [])
+            cast(CondaRequirement, parse_requirement(f"conda:{r}")) for r in dependencies
         ]
         self.constrains: dict[str, CondaRequirement] = dict()
         self.hashes: list[FileHash] = [
@@ -96,8 +103,6 @@ class CondaCandidate(Candidate):
         self.timestamp = timestamp
         self.channel = channel
         self.track_feature = track_feature
-        self.conda_version = version
-        self.version = parse_conda_version(version)
 
     def copy_with(self, requirement: Requirement, merge_requirements: bool = False) -> Candidate:
         can = copy(self)
@@ -211,6 +216,7 @@ class CondaCandidate(Candidate):
 
         assert requirement is not None
         requirement.is_python_package = requires_python is not None
+        requirement.groups = package.get("groups", [])
         return CondaCandidate(
             req=requirement,
             name=name,

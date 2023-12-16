@@ -15,12 +15,11 @@ def normalize_name(name: str, lowercase: bool = True) -> str:
 
 
 if not _patched:
-    from pdm.cli import actions, utils
+    from pdm.cli import utils
     from pdm.installers import synchronizers
     from pdm.models import candidates, repositories, requirements, working_set
 
     modules = [
-        actions,
         utils,
         synchronizers,
         candidates,
