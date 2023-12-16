@@ -68,20 +68,19 @@ class CondaSynchronizer(Synchronizer):
         if to_remove:
             to_remove = [p for p in to_remove if p not in self.environment.env_dependencies]
 
-        num_update, num_remove = (
-            len([p for p in pks if isinstance(self.working_set[p], CondaSetupDistribution)])
-            for pks in (to_update, to_remove)
+        num_install, num_update = (
+            len([p for p in pkgs if isinstance(self.candidates[p], CondaCandidate)]) for pkgs in (to_add, to_update)
         )
+
+        num_remove = len([p for p in to_remove if isinstance(self.working_set[p], CondaSetupDistribution)])
         if self.parallel and (num_update + num_remove > 0):
             if not self.dry_run:
                 self.environment.project.core.ui.echo("Deactivating parallel uninstall.")
             self.parallel = False
 
         if self.environment.project.conda_config.batched_commands:
-            num_adds = len([p for p in to_add if isinstance(self.candidates[p], CondaCandidate)])
-
             self.manager.prepare_batch_operations(
-                num_install=num_adds + num_update,
+                num_install=num_install + num_update,
                 num_remove=num_remove + num_update,
             )
 
