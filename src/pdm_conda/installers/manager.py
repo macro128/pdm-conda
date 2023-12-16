@@ -69,3 +69,15 @@ class CondaInstallManager(InstallManager):
             self._run_with_conda(conda_uninstall, dist.name, self._batch_remove, self._num_remove)
         else:
             super().uninstall(dist)
+
+    def overwrite(self, dist: Distribution, candidate: Candidate) -> None:
+        """
+        Overwrite distribution with candidate, uninstall and install with conda if conda package else default overwrite
+        :param dist: distribution to uninstall
+        :param candidate: candidate to install
+        """
+        if isinstance(candidate, CondaCandidate):
+            self.uninstall(dist)
+            self.install(candidate)
+        else:
+            super().overwrite(dist, candidate)
