@@ -171,6 +171,9 @@ class LockedCondaRepository(LockedRepository, CondaRepository):
                 if isinstance(can, CondaCandidate) and req_id == key[0]:
                     yield key
 
+    def is_this_package(self, requirement: Requirement) -> bool:
+        return super(LockedRepository, self).is_this_package(requirement)
+
     def _read_lockfile(self, lockfile: Mapping[str, Any]) -> None:
         packages = lockfile.get("package", [])
         conda_packages = []
