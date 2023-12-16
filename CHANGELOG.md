@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Fix base candidate not appearing when used with extras.
 * Fix error installing self.
 * Force CondaCandidates for requirement with extras to depend on base candidate.
+* If update to CondaCandidate then force Conda usage to remove and install.
+* Fix Conda packages sometimes being recognized with a different version.
 
 ## [0.14.3] - 21/11/2023
 

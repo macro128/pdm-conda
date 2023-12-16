@@ -51,7 +51,7 @@ class CondaEnvironment(PythonEnvironment):
         """
         working_set = super().get_working_set()
         if self.project.conda_config.is_initialized:
-            dist_map = conda_list(self.project) | getattr(working_set, "_dist_map")
+            dist_map = getattr(working_set, "_dist_map") | conda_list(self.project)
             setattr(working_set, "_dist_map", dist_map)
             shared_map = getattr(working_set, "_shared_map", {})
             setattr(working_set, "_iter_map", ChainMap(dist_map, shared_map))

@@ -28,87 +28,22 @@ classifiers = [
 ]
 
 dependencies = [
-    "asyncpg~=0.28.0",
-]
-
-[project.optional-dependencies]
-db = [
-    "python-dotenv~=1.0.0",
-    #    "pydantic~=1.10.8",
-    "psycopg2-binary~=2.9.7",
-    #    "alembic~=1.12.1",
-    #    "sqlalchemy~=1.4.41",
-    #    "fastapi~=0.104.0",
-    #    "cryptography~=41.0.5",
-    #    "python-slugify~=8.0.1",
-    #    "flatdict~=4.0.1",
-    #    "ormar~=0.12.2",
-    #    "typing-extensions~=4.8.0",
-    #    "aiobotocore~=2.7.0",
-    #    "pycountry~=22.3.5",
-]
-services = [
-    "pdm-conda[db]",
-    #    "prefect-client~=2.14.2",
-    #    "babel~=2.13.1",
-    #    "python-telegram-bot~=20.6",
-    #    "python-ffmpeg~=2.0.4",
-    #    "streamlink~=6.3.1",
-]
-#prefect-server = [
-#    "prefect~=2.14.2",
-#]
-prefect-agent = ["pdm-conda[services]"]
-api = [
-    "pdm-conda[services]",
-    #    "orjson~=3.9.10",
-    #    "python-multipart~=0.0.6",
-    #    "fastapi-crudrouter~=0.8.6",
-    #    "fastapi_rss @ git+https://github.com/macro128/fastapi_rss.git",
+    "pdm==2.11.1",
+    "requests~=2.31.0",
+    "typing-extensions>=4.7.1",
 ]
 
 [tool.pdm.dev-dependencies]
-s3-server = [
-    "moto[server]",
-]
 dev = [
-    "moto[s3]~=4.2.9",
-    #    "pytest~=7.4.3",
-    #    "pytest-mock~=3.12.0",
-    #    "pytest-cov~=4.1.0",
-    #    "pytest-random-num~=1.0.13",
-    #    "httpx~=0.25.0",
-    #    "responses~=0.23.1",
-    #    "mimesis~=11.1.0",
-    #    "dateparser~=1.1.8",
-]
-
-[tool.pdm.conda]
-runner = "micromamba"
-channels = ["conda-forge"]
-as-default-manager = true
-batched-commands = true
-excludes = [
-    "prefect-client",
-    "streamlink",
-    "moto",
-    "python-telegram-bot",
-    "aiolimiter",
-    "py-partiql-parser",
-    "fastapi-crudrouter",
-    "ormar",
-    "databases",
-    "pytest-random-num",
-    "python-ffmpeg",
-]
-
-[tool.pdm.conda.optional-dependencies]
-prefect-agent = [
-    "ffmpeg~=6.0.0",
+    "pytest~=7.4.3",
+    "pytest-mock~=3.11.1",
+    "pytest-cov~=4.1.0",
+    "pytest-random-num~=1.0.13",
+    "responses~=0.24.1",
 ]
 
 [tool.pdm]
-package-type = "application"
+package-type = "library"
 plugins = [
     "pdm-backend",
 ]
