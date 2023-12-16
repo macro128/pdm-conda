@@ -205,4 +205,14 @@ class CondaResolver(Resolver):
             assert not any(isinstance(r, CondaRequirement) for r in requirements)
 
         state = resolution.resolve(requirements, max_rounds=max_rounds)
-        return _build_result(state)
+        result = _build_result(state)
+
+        if is_conda_environment:
+            project = self.provider.repository.environment.project
+            conda_config = project.conda_config
+            # here we remove a self dependency we added because of the custom behavior
+            if conda_config.is_initialized and conda_config.custom_behavior and not project.is_library:
+                for key, candidate in list(result.mapping.items()):
+                    if candidate.name == conda_config.project_name:
+                        del result.mapping[key]
+        return result
