@@ -230,6 +230,9 @@ def parse_requirement(line: str, editable: bool = False) -> Requirement:
         channel, line = match.groups()
         if channel:
             channel = channel[:-2]
+        marker = None
+        if ";" in line:
+            line, marker = line.split(";", maxsplit=1)
 
         build_string = None
         if len(_line := re.split(r"\s+", line)) == 3 or (len(_line) == 2 and _specifier_re.search(_line[0])):
@@ -275,12 +278,15 @@ def parse_requirement(line: str, editable: bool = False) -> Requirement:
                     version_or[j] = _version
             version_and[i] = max((v for v in version_or if v), key=comparable_version, default="")
         version = ",".join(version_and)
+        _req = _parse_requirement(line=f"{name};{marker}")
         req = CondaRequirement.create(
-            name=strip_extras(name.strip())[0],
+            name=_req.name,
             version=version,
             channel=channel,
             version_mapping=version_mapping,
             build_string=build_string,
+            marker=_req.marker,
+            extras=_req.extras,
         )
     else:
         req = _parse_requirement(line=line, editable=editable)
