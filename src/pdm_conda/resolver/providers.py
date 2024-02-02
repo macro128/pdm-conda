@@ -41,9 +41,14 @@ class CondaBaseProvider(BaseProvider):
         allow_prereleases: bool | None = None,
         overrides: dict[str, str] | None = None,
         direct_minimal_versions: bool = False,
+        locked_candidates: dict[str, Candidate] | None = None,
     ) -> None:
-        super().__init__(repository, allow_prereleases, overrides, direct_minimal_versions)
+        super().__init__(repository, allow_prereleases, overrides, direct_minimal_versions, locked_candidates)
         self._overrides_requirements: dict | None = None
+        self.excludes = {
+            parse_requirement(name).identify()
+            for name in repository.environment.project.pyproject.resolution.get("excludes", [])
+        }
 
     @property
     def overrides_requirements(self) -> dict[str, Requirement]:
@@ -113,12 +118,14 @@ class CondaBaseProvider(BaseProvider):
                     # this will miss the extra dependencies if any. So we associate the original
                     # requirement back with the candidate since it is used by `get_dependencies()`.
                     (
-                        can.copy_with(original_req, merge_requirements=True)
-                        if isinstance(can, CondaCandidate)
-                        else can.copy_with(original_req)
+                        (
+                            can.copy_with(original_req, merge_requirements=True)
+                            if isinstance(can, CondaCandidate)
+                            else can.copy_with(original_req)
+                        )
+                        if extras
+                        else can
                     )
-                    if extras
-                    else can
                     for can in candidates
                     if can not in incompat and all(self.is_satisfied_by(r, can) for r in reqs)
                 )
