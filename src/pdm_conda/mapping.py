@@ -88,7 +88,7 @@ def get_conda_mapping() -> dict[str, str]:
 def _requirement_map(requirement: str, mapping: dict):
     requirement = requirement.strip()
     name = requirement
-    for s in (">", "<", "=", "!", "~", " ", "["):
+    for s in (">", "<", "=", "!", "~", " ", "[", ";"):
         name = name.split(s, maxsplit=1)[0]
     name = name.split("::")[-1].strip()
     return mapping.get(name, name)

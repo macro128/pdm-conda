@@ -77,7 +77,13 @@ class CondaRequirement(NamedRequirement):
                     version = f"{'.'.join(parts[:-1])}.*,>={version}"
             specifier += f"{operator}{version}"
         build_string = f" {self.build_string}" if with_build_string and self.build_string and specifier else ""
-        return f"{channel}{self.conda_name}{specifier}{build_string}"
+        extras = ""
+        marker = ""
+        if not conda_compatible:
+            extras = f"[{','.join(sorted(self.extras))}]" if self.extras else ""
+            marker = self._format_marker()
+
+        return f"{channel}{self.conda_name}{extras}{specifier}{build_string}{marker}"
 
     def _hash_key(self) -> tuple:
         return (
@@ -157,7 +163,6 @@ class CondaRequirement(NamedRequirement):
 def as_conda_requirement(requirement: NamedRequirement | CondaRequirement) -> CondaRequirement:
     if isinstance(requirement, NamedRequirement) and not isinstance(requirement, CondaRequirement):
         req = copy(requirement)
-        req.marker = None
         req.name = req.conda_name
         conda_req = parse_requirement(f"conda:{req.as_line()}")
         conda_req.groups = req.groups
@@ -278,7 +283,13 @@ def parse_requirement(line: str, editable: bool = False) -> Requirement:
                     version_or[j] = _version
             version_and[i] = max((v for v in version_or if v), key=comparable_version, default="")
         version = ",".join(version_and)
-        _req = _parse_requirement(line=f"{name};{marker}")
+        if marker:
+            name += f";{marker}"
+        if virtual_pkg := name.startswith("__"):
+            name = name[2:]
+        _req = _parse_requirement(line=name)
+        if virtual_pkg:
+            _req.name = f"__{_req.name}"
         req = CondaRequirement.create(
             name=_req.name,
             version=version,

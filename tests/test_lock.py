@@ -19,7 +19,10 @@ class TestLock:
     )
     @pytest.mark.parametrize("overrides", [True, False])
     @pytest.mark.parametrize("direct_minimal_versions", [True, False])
-    @pytest.mark.parametrize("inherit_metadata", [True, False])
+    @pytest.mark.parametrize(
+        "inherit_metadata,marker",
+        [[True, 'python_version > "3.7"'], [True, None], [True, 'python_version > "3.7"']],
+    )
     def test_lock(
         self,
         pdm,
@@ -38,6 +41,7 @@ class TestLock:
         overrides,
         direct_minimal_versions,
         inherit_metadata,
+        marker,
         refresh=False,
     ):
         """
@@ -52,7 +56,10 @@ class TestLock:
         config.solver = solver
         config.as_default_manager = as_default_manager
 
-        packages = {group: [conda_packages[-1]["name"]]}
+        name = conda_packages[-1]["name"]
+        if marker:
+            name += f";{marker}"
+        packages = {group: [name]}
         if group != "default":
             if group != "dev":
                 config.optional_dependencies = packages
@@ -123,6 +130,11 @@ class TestLock:
             name = p["name"]
             if inherit_metadata:
                 assert p.get("groups", [])
+                if p["name"] == conda_packages[-1]["name"]:
+                    if marker:
+                        assert p["marker"] == marker
+                    else:
+                        assert "marker" not in p
             else:
                 assert not p.get("groups", [])
             if add_conflict and conda_mapping.get(name, name) == (pkg := conda_packages[0])["name"]:
@@ -146,6 +158,7 @@ class TestLock:
                 assert "file" not in _hash
                 assert _hash["url"] == preferred_package["url"]
                 assert _hash["hash"] == f"md5:{preferred_package['md5']}"
+
         if add_conflict:
             assert num_extras > 0
         search_command = "search" if runner == "conda" else "repoquery"
@@ -199,6 +212,7 @@ class TestLock:
             True,
             0,
             False,
+            marker=None,
             direct_minimal_versions=False,
             inherit_metadata=False,
         )
@@ -217,6 +231,7 @@ class TestLock:
             True,
             0,
             False,
+            marker=None,
             refresh=True,
             direct_minimal_versions=False,
             inherit_metadata=False,

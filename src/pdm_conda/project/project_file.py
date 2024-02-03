@@ -34,7 +34,7 @@ class PyProject(PyProjectBase):
             "optional-dependencies": self.metadata.get("optional-dependencies", {}),
             "requires-python": self.metadata.get("requires-python", ""),
             "pdm-conda": pdm_conda_dump_data,
-            "overrides": self.resolution_overrides,
+            "overrides": self.resolution.get("overrides", {}),
         }
         pyproject_content = json.dumps(dump_data, sort_keys=True)
         hasher = hashlib.new(algo)

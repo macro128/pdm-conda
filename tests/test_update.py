@@ -40,7 +40,7 @@ class TestUpdate:
         conf.batched_commands = True
         conf.custom_behavior = custom_behavior
         conf.as_default_manager = True
-        command = ["add", "--no-self", "--group", group]
+        command = ["add", "--no-self", "--group", group, "-vv"]
         if save_strategy:
             command.append(f"--save-{save_strategy}")
         for package in packages:

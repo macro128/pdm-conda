@@ -19,12 +19,14 @@ DEPENDENCIES = dict(
         ([], ["pytest-conda~=1.*"]),
         ([], ["pytest-conda=1"]),
         ([], ["pytest-conda==1.0=build_string"]),
+        (["pytest; python_version >= '3.6'"], ["pytest-conda"]),
+        (["pytest"], ["pytest-conda; python_version >= '3.6'"]),
     ],
     ids=[
         "different pkgs",
-        "pypi version override",
+        "pypi version inherit",
         "conda extras override",
-        "conda no extras",
+        "conda extras",
         "conda version override",
         "conda channel",
         "conda channel with platform",
@@ -35,6 +37,8 @@ DEPENDENCIES = dict(
         "~= star specifier",
         "= specifier",
         "conda with build string",
+        "pypi markers inherit",
+        "conda with markers",
     ],
 )
 CONDA_MAPPING = dict(
@@ -65,7 +69,7 @@ class TestProject:
                 r.name = pypi_to_conda(r.name)
             requirements[r.identify()] = r
         for d in conda_dependencies:
-            d = d.strip()
+            d = d.strip().replace("'", '"')
             r = parse_requirement(f"conda:{d}")
             if "::" in d:
                 assert d.endswith(r.as_line())
@@ -74,7 +78,8 @@ class TestProject:
             else:
                 assert d.startswith(r.as_line())
             assert isinstance(r, CondaRequirement)
-            assert not r.extras
+            assert r.extras if "[" in d else not r.extras
+            assert r.marker if ";" in d else not r.marker
             if "::" in d:
                 assert r.channel == d.split("::")[0]
             pypi_req = next((v for v in requirements.values() if v.conda_name == r.conda_name), None)
@@ -82,6 +87,10 @@ class TestProject:
                 requirements.pop(pypi_req.identify())
                 if not r.specifier:
                     r.specifier = pypi_req.specifier
+                if pypi_req.marker:
+                    r.marker = pypi_req.marker
+                if pypi_req.extras:
+                    r.extras = pypi_req.extras
             requirements[r.identify()] = r
         return requirements
 
@@ -141,13 +150,12 @@ class TestProject:
 
         for project_requirements in (project.get_dependencies(group), project.all_dependencies[group]):
             for name, req in project_requirements.items():
-                conda_req = requirements[req.conda_name]
+                conda_req = requirements[req.identify()]
                 assert conda_req == req
                 assert isinstance(req, type(conda_req))
                 if "~=" in str(req.specifier):
                     line = conda_req.as_line(conda_compatible=True)
                     assert re.match(r".+=[\w.*]+,>=[\w.]+.*", line)
-            assert all("[" not in k for k in project_requirements)
 
     @pytest.mark.parametrize(**DEPENDENCIES)
     @pytest.mark.parametrize(**GROUPS)
@@ -162,7 +170,7 @@ class TestProject:
         as_default_manager,
     ):
         from pdm_conda.mapping import conda_to_pypi
-        from pdm_conda.models.requirements import CondaRequirement
+        from pdm_conda.models.requirements import CondaRequirement, strip_extras
 
         project.conda_config.as_default_manager = as_default_manager
         requirements = self._parse_requirements(dependencies, conda_dependencies, as_default_manager=as_default_manager)
@@ -182,13 +190,16 @@ class TestProject:
             _conda_dependencies = project.get_conda_pyproject_dependencies(group_name, dev)
             for d in conda_dependencies:
                 asserted = 0
-                d = d.split("[")[0].split("=")[0].split(">")[0].split("~")[0].split("::")[-1]
+                d, extras = strip_extras(
+                    d.split(";")[0].split("=")[0].split(">")[0].split("~")[0].split("::")[-1].strip(),
+                )
                 for c in (_conda_dependencies, _dependencies):
                     for r in c:
                         if d in r or conda_to_pypi(d) in r:
                             asserted += 1
                             break
-                req = requirements[d]
+                req = next((r for n, r in requirements.items() if n == d or n.startswith(f"{d}[")), None)
+                assert req is not None
                 num_assertions = 1
                 if as_default_manager:
                     if not req.is_python_package or req.channel or req.build_string:
@@ -196,7 +207,6 @@ class TestProject:
                 elif req.is_python_package:
                     num_assertions = 2
                 assert asserted == len(conda_dependencies) * num_assertions
-        assert all("[" not in k for k in project.get_dependencies(group_name))
 
     @pytest.mark.parametrize(
         ("config_name", "config_value", "must_be_different"),

@@ -168,6 +168,10 @@ class CondaProject(Project):
                 result.pop(pypi_req.identify())
                 if not req.specifier:
                     req.specifier = pypi_req.specifier
+                if pypi_req.marker:
+                    req.marker = pypi_req.marker
+                if pypi_req.extras:
+                    req.extras = pypi_req.extras
                 req.groups = pypi_req.groups
             result[req.identify()] = req
 

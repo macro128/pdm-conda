@@ -208,12 +208,15 @@ class CondaCandidate(Candidate):
         name, version = package["name"], package["version"]
         build_string = package.get("build", package.get("build_string", ""))
         channel = parse_channel(package["channel"])
+        marker = package.get("marker", None)
         if requirement is not None:
             requirement = as_conda_requirement(requirement)
             requirement.version_mapping.update({parse_conda_version(version): version})
         else:
             requirement = parse_requirement(f"conda:{name} {version} {build_string}")
 
+        if marker and not requirement.marker:
+            requirement.marker = parse_requirement(f"{requirement.name} ; {marker}").marker
         assert requirement is not None
         requirement.is_python_package = requires_python is not None
         requirement.groups = package.get("groups", [])
