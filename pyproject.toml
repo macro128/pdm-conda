@@ -28,7 +28,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "pdm==2.11.1",
+    "pdm==2.12.3",
     "requests~=2.31.0",
     "typing-extensions>=4.7.1",
 ]
@@ -43,7 +43,7 @@ dev = [
 ]
 
 [tool.pdm]
-package-type = "library"
+distriburion = true
 plugins = [
     "pdm-backend",
 ]
