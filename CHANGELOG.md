@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+* Now compatible with `pdm==v2.12.3`.
+
+### Fixed
+
+* Conda packages now support extras and markers (even if they are not used).
+
 ## [0.15.0] - 15/12/2023
 
 ### Added
