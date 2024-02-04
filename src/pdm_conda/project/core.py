@@ -168,6 +168,10 @@ class CondaProject(Project):
                 result.pop(pypi_req.identify())
                 if not req.specifier:
                     req.specifier = pypi_req.specifier
+                if pypi_req.marker:
+                    req.marker = pypi_req.marker
+                if pypi_req.extras:
+                    req.extras = pypi_req.extras
                 req.groups = pypi_req.groups
             result[req.identify()] = req
 
@@ -230,7 +234,8 @@ class CondaProject(Project):
         kwargs = dict(direct_minimal_versions=direct_minimal_versions)
         provider = super().get_provider(strategy, tracked_names, for_install, ignore_compatibility, **kwargs)
         if isinstance(provider, BaseProvider) and not isinstance(provider, CondaBaseProvider):
-            return CondaBaseProvider(provider.repository, provider.allow_prereleases, provider.overrides, **kwargs)
+            kwargs["locked_candidates"] = provider.locked_candidates
+            return CondaBaseProvider(provider.repository, **kwargs)  # type: ignore[arg-type]
         return provider
 
     def _get_python_finder(self) -> Finder:

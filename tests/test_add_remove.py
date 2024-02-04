@@ -14,7 +14,12 @@ class TestAddRemove:
 
     @pytest.mark.parametrize(
         "packages",
-        [["'dep'"], ["'another-dep==1!0.1gg'"], ['"dep"', "another-dep"], ["'channel::dep'", "another-dep"]],
+        [
+            ["'dep'"],
+            ["'another-dep==1!0.1gg'"],
+            ["\"dep ; python_version > '3.5'\"", "another-dep"],
+            ["'channel::dep'", "another-dep"],
+        ],
     )
     @pytest.mark.parametrize("channel", [None, "another_channel"])
     @pytest.mark.parametrize("excludes", [[], ["excluded-dep1", "excluded-dep2"]])
@@ -74,7 +79,7 @@ class TestAddRemove:
 
         dependencies = project.get_dependencies(group)
         for package in packages:
-            pkg = PREFERRED_VERSIONS[package.split("::")[-1].split("=")[0]]
+            pkg = PREFERRED_VERSIONS[package.split("::")[-1].split("=")[0].split(";")[0].strip()]
             assert (dep := dependencies.get(pkg["name"], None)) is not None
             allowed_versions = [pkg["version"]]
             if pkg["version"].endswith(".0"):

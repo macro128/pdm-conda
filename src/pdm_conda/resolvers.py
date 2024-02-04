@@ -162,12 +162,14 @@ class CondaResolution(Resolution):
                 else:
                     if requirement.identify() in excluded:
                         criterion.information = [
-                            RequirementInformation(i.requirement.as_named_requirement(), i.parent)
-                            if isinstance(
-                                i.requirement,
-                                CondaRequirement,
+                            (
+                                RequirementInformation(i.requirement.as_named_requirement(), i.parent)
+                                if isinstance(
+                                    i.requirement,
+                                    CondaRequirement,
+                                )
+                                else i
                             )
-                            else i
                             for i in criterion.information
                         ]
                     elif any(isinstance(i.requirement, CondaRequirement) for i in criterion.information):
@@ -211,7 +213,7 @@ class CondaResolver(Resolver):
             project = self.provider.repository.environment.project
             conda_config = project.conda_config
             # here we remove a self dependency we added because of the custom behavior
-            if conda_config.is_initialized and conda_config.custom_behavior and not project.is_library:
+            if conda_config.is_initialized and conda_config.custom_behavior and not project.is_distribution:
                 for key, candidate in list(result.mapping.items()):
                     if candidate.name == conda_config.project_name:
                         del result.mapping[key]

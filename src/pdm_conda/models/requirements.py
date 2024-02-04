@@ -45,8 +45,10 @@ class CondaRequirement(NamedRequirement):
     @classmethod
     def create(cls: type[T], **kwargs: Any) -> T:
         kwargs.pop("conda_managed", None)
-        if build_string := kwargs.get("build_string", None):
+        if build_string := kwargs.get("build_string", ""):
             kwargs["build_string"] = build_string.strip()
+        if "is_python_package" not in kwargs and kwargs.get("name", "").startswith("_"):
+            kwargs["is_python_package"] = False
 
         return super().create(**kwargs)
 
@@ -77,7 +79,13 @@ class CondaRequirement(NamedRequirement):
                     version = f"{'.'.join(parts[:-1])}.*,>={version}"
             specifier += f"{operator}{version}"
         build_string = f" {self.build_string}" if with_build_string and self.build_string and specifier else ""
-        return f"{channel}{self.conda_name}{specifier}{build_string}"
+        extras = ""
+        marker = ""
+        if not conda_compatible:
+            extras = f"[{','.join(sorted(self.extras))}]" if self.extras else ""
+            marker = self._format_marker()
+
+        return f"{channel}{self.conda_name}{extras}{specifier}{build_string}{marker}"
 
     def _hash_key(self) -> tuple:
         return (
@@ -146,7 +154,7 @@ class CondaRequirement(NamedRequirement):
                         )
                 # if all incompatibles then keep fake build string to force failing search
                 if not all(_compatible.values()):
-                    build_string = f"{_req.build_string}{requirement.build_string}"
+                    build_string = f"{_req.build_string}&{requirement.build_string} (incompatible build strings)"
                 else:
                     # tries to find the most specific build string
                     build_string = min(build_strings, key=lambda x: (-len(x.replace("*", "")), x.count("*")))
@@ -157,7 +165,6 @@ class CondaRequirement(NamedRequirement):
 def as_conda_requirement(requirement: NamedRequirement | CondaRequirement) -> CondaRequirement:
     if isinstance(requirement, NamedRequirement) and not isinstance(requirement, CondaRequirement):
         req = copy(requirement)
-        req.marker = None
         req.name = req.conda_name
         conda_req = parse_requirement(f"conda:{req.as_line()}")
         conda_req.groups = req.groups
@@ -230,6 +237,9 @@ def parse_requirement(line: str, editable: bool = False) -> Requirement:
         channel, line = match.groups()
         if channel:
             channel = channel[:-2]
+        marker = None
+        if ";" in line:
+            line, marker = line.split(";", maxsplit=1)
 
         build_string = None
         if len(_line := re.split(r"\s+", line)) == 3 or (len(_line) == 2 and _specifier_re.search(_line[0])):
@@ -275,12 +285,22 @@ def parse_requirement(line: str, editable: bool = False) -> Requirement:
                     version_or[j] = _version
             version_and[i] = max((v for v in version_or if v), key=comparable_version, default="")
         version = ",".join(version_and)
+        if marker:
+            name += f";{marker}"
+        prefix = ""
+        if underscore_prefix := re.match(r"^(_+)(.*)", name):
+            prefix = underscore_prefix.group(1)
+            name = underscore_prefix.group(2)
+        _req = _parse_requirement(line=name)
+        _req.name = f"{prefix}{_req.name}"
         req = CondaRequirement.create(
-            name=strip_extras(name.strip())[0],
+            name=_req.name,
             version=version,
             channel=channel,
             version_mapping=version_mapping,
             build_string=build_string,
+            marker=_req.marker,
+            extras=_req.extras,
         )
     else:
         req = _parse_requirement(line=line, editable=editable)

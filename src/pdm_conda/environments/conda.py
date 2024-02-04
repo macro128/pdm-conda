@@ -39,7 +39,7 @@ class CondaEnvironment(PythonEnvironment):
     def packages_path(self) -> Path:
         return Path(ensure_conda_env())
 
-    def get_paths(self) -> dict[str, str]:
+    def get_paths(self, dist_name: str | None = None) -> dict[str, str]:
         prefix = ensure_conda_env()
         paths = sysconfig.get_paths(vars={k: prefix for k in ("base", "platbase", "installed_base")}, expand=True)
         paths.setdefault("prefix", prefix)

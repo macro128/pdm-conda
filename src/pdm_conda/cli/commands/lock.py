@@ -20,7 +20,7 @@ class Command(BaseCommand):
     def handle(self, project: Project, options: argparse.Namespace) -> None:
         project = cast(CondaProject, project)
         if project.conda_config.is_initialized:
-            # conda don't produce cross-platform locks
+            # conda doesn't produce cross-platform locks
             options.strategy_change = [
                 s for s in (options.strategy_change or []) if not s.replace("-", "_").endswith(FLAG_CROSS_PLATFORM)
             ] + [
