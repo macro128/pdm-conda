@@ -154,7 +154,7 @@ class CondaRequirement(NamedRequirement):
                         )
                 # if all incompatibles then keep fake build string to force failing search
                 if not all(_compatible.values()):
-                    build_string = f"{_req.build_string}{requirement.build_string}"
+                    build_string = f"{_req.build_string}&{requirement.build_string} (incompatible build strings)"
                 else:
                     # tries to find the most specific build string
                     build_string = min(build_strings, key=lambda x: (-len(x.replace("*", "")), x.count("*")))

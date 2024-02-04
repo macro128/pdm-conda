@@ -30,7 +30,10 @@ class Command(BaseCommand):
                 for i, group in enumerate(groups | dev_groups):
                     group_requirements = dict()
                     for identifier, req in project.get_dependencies(group).items():
-                        updated_req = candidates.get(identifier).req
+                        can = candidates.get(identifier, None)
+                        if can is None:
+                            continue
+                        updated_req = can.req
 
                         if req.is_named:
                             version = next(s.version for s in updated_req.specifier)
