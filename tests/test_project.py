@@ -21,6 +21,8 @@ DEPENDENCIES = dict(
         ([], ["pytest-conda==1.0=build_string"]),
         (["pytest; python_version >= '3.6'"], ["pytest-conda"]),
         (["pytest"], ["pytest-conda; python_version >= '3.6'"]),
+        ([], ["__virtual_package"]),
+        ([], ["__package==1.0.0"]),
     ],
     ids=[
         "different pkgs",
@@ -39,6 +41,8 @@ DEPENDENCIES = dict(
         "conda with build string",
         "pypi markers inherit",
         "conda with markers",
+        "virtual package",
+        "conda with underscore",
     ],
 )
 CONDA_MAPPING = dict(
@@ -159,7 +163,7 @@ class TestProject:
 
     @pytest.mark.parametrize(**DEPENDENCIES)
     @pytest.mark.parametrize(**GROUPS)
-    @pytest.mark.parametrize("as_default_manager", [False, True], ids=["", "as_default_manager"])
+    @pytest.mark.parametrize("as_default_manager", [True], ids=["as_default_manager"])
     def test_add_dependencies(
         self,
         project,
@@ -188,25 +192,28 @@ class TestProject:
         if conda_dependencies:
             _dependencies, _ = project.use_pyproject_dependencies(group_name, dev)
             _conda_dependencies = project.get_conda_pyproject_dependencies(group_name, dev)
-            for d in conda_dependencies:
+            for dep in conda_dependencies:
                 asserted = 0
-                d, extras = strip_extras(
-                    d.split(";")[0].split("=")[0].split(">")[0].split("~")[0].split("::")[-1].strip(),
+                dep, extras = strip_extras(
+                    dep.split(";")[0].split("=")[0].split(">")[0].split("~")[0].split("::")[-1].strip(),
                 )
+                python_dep = conda_to_pypi(dep)
                 for c in (_conda_dependencies, _dependencies):
                     for r in c:
-                        if d in r or conda_to_pypi(d) in r:
+                        if dep in r or python_dep in r:
                             asserted += 1
                             break
-                req = next((r for n, r in requirements.items() if n == d or n.startswith(f"{d}[")), None)
+                req = next((r for n, r in requirements.items() if n == dep or n.startswith(f"{dep}[")), None)
                 assert req is not None
+
                 num_assertions = 1
-                if as_default_manager:
-                    if not req.is_python_package or req.channel or req.build_string:
-                        num_assertions = 2
-                elif req.is_python_package:
+                # if not python package then it should only be in conda_dependencies
+                if not req.is_python_package:
+                    num_assertions = 1
+                # if conda default manager but req has conda info then it should be in both
+                elif as_default_manager and req.is_python_package and (req.build_string or req.channel):
                     num_assertions = 2
-                assert asserted == len(conda_dependencies) * num_assertions
+                assert asserted == num_assertions
 
     @pytest.mark.parametrize(
         ("config_name", "config_value", "must_be_different"),

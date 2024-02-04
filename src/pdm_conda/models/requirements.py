@@ -45,8 +45,10 @@ class CondaRequirement(NamedRequirement):
     @classmethod
     def create(cls: type[T], **kwargs: Any) -> T:
         kwargs.pop("conda_managed", None)
-        if build_string := kwargs.get("build_string", None):
+        if build_string := kwargs.get("build_string", ""):
             kwargs["build_string"] = build_string.strip()
+        if "is_python_package" not in kwargs and kwargs.get("name", "").startswith("_"):
+            kwargs["is_python_package"] = False
 
         return super().create(**kwargs)
 
@@ -285,11 +287,12 @@ def parse_requirement(line: str, editable: bool = False) -> Requirement:
         version = ",".join(version_and)
         if marker:
             name += f";{marker}"
-        if virtual_pkg := name.startswith("__"):
-            name = name[2:]
+        prefix = ""
+        if underscore_prefix := re.match(r"^(_+)(.*)", name):
+            prefix = underscore_prefix.group(1)
+            name = underscore_prefix.group(2)
         _req = _parse_requirement(line=name)
-        if virtual_pkg:
-            _req.name = f"__{_req.name}"
+        _req.name = f"{prefix}{_req.name}"
         req = CondaRequirement.create(
             name=_req.name,
             version=version,
