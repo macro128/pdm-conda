@@ -213,7 +213,11 @@ class CondaCandidate(Candidate):
             requirement = as_conda_requirement(requirement)
             requirement.version_mapping.update({parse_conda_version(version): version})
         else:
-            requirement = parse_requirement(f"conda:{name} {version} {build_string}")
+            _line = f"conda:{name}"
+            if extras := package.get("extras", []):
+                _line += f"[{','.join(extras)}]"
+            _line += f" {version} {build_string}"
+            requirement = parse_requirement(_line)
 
         if marker and not requirement.marker:
             requirement.marker = parse_requirement(f"{requirement.name} ; {marker}").marker

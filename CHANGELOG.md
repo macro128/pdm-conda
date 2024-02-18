@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.1] - 18/02/2024
+
+### Fixed
+
+* Correctly parse lockfile with extras.
+
 ## [0.16.0] - 04/02/2024
 
 ### Added

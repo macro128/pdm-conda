@@ -89,7 +89,7 @@ class CondaRequirement(NamedRequirement):
 
     def _hash_key(self) -> tuple:
         return (
-            self.key,
+            *super()._hash_key(),
             frozenset(self.specifier),
         )
 
