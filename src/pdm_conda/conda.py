@@ -332,8 +332,12 @@ def conda_create(
     if dry_run:
         command.append("--dry-run")
 
-    for req in requirements:
-        command.append(req.as_line(with_build_string=True, conda_compatible=True, with_channel=True).replace(" ", "="))
+    command += list(
+        {
+            req.as_line(with_build_string=True, conda_compatible=True, with_channel=True).replace(" ", "="): None
+            for req in requirements
+        },
+    )
 
     if channels:
         for c in channels:

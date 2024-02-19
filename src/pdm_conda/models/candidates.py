@@ -120,8 +120,7 @@ class CondaCandidate(Candidate):
 
     @req.setter
     def req(self, value):
-        if isinstance(value, CondaRequirement):
-            self._req = value
+        self._req = as_conda_requirement(value)
 
     @property
     def distribution(self):

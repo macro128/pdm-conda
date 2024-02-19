@@ -202,17 +202,23 @@ class CondaResolver(Resolver):
         is_conda_environment = isinstance(self.provider.repository.environment, CondaEnvironment)
         resolution = CondaResolution(self.provider, self.reporter, is_conda_environment=is_conda_environment)
         if is_conda_environment:
+            project = self.provider.repository.environment.project
+            conda_config = project.conda_config
             resolution.initialize_conda_resolution(requirements)
+            if conda_config.is_initialized and conda_config.custom_behavior:
+                project.is_distribution = True
         else:
             assert not any(isinstance(r, CondaRequirement) for r in requirements)
 
-        state = resolution.resolve(requirements, max_rounds=max_rounds)
-        result = _build_result(state)
+        try:
+            state = resolution.resolve(requirements, max_rounds=max_rounds)
+            result = _build_result(state)
+        finally:
+            if is_conda_environment:
+                project.is_distribution = None
 
+        # here we remove a self dependency we added because of the custom behavior
         if is_conda_environment:
-            project = self.provider.repository.environment.project
-            conda_config = project.conda_config
-            # here we remove a self dependency we added because of the custom behavior
             if conda_config.is_initialized and conda_config.custom_behavior and not project.is_distribution:
                 for key, candidate in list(result.mapping.items()):
                     if candidate.name == conda_config.project_name:

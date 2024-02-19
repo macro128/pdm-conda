@@ -8,6 +8,7 @@ from pdm.models.repositories import BaseRepository, LockedRepository, PyPIReposi
 from pdm.models.specifiers import PySpecSet
 
 from pdm_conda.conda import (
+    CondaResolutionError,
     CondaSearchError,
     conda_create,
     conda_search,
@@ -90,16 +91,6 @@ class CondaRepository(BaseRepository):
                 candidate.hashes = _candidates[0].hashes
         return super().get_hashes(candidate)
 
-    def is_this_package(self, requirement: Requirement) -> bool:
-        project = self.environment.project
-        if (
-            isinstance(self.environment, CondaEnvironment)
-            and project.conda_config.is_initialized
-            and project.conda_config.custom_behavior
-        ):
-            return requirement.is_named and requirement.key == project.conda_config.project_name
-        return super().is_this_package(requirement)
-
 
 class PyPICondaRepository(PyPIRepository, CondaRepository):
     def update_conda_resolution(
@@ -116,7 +107,7 @@ class PyPICondaRepository(PyPIRepository, CondaRepository):
         for req in requirements:
             if update:
                 break
-            key = req.identify()
+            key = req.conda_name
             if key not in self._conda_resolution:
                 update = True
                 break
@@ -126,30 +117,32 @@ class PyPICondaRepository(PyPIRepository, CondaRepository):
                     break
 
         if update:
-            resolution = conda_create(
-                self.environment.project,
-                requirements,
-                prefix=f"/tmp/{uuid.uuid4()}",
-                dry_run=True,
-            )
-            _requirements = {r.conda_name: r for r in requirements}
-            for name, candidates in resolution.items():
-                req = _requirements.get(name, candidates[0].req)
-                key = req.identify()
-                cans = self._conda_resolution.get(key, [])
-                # add non-existing candidates
-                if any(True for can in candidates if can not in cans):
-                    # add requirement to changed if didn't exist
-                    if key in self._conda_resolution:
-                        changed.append(req)
-                    self._conda_resolution[key] = candidates
-
+            try:
+                resolution = conda_create(
+                    self.environment.project,
+                    requirements,
+                    prefix=f"/tmp/{uuid.uuid4()}",
+                    dry_run=True,
+                )
+                _requirements = {r.conda_name: r for r in requirements}
+                for name, candidates in resolution.items():
+                    req = _requirements.get(name, candidates[0].req)
+                    key = req.conda_name
+                    cans = self._conda_resolution.get(key, [])
+                    # add non-existing candidates
+                    if any(True for can in candidates if can not in cans):
+                        # add requirement to changed if didn't exist
+                        if key in self._conda_resolution:
+                            changed.append(req)
+                        self._conda_resolution[key] = candidates
+            except CondaResolutionError:
+                pass
         return changed
 
     def _find_candidates(self, requirement: Requirement, minimal_version: bool) -> Iterable[Candidate]:
         if self.is_conda_managed(requirement):
             requirement = as_conda_requirement(requirement)
-            candidates = self._conda_resolution.get(requirement.identify(), [])
+            candidates = self._conda_resolution.get(requirement.conda_name, [])
             candidates = [
                 c.copy_with(requirement, merge_requirements=True) for c in candidates if requirement.is_compatible(c)
             ]
@@ -170,9 +163,6 @@ class LockedCondaRepository(LockedRepository, CondaRepository):
             for key, can in self.packages.items():
                 if isinstance(can, CondaCandidate) and req_id == key[0]:
                     yield key
-
-    def is_this_package(self, requirement: Requirement) -> bool:
-        return super(LockedRepository, self).is_this_package(requirement)
 
     def _read_lockfile(self, lockfile: Mapping[str, Any]) -> None:
         packages = lockfile.get("package", [])

@@ -4,7 +4,7 @@ import os
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
-from functools import wraps
+from functools import cached_property, wraps
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -250,7 +250,7 @@ class PluginConfig:
             self._excluded_identifiers = {parse_requirement(name).identify() for name in self._excludes}
         return self._excluded_identifiers
 
-    @property
+    @cached_property
     def project_name(self) -> str | None:
         return normalize_name(self._project.name) if self._project.name else None
 

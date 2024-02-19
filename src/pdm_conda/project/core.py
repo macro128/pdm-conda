@@ -60,12 +60,13 @@ class CondaProject(Project):
         self._conda_mapping: dict[str, str] = dict()
         self._pypi_mapping: dict[str, str] = dict()
         self.conda_config = PluginConfig.load_config(self)
+        self._is_distribution: bool | None = None
 
     def _check_update_info(self, prop):
         if prop is None:
             self._get_conda_info()
 
-    @property
+    @cached_property
     def virtual_packages(self) -> set[CondaRequirement]:
         self._check_update_info(self._virtual_packages)
         return self._virtual_packages  # type: ignore
@@ -245,3 +246,13 @@ class CondaProject(Project):
         if self.conda_config.is_initialized:
             finder.add_provider(CondaProvider(self), 0)
         return finder
+
+    @property
+    def is_distribution(self) -> bool:
+        if self._is_distribution is not None:
+            return self._is_distribution
+        return super().is_distribution
+
+    @is_distribution.setter
+    def is_distribution(self, value: bool | None):
+        self._is_distribution = value
