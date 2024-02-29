@@ -239,8 +239,8 @@ class CondaProject(Project):
             return CondaBaseProvider(provider.repository, **kwargs)  # type: ignore[arg-type]
         return provider
 
-    def _get_python_finder(self) -> Finder:
-        finder = super()._get_python_finder()
+    def _get_python_finder(self, search_venv: bool = True) -> Finder:
+        finder = super()._get_python_finder(search_venv)
         from pdm_conda.cli.commands.venv.utils import CondaProvider
 
         if self.conda_config.is_initialized:
