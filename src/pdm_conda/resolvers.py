@@ -103,7 +103,7 @@ class CondaResolution(Resolution):
                     # todo msg
                     self._add_to_criteria(criteria, constrain, parent=candidate)
 
-    def _update_conda_resolution(self, criteria, parent) -> bool:
+    def _update_conda_resolution(self, criteria, parent):
         requirements = list(
             chain.from_iterable(
                 (
@@ -116,20 +116,10 @@ class CondaResolution(Resolution):
         if parent is not None:
             requirements.extend(self._p.get_dependencies(candidate=parent))
         self._ensure_criteria(criteria)
-        changed = self._p.repository.update_conda_resolution(
+        self._p.repository.update_conda_resolution(
             [self._p.get_requirement_from_overrides(req) for req in requirements],
             criteria[CONDA_RESOLUTION_KEY],
         )
-        for req in changed:
-            self._add_to_criteria(criteria, req, parent)
-            identifier = self._p.identify(requirement_or_candidate=req)
-            criterion = criteria.get(identifier)
-            _constrains: set[str] = set()
-            for can in criterion.candidates:
-                if isinstance(can, CondaCandidate):
-                    self.update_constrains(can, merge_old=_constrains)
-                    _constrains.update(can.constrains.keys())
-        return bool(changed)
 
     def _add_to_criteria(self, criteria, requirement, parent):
         _req = requirement
@@ -174,8 +164,7 @@ class CondaResolution(Resolution):
                         ]
                     elif any(isinstance(i.requirement, CondaRequirement) for i in criterion.information):
                         _req = as_conda_requirement(requirement)
-            if self._update_conda_resolution(criteria, parent):
-                self._add_to_criteria(criteria, _req, parent)
+            self._update_conda_resolution(criteria, parent)
         super()._add_to_criteria(criteria, _req, parent)
 
     def _get_updated_criteria(self, candidate):

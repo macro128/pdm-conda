@@ -55,7 +55,7 @@ class CondaRepository(BaseRepository):
         self,
         requirements: list[Requirement] | None = None,
         resolution: dict | None = None,
-    ) -> list[CondaRequirement]:
+    ):
         """
         Updates the existing conda resolution if new requirements.
         :param requirements: list of requirements
@@ -64,7 +64,6 @@ class CondaRepository(BaseRepository):
         """
         if resolution is not None:
             self._conda_resolution = resolution
-        return []
 
     def get_dependencies(self, candidate: Candidate) -> tuple[list[Requirement], PySpecSet, str]:
         if isinstance(candidate, CondaCandidate):
@@ -97,9 +96,8 @@ class PyPICondaRepository(PyPIRepository, CondaRepository):
         self,
         requirements: list[Requirement] | None = None,
         resolution: dict | None = None,
-    ) -> list[CondaRequirement]:
+    ):
         super().update_conda_resolution(requirements, resolution)
-        changed = []
         requirements = requirements or []
         requirements = [as_conda_requirement(req) for req in requirements if self.is_conda_managed(req)]
         update = False
@@ -128,16 +126,9 @@ class PyPICondaRepository(PyPIRepository, CondaRepository):
                 for name, candidates in resolution.items():
                     req = _requirements.get(name, candidates[0].req)
                     key = req.conda_name
-                    cans = self._conda_resolution.get(key, [])
-                    # add non-existing candidates
-                    if any(True for can in candidates if can not in cans):
-                        # add requirement to changed if didn't exist
-                        if key in self._conda_resolution:
-                            changed.append(req)
-                        self._conda_resolution[key] = candidates
+                    self._conda_resolution[key] = candidates
             except CondaResolutionError:
                 pass
-        return changed
 
     def _find_candidates(self, requirement: Requirement, minimal_version: bool) -> Iterable[Candidate]:
         if self.is_conda_managed(requirement):
