@@ -62,10 +62,8 @@ class CondaRequirement(NamedRequirement):
         channel = f"{self.channel}::" if with_channel and self.channel else ""
         if as_conda:
             channel = f"conda:{channel}"
-        specifier = ""
-        for s in self.specifier:
-            if specifier:
-                specifier += ","
+        specifiers = []
+        for s in frozenset(self.specifier):
             operator = s.operator
             version = self.version_mapping.get(s.version, s.version)
             if conda_compatible and operator == "~=":
@@ -77,7 +75,8 @@ class CondaRequirement(NamedRequirement):
                     if len(parts) > 2 and re.search(r"(a|b|rc|dev|post|rev|alpha|beta|preview|pre)\d", parts[-1]):
                         parts = parts[:-1]
                     version = f"{'.'.join(parts[:-1])}.*,>={version}"
-            specifier += f"{operator}{version}"
+            specifiers.append(f"{operator}{version}")
+        specifier = ",".join(sorted(specifiers))
         build_string = f" {self.build_string}" if with_build_string and self.build_string and specifier else ""
         extras = ""
         marker = ""
@@ -96,7 +95,7 @@ class CondaRequirement(NamedRequirement):
     def as_named_requirement(self) -> NamedRequirement:
         return NamedRequirement.create(
             name=conda_to_pypi(self.name),
-            version=self.specifier,
+            version=str(self.specifier),
             marker=self.marker,
             extras=self.extras,
             groups=self.groups,
