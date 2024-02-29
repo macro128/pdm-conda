@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.3] - 28/02/2024
+
+### Added
+
+* Now compatible with `pdm==v2.12.4`.
+
+### Fixed
+
+* Fix adding resolution rounds when adding Conda packages.
+* Conda packages specifiers are always sorted when printed.
+
 ## [0.16.2] - 19/02/2024
 
 ### Fixed
