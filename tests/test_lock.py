@@ -12,6 +12,7 @@ from tests.conftest import PREFERRED_VERSIONS, PYTHON_PACKAGE, PYTHON_REQUIREMEN
 @pytest.mark.parametrize("solver", ["conda", "libmamba"])
 @pytest.mark.parametrize("group", ["default", "dev", "other"])
 @pytest.mark.usefixtures("fake_python")
+@pytest.mark.order(1)
 class TestLock:
     @pytest.mark.parametrize(
         "add_conflict,as_default_manager,num_missing_info_on_create",
