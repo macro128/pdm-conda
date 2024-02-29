@@ -3,6 +3,7 @@ ARG app_env="app"
 ARG base="core"
 ARG src="./src"
 ARG src_path="/app/"
+ARG project_type="lib"
 # core stage with no extras
 FROM mambaorg/micromamba:latest AS core
 
@@ -36,12 +37,12 @@ RUN apt clean
 USER ${MAMBA_USER}
 
 # dev/build stage
-FROM ${base} AS dev-lib
+FROM ${base} AS src-app
 
 # install PDM and create app environment
 ARG app_env
 ARG python_version="3.10.*"
-ARG pdm_version="2.12.3"
+ARG pdm_version="2.12.4"
 ENV BIN_PATH=/opt/conda/_bin
 RUN --mount=type=cache,target=/opt/conda/pkgs,id=mamba,mode=0775,uid=1000,gid=1000,sharing=locked \
     micromamba install -y python==3.10.* pdm==${pdm_version} git -n base -c conda-forge --always-copy && \
@@ -63,7 +64,6 @@ ARG pyproject=pyproject.toml
 COPY ${pyproject} pyproject.toml
 COPY --chown=${MAMBA_USER} LICENSE* README.* ./
 
-
 ENV ENV_NAME=${app_env} \
     PDM_CONDA_INSTALLATION_METHOD="copy" \
     PDM_CONDA_CUSTOM_BEHAVIOR=1 \
@@ -71,40 +71,49 @@ ENV ENV_NAME=${app_env} \
 # install plugins
 RUN pdm install --plugins -v
 
-# copy lockfile
-ARG lockfile=pdm.lock
-COPY --chown=${MAMBA_USER} ${lockfile}* ./
+FROM src-app AS src-lib
 
 # copy sources
 ARG src
 COPY --chown=${MAMBA_USER} ${src} ${src}
 
+FROM src-${project_type} AS dev
+
+# copy lockfile
+ARG lockfile=pdm.lock
+COPY --chown=${MAMBA_USER} ${lockfile}* ./
+
 # install dependencies and project
 ARG env
-ARG project_type="lib"
+ARG project_type
 ARG dependencies=""
 RUN --mount=type=cache,target=/opt/conda/pkgs,id=mamba,mode=0775,uid=1000,gid=1000,sharing=locked \
     python /tmp/pdm_install.py -G ${dependencies} --${project_type} - --${env} -x --lockfile ${lockfile}
 # add src to python path
+ARG src_path
+ARG src
 ENV PYTHONPATH=${src_path}${src}:${PYTHONPATH}
 
 RUN micromamba clean -a -y
 
-FROM dev-lib AS dev-app
+# this stages are dummy only for allowing to choose them later
+FROM dev AS dev-app
+
+FROM dev AS dev-lib
 
 # prod stage
 FROM ${base} AS prod-lib
 
 # get environment
 ARG app_env
-COPY --from=dev-lib /opt/conda/envs/${app_env} /opt/conda/envs/${app_env}
+COPY --from=dev /opt/conda/envs/${app_env} /opt/conda/envs/${app_env}
 
 FROM prod-lib AS prod-app
 
 # get sources
 ARG src
 ARG src_path
-COPY --chown=${MAMBA_USER} ${src} ${src_path}${src}
+COPY --from=src-lib ${src_path}${src} ${src_path}${src}
 ENV PYTHONPATH=${src_path}${src}:${PYTHONPATH}
 
 # runtime stage
