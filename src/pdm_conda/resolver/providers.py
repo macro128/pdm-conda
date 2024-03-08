@@ -84,8 +84,11 @@ class CondaBaseProvider(BaseProvider):
     ) -> tuple[Comparable, ...]:
         preference = super().get_preference(identifier, resolutions, candidates, information, backtrack_causes)
         return (
-            *preference[:3],
-            not any(isinstance(i.requirement, CondaRequirement) for i in information[identifier]),
+            preference[:3],
+            (
+                isinstance(self.repository, CondaRepository)
+                and self.repository.is_conda_managed(next(information[identifier]).requirement)
+            ),
             *preference[3:],
         )
 

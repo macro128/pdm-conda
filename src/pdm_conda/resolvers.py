@@ -10,6 +10,7 @@ from resolvelib.resolvers import (
     _build_result,
 )
 
+from pdm_conda.conda import CondaResolutionError
 from pdm_conda.environments import CondaEnvironment
 from pdm_conda.models.candidates import CondaCandidate
 from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement
@@ -116,10 +117,13 @@ class CondaResolution(Resolution):
         if parent is not None:
             requirements.extend(self._p.get_dependencies(candidate=parent))
         self._ensure_criteria(criteria)
-        self._p.repository.update_conda_resolution(
-            [self._p.get_requirement_from_overrides(req) for req in requirements],
-            criteria[CONDA_RESOLUTION_KEY],
-        )
+        try:
+            self._p.repository.update_conda_resolution(
+                [self._p.get_requirement_from_overrides(req) for req in requirements],
+                criteria[CONDA_RESOLUTION_KEY],
+            )
+        except CondaResolutionError:
+            pass
 
     def _add_to_criteria(self, criteria, requirement, parent):
         _req = requirement

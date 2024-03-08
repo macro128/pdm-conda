@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import re
 import subprocess
 from functools import lru_cache
 from pathlib import Path
@@ -37,13 +38,21 @@ if TYPE_CHECKING:
 
     from pdm_conda.project import CondaProject
 
+_conda_response_packages_re = re.compile(r"(nothing provides requested|^.─)\s+(\w+)")
+
 
 class CondaExecutionError(PdmException):
-    pass
+    def __init__(self, *args, data: dict | None = None):
+        super().__init__(*args)
+        self.data = data or dict()
+        self.message = self.data.get("message", "")
 
 
 class CondaResolutionError(CondaExecutionError):
-    pass
+
+    def __init__(self, *args, data: dict | None = None):
+        super().__init__(*args, data=data)
+        self.packages: list = self.data.get("packages", [])
 
 
 class CondaSearchError(CondaExecutionError):
@@ -110,7 +119,10 @@ def run_conda(
         process = subprocess.run(cmd, capture_output=True, encoding="utf-8")
     if "--json" in cmd:
         try:
-            response = json.loads(process.stdout)
+            if not (out := process.stdout.strip()).startswith("{"):
+                out = "{" + out.split("{")[-1]
+
+            response = json.loads(out)
         except:
             response = {}
     else:
@@ -126,16 +138,24 @@ def run_conda(
         msg = ""
         if exception_msg:
             msg = f"{exception_msg}\n"
+        kwargs = {}
         if isinstance(response, dict) and not response.get("success", False):
-            if err := response.get("solver_problems", response.get("error", response.get("message", process.stderr))):
+            if err := response.get(
+                "solver_problems",
+                response.get("error", response.get("message", f"{process.stderr}\n{process.stdout}")),
+            ):
                 if isinstance(err, str):
                     err = [err]
                 msg += "\n".join(err)
+            if exception_cls == CondaResolutionError:
+                if "message" not in response:
+                    response["message"] = process.stdout or process.stderr
+                kwargs["data"] = response
         else:
             msg += process.stderr
         if environment:
             msg += f"\n{environment}"
-        raise exception_cls(msg) from e
+        raise exception_cls(msg, **kwargs) from e
     return response
 
 
@@ -344,11 +364,23 @@ def conda_create(
             command.extend(["-c", c])
         command.append("--override-channels")
 
-    result = run_conda(
-        command,
-        exception_cls=CondaResolutionError if dry_run else VirtualenvCreateError,
-        exception_msg=f"Error resolving requirements with {config.runner}" if dry_run else "Error creating environment",
-    )
+    try:
+        result = run_conda(
+            command,
+            exception_cls=CondaResolutionError if dry_run else VirtualenvCreateError,
+            exception_msg=(
+                f"Error resolving requirements with {config.runner}" if dry_run else "Error creating environment"
+            ),
+        )
+    except CondaResolutionError as err:
+        if not err.packages:
+            failed_packages = []
+            for line in err.message.split("\n"):
+                if (match := _conda_response_packages_re.search(line)) is not None:
+                    failed_packages.append(match.group(2))
+            err.packages = failed_packages
+            print(err.packages)
+        raise
     if fetch_candidates:
         actions = result.get("actions", dict())
         fetch_packages = {pkg["name"]: pkg for pkg in actions.get("FETCH", [])}

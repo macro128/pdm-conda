@@ -4,9 +4,11 @@ import uuid
 from typing import TYPE_CHECKING, cast
 
 from pdm import termui
+from pdm.exceptions import CandidateNotFound
 from pdm.models.repositories import BaseRepository, LockedRepository, PyPIRepository
 from pdm.models.specifiers import PySpecSet
 
+from pdm_conda import logger
 from pdm_conda.conda import (
     CondaResolutionError,
     CondaSearchError,
@@ -127,8 +129,20 @@ class PyPICondaRepository(PyPIRepository, CondaRepository):
                     req = _requirements.get(name, candidates[0].req)
                     key = req.conda_name
                     self._conda_resolution[key] = candidates
-            except CondaResolutionError:
-                pass
+            except CondaResolutionError as err:
+                logger.info(err)
+                if err.packages:
+                    msg = "Unable to find candidates for "
+                    for i, package in enumerate(err.packages):
+                        msg += f"[success]{package}[/success]"
+                        if i < len(err.packages) - 1:
+                            if i == len(err.packages) - 2:
+                                msg += " and "
+                            else:
+                                msg += ", "
+                    msg += " with Conda.\nYou should add more channels or add the packages to the excludes list."
+                    raise CandidateNotFound(msg)
+                raise
 
     def _find_candidates(self, requirement: Requirement, minimal_version: bool) -> Iterable[Candidate]:
         if self.is_conda_managed(requirement):
