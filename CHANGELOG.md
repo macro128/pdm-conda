@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.4] - 08/03/2024
+
+### Changed
+
+* Now fails faster if Conda can't find a candidate and shows the error with verbose, suggesting possible Pypi only packages.
+
 ## [0.16.3] - 28/02/2024
 
 ### Added
