@@ -174,19 +174,26 @@ def as_conda_requirement(requirement: NamedRequirement | CondaRequirement) -> Co
     return conda_req
 
 
-def is_conda_managed(requirement: Requirement, conda_config: PluginConfig) -> bool:
+def is_conda_managed(
+    requirement: Requirement,
+    conda_config: PluginConfig,
+    excluded_identifiers: set[str] | None = None,
+) -> bool:
     """
     True if requirement is conda requirement or (not excluded and named requirement
     and conda as default manager or used by another conda requirement)
+
     :param requirement: requirement to evaluate
     :param conda_config: conda config
+    :param excluded_identifiers: identifiers to exclude
     """
     from pdm.resolver.python import PythonRequirement
 
+    excluded_identifiers = excluded_identifiers or conda_config.excluded_identifiers
     identifier = requirement.key
     return (
         identifier != conda_config.project_name
-        and all(not fnmatch.fnmatch(identifier, pattern) for pattern in conda_config.excluded_identifiers)
+        and all(not fnmatch.fnmatch(identifier, pattern) for pattern in excluded_identifiers)
         and (
             isinstance(requirement, (CondaRequirement, PythonRequirement))
             or (isinstance(requirement, NamedRequirement) and conda_config.as_default_manager)
