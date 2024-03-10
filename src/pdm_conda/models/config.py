@@ -79,6 +79,14 @@ CONFIGS = [
         ),
     ),
     ("custom-behavior", ConfigItem("Use pdm-conda custom behavior", False, env_var="PDM_CONDA_CUSTOM_BEHAVIOR")),
+    (
+        "auto-excludes",
+        ConfigItem(
+            "If cannot find package with Conda, add it to excludes list",
+            False,
+            env_var="PDM_CONDA_AUTO_EXCLUDES",
+        ),
+    ),
 ]
 
 _CONFIG_MAP = {name: name.replace("-", "_") for (name, _) in CONFIGS}
@@ -108,6 +116,7 @@ class PluginConfig:
     _project: Project = field(repr=False, default=None)
     _initialized: bool = field(repr=False, default=False, compare=False)
     _set_project_config: bool = field(repr=False, default=False, compare=False, init=False)
+    _write_project_config: bool = field(repr=False, default=False, compare=False, init=False)
     _force_set_project_config: bool = field(repr=False, default=False, compare=False, init=False)
     _excludes: list[str] = field(repr=False, compare=False, init=False, default_factory=list)
     _excluded_identifiers: set[str] | None = field(default=None, repr=False, init=False)
@@ -117,6 +126,7 @@ class PluginConfig:
     solver: str = CondaSolver.CONDA
     as_default_manager: bool = False
     custom_behavior: bool = False
+    auto_excludes: bool = False
     batched_commands: bool = False
     installation_method: str = "hard-link"
     dependencies: list[str] = field(default_factory=list, repr=False)
@@ -185,6 +195,8 @@ class PluginConfig:
                         project_config.pop(project_config_name, None)
                     else:
                         project_config[project_config_name] = value
+                if self._write_project_config:
+                    self._project.pyproject.write(show_message=False)
             if config_item.env_var:
                 os.environ.setdefault(config_item.env_var, str(value))
 
@@ -217,7 +229,10 @@ class PluginConfig:
         Context manager that temporarily updates configs without updating pyproject settings
         """
         configs = ["_set_project_config"] + list(kwargs)
-        kwargs["_set_project_config"] = False or kwargs.get("_force_set_project_config", False)
+        kwargs["_set_project_config"] = kwargs.get("_set_project_config", False) or kwargs.get(
+            "_force_set_project_config",
+            False,
+        )
         old_values = {}
         for name in configs:
             old_values[name] = getattr(self, name)
@@ -234,6 +249,14 @@ class PluginConfig:
         Context manager that deactivates updating pyproject settings
         """
         with self.with_config():
+            yield
+
+    @contextmanager
+    def write_project_config(self):
+        """
+        Context manager that forces writing pyproject settings
+        """
+        with self.with_config(_write_project_config=True, _set_project_config=True):
             yield
 
     @contextmanager

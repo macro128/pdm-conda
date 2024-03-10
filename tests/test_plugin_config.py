@@ -57,8 +57,9 @@ class TestPluginConfig:
 
         assert subscribed.call_count == (1 if set_before else 0)
         if config_value is not None:
-            setattr(config, conda_config_name, assert_value)
-            project.pyproject.write(False)
+            with config.write_project_config():
+                setattr(config, conda_config_name, assert_value)
+            project.pyproject.reload()
             if not set_before and config_value == config_default:
                 assert (
                     "conda" not in project.pyproject.settings or config_name not in project.pyproject.settings["conda"]
