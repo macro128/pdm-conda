@@ -30,6 +30,18 @@ if TYPE_CHECKING:
     from pdm_conda.models.requirements import Requirement
 
 
+def _format_packages(packages: list[str], pretty_print=False) -> str:
+    result = ""
+    for i, package in enumerate(packages):
+        result += f"[success]{package}[/success]" if pretty_print else package
+        if i < len(packages) - 1:
+            if i == len(packages) - 2:
+                result += " and "
+            else:
+                result += ", "
+    return result
+
+
 class CondaRepository(BaseRepository):
     def __init__(
         self,
@@ -40,6 +52,8 @@ class CondaRepository(BaseRepository):
         super().__init__(sources, environment, ignore_compatibility)
         self.environment = cast(CondaEnvironment, environment)
         self._conda_resolution: dict[str, list[CondaCandidate]] = dict()
+        self._compatible_requirements: set[CondaRequirement] = set()
+        self._excluded_identifiers: set[str] = set()
 
     def is_conda_managed(self, requirement: Requirement) -> bool:
         """
@@ -103,18 +117,20 @@ class PyPICondaRepository(PyPIRepository, CondaRepository):
         requirements = requirements or []
         requirements = [as_conda_requirement(req) for req in requirements if self.is_conda_managed(req)]
         update = False
-        # if any requirement not in saved candidates or incompatible candidates
-        for req in requirements:
-            if update:
-                break
-            key = req.conda_name
-            if key not in self._conda_resolution:
-                update = True
-                break
-            for can in self._conda_resolution[key]:
-                if not req.is_compatible(can):
+        if requirements_to_test := (set(requirements) - self._compatible_requirements):
+            # if any requirement not in saved candidates or incompatible candidates
+            for req in requirements_to_test:
+                if update:
+                    break
+                key = req.conda_name
+                if key not in self._conda_resolution:
                     update = True
                     break
+                for can in self._conda_resolution[key]:
+                    if not req.is_compatible(can):
+                        update = True
+                        break
+                self._compatible_requirements.add(req)
 
         if update:
             try:
@@ -129,6 +145,7 @@ class PyPICondaRepository(PyPIRepository, CondaRepository):
                     req = _requirements.get(name, candidates[0].req)
                     key = req.conda_name
                     self._conda_resolution[key] = candidates
+                self._compatible_requirements = set(requirements)
             except CondaResolutionError as err:
                 logger.info(err)
                 if err.packages:
