@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.5] - 18/03/2024
+
+### Fixed
+
+* Fixed pdm not detecting Conda packages.
+* Fixed `pdm list --tree --resolve` command not working with Conda packages.
+
 ## [0.16.4] - 08/03/2024
 
 ### Changed
