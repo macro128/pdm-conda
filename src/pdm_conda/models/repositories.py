@@ -84,13 +84,33 @@ class CondaRepository(BaseRepository):
     def get_hashes(self, candidate: Candidate) -> list[FileHash]:
         if isinstance(candidate, CondaCandidate):
             if not candidate.hashes:
-                termui.logger.info("Fetching hashes for %s", candidate)
+                termui.logger.info(f"Fetching hashes for {candidate}")
                 _candidates = conda_search(self.environment.project, candidate.req)
                 if not _candidates:
                     raise CondaSearchError(f"Cannot find hashes for {candidate}")
 
                 candidate.hashes = _candidates[0].hashes
         return super().get_hashes(candidate)
+
+    def update_hashes(self, mapping: dict[str, Candidate]):
+        """
+        Update hashes for candidates in mapping using conda create
+        :param mapping: mapping of candidates
+        """
+        conda_requirements = [can.req for can in mapping.values() if isinstance(can, CondaCandidate) and not can.hashes]
+        if conda_requirements:
+            resolution = conda_create(
+                self.environment.project,
+                conda_requirements,
+                prefix=f"/tmp/{uuid.uuid4()}",
+                dry_run=True,
+            )
+            for name, candidate in mapping.items():
+                termui.logger.info(f"Fetching hashes for {candidate}")
+                if (cans := resolution.get(name, [])) and cans[0].req.is_compatible(candidate.req):
+                    candidate.hashes = cans[0].hashes
+                else:
+                    raise CondaSearchError(f"Cannot find hashes for {candidate}")
 
 
 class PyPICondaRepository(PyPIRepository, CondaRepository):

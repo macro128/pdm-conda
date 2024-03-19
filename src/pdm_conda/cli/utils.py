@@ -6,9 +6,12 @@ from typing import TYPE_CHECKING
 from pdm.formats.base import array_of_inline_tables, make_array
 
 from pdm_conda.models.candidates import CondaCandidate
+from pdm_conda.models.repositories import CondaRepository
 from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement
 
 if TYPE_CHECKING:
+    from typing import Mapping
+
     from pdm.project import Project
 
     from pdm_conda.models.candidates import Candidate
@@ -22,6 +25,19 @@ def remove_quotes(req: str) -> str:
         if req.startswith(quote) and req.endswith(quote):
             req = req[1:-1]
     return req
+
+
+def wrap_fetch_hashes(func):
+    @functools.wraps(func)
+    def wrapper(repository, mapping: Mapping[str, Candidate]) -> None:
+        conda_candidates = {}
+        if isinstance(repository, CondaRepository):
+            conda_candidates = {name: can for name, can in mapping.items() if isinstance(can, CondaCandidate)}
+            repository.update_hashes(conda_candidates)
+
+        return func(repository, {name: can for name, can in mapping.items() if name not in conda_candidates})
+
+    return wrapper
 
 
 def wrap_save_version_specifiers(func):
@@ -90,7 +106,9 @@ if not _patched:
 
     save_version_specifiers = wrap_save_version_specifiers(utils.save_version_specifiers)
     format_lockfile = wrap_format_lockfile(utils.format_lockfile)
+    wrap_fetch_hashes = wrap_fetch_hashes(actions.fetch_hashes)
     for m in [utils, actions]:
         setattr(m, "save_version_specifiers", save_version_specifiers)
         setattr(m, "format_lockfile", format_lockfile)
+        setattr(m, "fetch_hashes", wrap_fetch_hashes)
     _patched = True
