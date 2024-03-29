@@ -44,7 +44,7 @@ dev = [
 ]
 
 [tool.pdm]
-distriburion = true
+distribution = true
 plugins = [
     "pdm-backend",
 ]

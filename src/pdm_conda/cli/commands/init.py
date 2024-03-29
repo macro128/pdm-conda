@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, cast
 
 from pdm.cli.commands.init import Command as BaseCommand
-from pdm.cli.options import ArgumentGroup
+from pdm.cli.options import ArgumentGroup, split_lists
 
 from pdm_conda.project import CondaProject
 
@@ -31,28 +31,32 @@ class Command(BaseCommand):
         conda_group.add_argument(
             "-c",
             "--channel",
-            dest="conda_channel",
-            type=str,
-            help="Specify Conda channel",
-            default="",
+            dest="conda_channels",
+            metavar="CHANNEL",
+            action=split_lists(","),
+            help="Specify Conda channels separated by comma, can be supplied multiple times",
+            default=[],
         )
         conda_group.add_to_parser(parser)
 
     def handle(self, project: Project, options: argparse.Namespace) -> None:
         project = cast(CondaProject, project)
         config = project.conda_config
-        overriden = dict()
+        initialized = config.is_initialized
+        overridden_configs = dict(is_initialized=True)
         if runner := options.conda_runner:
             config.runner = runner
-            overriden["runner"] = runner
+            overridden_configs["runner"] = runner
             config.is_initialized = True
-            if (channel := options.conda_channel) and channel not in config.channels:
-                config.channels.append(channel)
-                overriden["channels"] = config.channels
+            channels = options.conda_channels
+            for channel in channels:
+                if channel not in config.channels:
+                    config.channels.append(channel)
+            overridden_configs["channels"] = config.channels
 
         super().handle(project, options)
-        if runner:
+        if not initialized:
             with config.force_set_project_config():
-                for key, value in overriden.items():
+                for key, value in overridden_configs.items():
                     setattr(config, key, value)
             project.pyproject.write(show_message=False)

@@ -119,11 +119,12 @@ def run_conda(
         process = subprocess.run(cmd, capture_output=True, encoding="utf-8")
     if "--json" in cmd:
         try:
-            if not (out := process.stdout.strip()).startswith("{"):
+            out = process.stdout.strip()
+            if not out.startswith("{") and not out.startswith("["):
                 out = "{" + out.split("{")[-1]
 
             response = json.loads(out)
-        except:
+        except json.JSONDecodeError:
             response = {}
     else:
         response = {}

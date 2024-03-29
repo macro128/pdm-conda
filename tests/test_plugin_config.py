@@ -88,8 +88,9 @@ class TestPluginConfig:
         conda_config_name = config_name.replace("-", "_")
         old_value = getattr(config, conda_config_name)
         project.pyproject.write(False)
+        assert not config._dry_run
         with config.with_config(**{conda_config_name: config_value}):
-            assert not config._set_project_config
+            assert config._dry_run
             assert getattr(config, conda_config_name) == config_value
         assert getattr(config, conda_config_name) == old_value
         assert subscribed.call_count == 0

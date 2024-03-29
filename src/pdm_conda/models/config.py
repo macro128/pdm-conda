@@ -115,8 +115,7 @@ def is_conda_config_initialized(project: Project):
 class PluginConfig:
     _project: Project = field(repr=False, default=None)
     _initialized: bool = field(repr=False, default=False, compare=False)
-    _set_project_config: bool = field(repr=False, default=False, compare=False, init=False)
-    _write_project_config: bool = field(repr=False, default=False, compare=False, init=False)
+    _dry_run: bool = field(repr=False, default=False, compare=False, init=False)
     _force_set_project_config: bool = field(repr=False, default=False, compare=False, init=False)
     _excludes: list[str] = field(repr=False, compare=False, init=False, default_factory=list)
     _excluded_identifiers: set[str] | None = field(default=None, repr=False, init=False)
@@ -154,7 +153,7 @@ class PluginConfig:
         if not self.is_initialized:
             self.is_initialized = is_conda_config_initialized(self._project)
 
-        self._set_project_config = True
+        self._dry_run = False
 
     def __setattr__(self, name: str, value: Any) -> None:
         super().__setattr__(name, value)
@@ -166,7 +165,7 @@ class PluginConfig:
         ):
             name = f"conda.{_CONFIG_MAP[name]}"
             name, config_item = next(filter(lambda n: name == n[0], CONFIGS))
-            if self._set_project_config:
+            if not self._dry_run:
                 name_path = name.split(".")
                 name = name_path.pop(-1)
                 config = self._project.pyproject.settings
@@ -195,16 +194,14 @@ class PluginConfig:
                         project_config.pop(project_config_name, None)
                     else:
                         project_config[project_config_name] = value
-                if self._write_project_config:
-                    self._project.pyproject.write(show_message=False)
             if config_item.env_var:
                 os.environ.setdefault(config_item.env_var, str(value))
 
     def reload(self):
         _conf = self.load_config(self._project)
-        with self.omit_set_project_config():
+        with self.dry_run():
             for k, v in _conf.__dict__.items():
-                if not callable(v) and k not in ("_project", "_set_project_config") and getattr(self, k) != v:
+                if not callable(v) and k not in ("_project", "_dry_run") and getattr(self, k) != v:
                     setattr(self, k, v)
 
     @staticmethod
@@ -228,11 +225,8 @@ class PluginConfig:
         """
         Context manager that temporarily updates configs without updating pyproject settings
         """
-        configs = ["_set_project_config"] + list(kwargs)
-        kwargs["_set_project_config"] = kwargs.get("_set_project_config", False) or kwargs.get(
-            "_force_set_project_config",
-            False,
-        )
+        configs = ["_dry_run"] + list(kwargs)
+        kwargs["_dry_run"] = True and not kwargs.get("_force_set_project_config", False)
         old_values = {}
         for name in configs:
             old_values[name] = getattr(self, name)
@@ -244,19 +238,11 @@ class PluginConfig:
                 setattr(self, name, old_values[name])
 
     @contextmanager
-    def omit_set_project_config(self):
+    def dry_run(self):
         """
         Context manager that deactivates updating pyproject settings
         """
         with self.with_config():
-            yield
-
-    @contextmanager
-    def write_project_config(self):
-        """
-        Context manager that forces writing pyproject settings
-        """
-        with self.with_config(_write_project_config=True, _set_project_config=True):
             yield
 
     @contextmanager
@@ -294,7 +280,7 @@ class PluginConfig:
 
     @is_initialized.setter
     def is_initialized(self, value):
-        if value and not self._initialized:
+        if value:
             config = self._project.project_config
             config["python.use_venv"] = True
             config["python.use_pyenv"] = False

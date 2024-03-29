@@ -168,7 +168,7 @@ class TestLock:
             ["create"]
             + [search_command] * (0 if runner == "micromamba" else num_missing_info_on_create)
             + ["info"]
-            + [search_command] * ((len(packages) - num_extras - 1) if refresh else 0)
+            + ["create"] * (1 if refresh else 0)
         )
 
         assert conda.call_count == len(cmd_order)

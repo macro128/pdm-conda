@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import fnmatch
+import functools
 import re
 from copy import copy
 from typing import TYPE_CHECKING
@@ -98,7 +99,7 @@ class CondaRequirement(NamedRequirement):
             version=str(self.specifier),
             marker=self.marker,
             extras=self.extras,
-            groups=self.groups,
+            groups=list(self.groups),
         )
 
     def is_compatible(self, requirement_or_candidate: Requirement | Candidate):
@@ -320,17 +321,41 @@ def conda_name(self) -> str | None:
     return self._conda_name
 
 
+def wrap_filter_requirements_with_extras(func):
+    @functools.wraps(func)
+    def wrapper(requirement_lines: list[str], *args, **kwargs):
+        conda_requirements = [r for r in requirement_lines if _conda_meta_req_re.match(r)]
+        res = func([r for r in requirement_lines if r not in conda_requirements], *args, **kwargs)
+        conda_filtered = func(conda_requirements, *args, **kwargs)
+        conda_idx = 0
+        for i, req in enumerate(conda_filtered):
+            while conda_idx < len(conda_requirements):
+                conda_req = conda_requirements[conda_idx]
+                conda_idx += 1
+                if req in conda_req:
+                    conda_filtered[i] = f"conda:{req}"
+                    break
+        return res + conda_filtered
+
+    return wrapper
+
+
 def key(self) -> str | None:
     return normalize_name(self.conda_name) if self.conda_name else None
 
 
 if not _patched:
-    from pdm.cli import actions
+    from pdm.cli import actions, utils
     from pdm.models import requirements
 
-    for m in [actions, requirements]:
+    for m in [utils, actions, requirements]:
         setattr(m, "parse_requirement", parse_requirement)
 
+    setattr(
+        utils,
+        "filter_requirements_with_extras",
+        wrap_filter_requirements_with_extras(utils.filter_requirements_with_extras),
+    )
     setattr(Requirement, "conda_name", property(conda_name))
     setattr(Requirement, "key", property(key))
     _patched = True
