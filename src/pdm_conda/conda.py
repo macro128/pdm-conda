@@ -38,7 +38,7 @@ if TYPE_CHECKING:
 
     from pdm_conda.project import CondaProject
 
-_conda_response_packages_re = re.compile(r"(nothing provides requested|^.─)\s+(\w+)")
+_conda_response_packages_re = re.compile(r"(nothing provides requested|^.─)\s+([^\s\[\"\'=<>|~!]+)")
 
 
 class CondaExecutionError(PdmException):
@@ -311,7 +311,7 @@ def conda_search(
 
 def conda_create(
     project: CondaProject,
-    requirements: list[CondaRequirement],
+    requirements: Iterable[CondaRequirement],
     channels: list[str] | None = None,
     prefix: Path | str | None = None,
     name: str = "",
@@ -380,7 +380,6 @@ def conda_create(
                 if (match := _conda_response_packages_re.search(line)) is not None:
                     failed_packages.append(match.group(2))
             err.packages = failed_packages
-            print(err.packages)
         raise
     if fetch_candidates:
         actions = result.get("actions", dict())
