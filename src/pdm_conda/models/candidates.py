@@ -209,7 +209,7 @@ class CondaCandidate(Candidate):
         channel = parse_channel(package["channel"])
         marker = package.get("marker", None)
         if requirement is not None:
-            requirement = as_conda_requirement(requirement)
+            requirement = as_conda_requirement(copy(requirement))
             requirement.version_mapping.update({parse_conda_version(version): version})
         else:
             _line = f"conda:{name}"
@@ -222,7 +222,7 @@ class CondaCandidate(Candidate):
             requirement.marker = parse_requirement(f"{requirement.name} ; {marker}").marker
         assert requirement is not None
         requirement.is_python_package = requires_python is not None
-        requirement.groups = package.get("groups", [])
+        requirement.groups = package.get("groups", requirement.groups)
         return CondaCandidate(
             req=requirement,
             name=name,

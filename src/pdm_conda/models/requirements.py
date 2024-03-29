@@ -99,7 +99,7 @@ class CondaRequirement(NamedRequirement):
             version=str(self.specifier),
             marker=self.marker,
             extras=self.extras,
-            groups=self.groups,
+            groups=list(self.groups),
         )
 
     def is_compatible(self, requirement_or_candidate: Requirement | Candidate):
