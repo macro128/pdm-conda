@@ -42,9 +42,9 @@ class Command(BaseCommand):
     def handle(self, project: Project, options: argparse.Namespace) -> None:
         project = cast(CondaProject, project)
         config = project.conda_config
-        initialized = config.is_initialized
-        overridden_configs = dict(is_initialized=True)
+        overridden_configs = dict()
         if runner := options.conda_runner:
+            overridden_configs["is_initialized"] = True
             config.runner = runner
             overridden_configs["runner"] = runner
             config.is_initialized = True
@@ -55,8 +55,6 @@ class Command(BaseCommand):
             overridden_configs["channels"] = config.channels
 
         super().handle(project, options)
-        if not initialized:
-            with config.force_set_project_config():
-                for key, value in overridden_configs.items():
-                    setattr(config, key, value)
-            project.pyproject.write(show_message=False)
+        with config.write_project_config():
+            for key, value in overridden_configs.items():
+                setattr(config, key, value)

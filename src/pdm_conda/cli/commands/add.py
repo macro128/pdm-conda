@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, cast
 
 from pdm.cli.commands.add import Command as BaseCommand
-from pdm.cli.options import ArgumentGroup
+from pdm.cli.options import ArgumentGroup, split_lists
 from pdm.exceptions import RequirementError
 
 from pdm_conda.cli.utils import remove_quotes
@@ -56,9 +56,10 @@ conda_group.add_argument(
     "-ce",
     "--conda-excludes",
     dest="conda_excludes",
-    type=str,
-    help="Specify Conda excluded dependencies separated by comma",
-    default="",
+    metavar="PACKAGE",
+    action=split_lists(","),
+    default=[],
+    help="Specify Conda excluded dependencies separated by comma, can be supplied multiple times",
 )
 
 
@@ -77,7 +78,6 @@ class Command(BaseCommand):
             existing_channels.append(channel)
             config.channels = existing_channels
         if conda_excludes := options.conda_excludes:
-            conda_excludes = set(conda_excludes.split(","))
             config.excludes = set(conda_excludes).union(config.excludes)
         if options.conda_as_default_manager:
             config.as_default_manager = True
