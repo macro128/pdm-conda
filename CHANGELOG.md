@@ -7,9 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 30/03/2024
+
+
+### Added
+
+* Add `conda.auto-exludes` config and auto-excludes behavior.
+
 ### Changed
 
+* Allow multiple channels specified using `pdm init --channel`.
 * Faster `pdm lock --refresh` execution.
+* Faster resolution time.
+
+### Fixed
+
+* Fix locked packages dropping information when running `pdm lock --refresh`.
 
 ## [0.16.5] - 18/03/2024
 

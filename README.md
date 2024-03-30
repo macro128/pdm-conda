@@ -28,6 +28,7 @@ runner = "micromamba"
 channels = ["conda-forge/noarch", "conda-forge", "anaconda"]
 dependencies = ["pdm"]
 as-default-manager = true
+auto-excludes = true
 solver = "libmamba"
 excludes = ["pytest-cov"] # don't install with conda even if it's a dependency from other packages
 installation-method = "copy"
@@ -86,7 +87,7 @@ resolution.
 If only Conda packages are used (i.e. setting `conda.as-default-manager` to `true` and no `conda.excludes`) then Conda
 solver is invoked only once.
 
-### Settings overriden
+### Settings overridden
 
 In order to use Conda to install packages some settings were overriden:
 
