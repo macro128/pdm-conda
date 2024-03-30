@@ -10,7 +10,7 @@ from pdm_conda.models.repositories import CondaRepository
 from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement
 
 if TYPE_CHECKING:
-    from typing import Mapping
+    from collections.abc import Mapping
 
     from pdm.project import Project
 
@@ -70,12 +70,12 @@ def wrap_format_lockfile(func):
     ) -> dict:
         res = func(project, mapping, fetched_dependencies, *args, **kwargs)
         # ensure no duplicated groups in metadata
-        if groups := res.get("metadata", dict()).get("groups"):
+        if groups := res.get("metadata", {}).get("groups"):
             res["metadata"]["groups"] = list({group: None for group in groups}.keys())
 
         assert len(res["package"]) == len(mapping)
         # fix conda packages
-        for package, (_, can) in zip(res["package"], sorted(mapping.items())):
+        for package, (_, can) in zip(res["package"], sorted(mapping.items()), strict=False):
             # only static-url allowed for conda packages
             if isinstance(can, CondaCandidate):
                 package["files"] = array_of_inline_tables(
@@ -108,7 +108,7 @@ if not _patched:
     format_lockfile = wrap_format_lockfile(utils.format_lockfile)
     wrap_fetch_hashes = wrap_fetch_hashes(actions.fetch_hashes)
     for m in [utils, actions]:
-        setattr(m, "save_version_specifiers", save_version_specifiers)
-        setattr(m, "format_lockfile", format_lockfile)
-        setattr(m, "fetch_hashes", wrap_fetch_hashes)
+        m.save_version_specifiers = save_version_specifiers
+        m.format_lockfile = format_lockfile
+        m.fetch_hashes = wrap_fetch_hashes
     _patched = True

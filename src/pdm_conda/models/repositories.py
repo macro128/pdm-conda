@@ -9,19 +9,14 @@ from pdm.models.repositories import BaseRepository, LockedRepository, PyPIReposi
 from pdm.models.specifiers import PySpecSet
 
 from pdm_conda import logger
-from pdm_conda.conda import (
-    CondaResolutionError,
-    CondaSearchError,
-    conda_create,
-    conda_search,
-    sort_candidates,
-)
+from pdm_conda.conda import CondaResolutionError, CondaSearchError, conda_create, conda_search, sort_candidates
 from pdm_conda.environments import CondaEnvironment
 from pdm_conda.models.candidates import CondaCandidate
 from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement
 
 if TYPE_CHECKING:
-    from typing import Any, Iterable, Mapping
+    from collections.abc import Iterable, Mapping
+    from typing import Any
 
     from pdm.models.repositories import CandidateKey, RepositoryConfig
 
@@ -51,14 +46,13 @@ class CondaRepository(BaseRepository):
     ) -> None:
         super().__init__(sources, environment, ignore_compatibility)
         self.environment = cast(CondaEnvironment, environment)
-        self._conda_resolution: dict[str, list[CondaCandidate]] = dict()
+        self._conda_resolution: dict[str, list[CondaCandidate]] = {}
         self._compatible_requirements: set[CondaRequirement] = set()
         self._excluded_identifiers: set[str] = set()
 
     def is_conda_managed(self, requirement: Requirement, excluded_identifiers: set[str] | None = None) -> bool:
-        """True if requirement is conda requirement or (not excluded and named
-        requirement and conda as default manager or used by another conda
-        requirement)
+        """True if requirement is conda requirement or (not excluded and named requirement and conda as default manager
+        or used by another conda requirement)
 
         :param requirement: requirement to evaluate
         :param excluded_identifiers: identifiers to exclude
@@ -103,14 +97,13 @@ class CondaRepository(BaseRepository):
         return dependencies, requires_python, summary
 
     def get_hashes(self, candidate: Candidate) -> list[FileHash]:
-        if isinstance(candidate, CondaCandidate):
-            if not candidate.hashes:
-                termui.logger.info(f"Fetching hashes for {candidate}")
-                _candidates = conda_search(self.environment.project, candidate.req)
-                if not _candidates:
-                    raise CondaSearchError(f"Cannot find hashes for {candidate}")
+        if isinstance(candidate, CondaCandidate) and not candidate.hashes:
+            termui.logger.info(f"Fetching hashes for {candidate}")
+            _candidates = conda_search(self.environment.project, candidate.req)
+            if not _candidates:
+                raise CondaSearchError(f"Cannot find hashes for {candidate}")
 
-                candidate.hashes = _candidates[0].hashes
+            candidate.hashes = _candidates[0].hashes
         return super().get_hashes(candidate)
 
     def update_hashes(self, mapping: dict[str, Candidate]):
@@ -191,7 +184,7 @@ class PyPICondaRepository(PyPIRepository, CondaRepository):
                         f"Unable to find candidates for {_format_packages(err.packages, pretty_print=True)} "
                         f"with Conda.\n"
                         f"You should add more channels or add the packages to the excludes list.",
-                    )
+                    ) from err
                 raise
         return excluded_identifiers
 

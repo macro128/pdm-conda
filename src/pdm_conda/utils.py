@@ -28,6 +28,6 @@ if not _patched:
         working_set,
     ]
     for m in modules:
-        setattr(m, "normalize_name", normalize_name)
+        m.normalize_name = normalize_name
 
     _patched = True

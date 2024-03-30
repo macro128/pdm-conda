@@ -45,8 +45,7 @@ class CondaInstallManager(InstallManager):
                 raise
 
     def install(self, candidate: Candidate) -> Distribution:
-        """Install candidate, use conda if conda package else default
-        installer.
+        """Install candidate, use conda if conda package else default installer.
 
         :param candidate: candidate to install
         """
@@ -58,12 +57,11 @@ class CondaInstallManager(InstallManager):
                 self._num_install,
             )
             return candidate.distribution
-        else:
-            return super().install(candidate)
+
+        return super().install(candidate)
 
     def uninstall(self, dist: Distribution) -> None:
-        """Uninstall distribution, use conda if conda package else default
-        uninstaller.
+        """Uninstall distribution, use conda if conda package else default uninstaller.
 
         :param dist: distribution to uninstall
         """
@@ -73,8 +71,8 @@ class CondaInstallManager(InstallManager):
             super().uninstall(dist)
 
     def overwrite(self, dist: Distribution, candidate: Candidate) -> None:
-        """Overwrite distribution with candidate, uninstall and install with
-        conda if conda package else default overwrite.
+        """Overwrite distribution with candidate, uninstall and install with conda if conda package else default
+        overwrite.
 
         :param dist: distribution to uninstall
         :param candidate: candidate to install

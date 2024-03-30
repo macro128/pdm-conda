@@ -14,11 +14,7 @@ from pdm.project import Config, ConfigItem
 from pdm.utils import normalize_name
 
 from pdm_conda import logger
-from pdm_conda.mapping import (
-    MAPPING_DOWNLOAD_DIR_ENV_VAR,
-    MAPPING_URL,
-    MAPPING_URL_ENV_VAR,
-)
+from pdm_conda.mapping import MAPPING_DOWNLOAD_DIR_ENV_VAR, MAPPING_URL, MAPPING_URL_ENV_VAR
 from pdm_conda.models.requirements import parse_requirement
 
 if TYPE_CHECKING:
@@ -59,8 +55,8 @@ CONFIGS = [
         ),
     ),
     ("dependencies", ConfigItem("Dependencies to install with Conda", [])),
-    ("optional-dependencies", ConfigItem("Optional dependencies to install with Conda", dict())),
-    ("dev-dependencies", ConfigItem("Development dependencies to install with Conda", dict())),
+    ("optional-dependencies", ConfigItem("Optional dependencies to install with Conda", {})),
+    ("dev-dependencies", ConfigItem("Development dependencies to install with Conda", {})),
     ("excludes", ConfigItem("Excluded dependencies from Conda", [])),
     (
         "pypi-mapping.download-dir",
@@ -173,7 +169,7 @@ class PluginConfig:
                 for p in name_path:
                     if should_delete and p != "conda" and p not in config:
                         break
-                    config = config.setdefault(p, dict())
+                    config = config.setdefault(p, {})
 
                 if should_delete:
                     # if value is default and was not set before then delete it
@@ -190,7 +186,7 @@ class PluginConfig:
 
                     config[name] = _value
                 self.is_initialized |= self._project.pyproject.exists() and "conda" in self._project.pyproject.settings
-                if (project_config_name := PDM_CONFIG.get(name, None)) is not None:
+                if (project_config_name := PDM_CONFIG.get(name)) is not None:
                     project_config = self._project.project_config
                     if should_delete:
                         project_config.pop(project_config_name, None)
@@ -224,8 +220,7 @@ class PluginConfig:
 
     @contextmanager
     def with_config(self, **kwargs):
-        """Context manager that temporarily updates configs without updating
-        pyproject settings."""
+        """Context manager that temporarily updates configs without updating pyproject settings."""
         configs = ["_dry_run"] + list(kwargs)
         kwargs["_dry_run"] = True and not kwargs.get("_force_set_project_config", False)
         old_values = {}
@@ -253,8 +248,7 @@ class PluginConfig:
 
     @contextmanager
     def force_set_project_config(self):
-        """Context manager that forces setting pyproject settings, even default
-        values."""
+        """Context manager that forces setting pyproject settings, even default values."""
         with self.with_config(_force_set_project_config=True):
             yield
 
@@ -274,7 +268,7 @@ class PluginConfig:
 
     @excludes.setter
     def excludes(self, value):
-        excluded = getattr(self, "_excludes", set())
+        excluded: set = getattr(self, "_excludes", set())
         if set(value) != excluded:
             self._excludes = list(value)
             self._excluded_identifiers = None
@@ -296,18 +290,17 @@ class PluginConfig:
 
     @contextmanager
     def with_conda_venv_location(self):
-        """Context manager that ensures the PDM venv location is set to the
-        detected Conda environment if was the default value.
+        """Context manager that ensures the PDM venv location is set to the detected Conda environment if was the
+        default value.
 
-        :return: The path to the venv location and a boolean indicating
-            if the value was overridden
+        :return: The path to the venv location and a boolean indicating if the value was overridden
         """
         conf_name = "venv.location"
         overridden = False
         if (previous_value := self._project.config[conf_name]) == Config.get_defaults()[conf_name] and (
-            venv_location := os.getenv("CONDA_PREFIX", None)
+            conda_prefix := os.getenv("CONDA_PREFIX", None)
         ) is not None:
-            venv_location = Path(venv_location)
+            venv_location = Path(conda_prefix)  # type: ignore
             for parent in (venv_location, *venv_location.parents):
                 if (venv_path := (parent / "envs")).is_dir():
                     logger.info(f"Using detected Conda path for environment: [success]{venv_path}[/]")
@@ -323,7 +316,7 @@ class PluginConfig:
                 del self._project.config
 
     @classmethod
-    def load_config(cls, project: Project, **kwargs) -> "PluginConfig":
+    def load_config(cls, project: Project, **kwargs) -> PluginConfig:
         """Load plugin configs from project settings.
 
         :param project: Project
@@ -333,15 +326,15 @@ class PluginConfig:
 
         def flatten_config(config, allowed_levels, parent_key="", result=None) -> dict:
             if result is None:
-                result = dict()
+                result = {}
             for key, v in config.items():
                 key = ".".join(k for k in (parent_key, key) if k)
                 if isinstance(v, dict) and key in allowed_levels:
                     return flatten_config(v, allowed_levels, key, result)
-                else:
-                    if key not in _CONFIG_MAP:
-                        raise NoConfigError(key)
-                    result[_CONFIG_MAP[key]] = v
+
+                if key not in _CONFIG_MAP:
+                    raise NoConfigError(key)
+                result[_CONFIG_MAP[key]] = v
             return result
 
         config = flatten_config(project.pyproject.settings.get("conda", {}), ["pypi-mapping"])

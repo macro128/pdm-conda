@@ -11,7 +11,7 @@ from pdm_conda.models.requirements import strip_extras
 from pdm_conda.models.setup import CondaSetupDistribution
 
 if TYPE_CHECKING:
-    from typing import Collection
+    from collections.abc import Collection
 
     from pdm_conda.environments import BaseEnvironment
     from pdm_conda.models.candidates import Candidate

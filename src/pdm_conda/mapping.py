@@ -27,7 +27,7 @@ def process_mapping(yaml_path: Path, dict_path: Path):
                 return line.split(key)[-1].strip()
         return None
 
-    mappings = dict()
+    mappings = {}
     with yaml_path.open() as f:
         while (conda_name := find_key("conda_name:", f)) is not None:
             pypi_name = find_key("pypi_name:", f)
@@ -42,8 +42,7 @@ def download_mapping(download_dir: Path, update_interval: timedelta | None = Non
     """Download and process Conda-PyPI mapping from GitHub.
 
     :param download_dir: download dir
-    :param update_interval: update interval, if mapping file modified
-        date is greater than update interval the reload
+    :param update_interval: update interval, if mapping file modified date is greater than update interval the reload
     :return: Conda mapping
     """
     if update_interval is None:
@@ -64,7 +63,7 @@ def download_mapping(download_dir: Path, update_interval: timedelta | None = Non
 
 
 def get_mapping_fixes() -> dict:
-    fixes = dict()
+    fixes = {}
     for path in Path(__file__).parents[:3]:
         if (fixes_file := path / "data/mapping_fixes.json").exists():
             with fixes_file.open() as f:

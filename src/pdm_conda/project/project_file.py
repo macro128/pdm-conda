@@ -6,14 +6,14 @@ from pdm.project.project_file import PyProject as PyProjectBase
 
 class PyProject(PyProjectBase):
     def content_hash(self, algo: str = "sha256") -> str:
-        """Generate a hash of the sensible content of the pyproject.toml file.
-        When the hash changes, it means the project needs to be relocked.
+        """Generate a hash of the sensible content of the pyproject.toml file. When the hash changes, it means the
+        project needs to be relocked.
 
         :param algo: hash algorithm name
         :return: pyproject.toml hash
         """
-        pdm_conda_data = self.settings.get("conda", dict())
-        pdm_conda_dump_data = dict()
+        pdm_conda_data = self.settings.get("conda", {})
+        pdm_conda_dump_data = {}
         for hash_config in (
             "channels",
             "as-default-manager",

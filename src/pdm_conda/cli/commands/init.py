@@ -42,7 +42,7 @@ class Command(BaseCommand):
     def handle(self, project: Project, options: argparse.Namespace) -> None:
         project = cast(CondaProject, project)
         config = project.conda_config
-        overridden_configs = dict()
+        overridden_configs = {}
         if runner := options.conda_runner:
             overridden_configs["is_initialized"] = True
             config.runner = runner

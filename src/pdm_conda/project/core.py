@@ -10,17 +10,12 @@ from pdm.utils import get_venv_like_prefix
 from tomlkit.items import Array
 
 from pdm_conda.models.config import PluginConfig
-from pdm_conda.models.requirements import (
-    CondaRequirement,
-    as_conda_requirement,
-    is_conda_managed,
-    parse_requirement,
-)
+from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement, is_conda_managed, parse_requirement
 from pdm_conda.project.project_file import PyProject
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
     from pathlib import Path
-    from typing import Iterable
 
     from findpython import Finder
     from pdm.core import Core
@@ -41,10 +36,7 @@ class CondaProject(Project):
         from pdm_conda.environments import CondaEnvironment
         from pdm_conda.installers.manager import CondaInstallManager
         from pdm_conda.installers.synchronizers import CondaSynchronizer
-        from pdm_conda.models.repositories import (
-            LockedCondaRepository,
-            PyPICondaRepository,
-        )
+        from pdm_conda.models.repositories import LockedCondaRepository, PyPICondaRepository
         from pdm_conda.resolvers import CondaResolver
 
         super().__init__(core, root_path, is_global, global_config)
@@ -57,8 +49,8 @@ class CondaProject(Project):
         self._virtual_packages: set[CondaRequirement] | None = None
         self._platform: str | None = None
         self._default_channels: list[str] | None = None
-        self._conda_mapping: dict[str, str] = dict()
-        self._pypi_mapping: dict[str, str] = dict()
+        self._conda_mapping: dict[str, str] = {}
+        self._pypi_mapping: dict[str, str] = {}
         self.conda_config = PluginConfig.load_config(self)
         self._is_distribution: bool | None = None
 
@@ -120,12 +112,12 @@ class CondaProject(Project):
         def _getter(conf, name, default, set_defaults=False):
             return (conf.setdefault if set_defaults else conf.get)(name, default)
 
-        settings = _getter(self.pyproject.settings, "conda", dict(), set_defaults)
+        settings = _getter(self.pyproject.settings, "conda", {}, set_defaults)
         if group == "default":
             group = "dependencies"
         else:
             name = "optional" if not dev else "dev"
-            settings = _getter(settings, f"{name}-dependencies", dict(), set_defaults)
+            settings = _getter(settings, f"{name}-dependencies", {}, set_defaults)
         return _getter(settings, group, [], set_defaults)
 
     def iter_groups(self, dev: bool = True) -> Iterable[str]:
@@ -140,10 +132,7 @@ class CondaProject(Project):
         return groups
 
     def get_dependencies(self, group: str | None = None) -> dict[str, Requirement]:
-        if group in super().iter_groups():
-            result = super().get_dependencies(group)
-        else:
-            result = dict()
+        result = super().get_dependencies(group) if group in super().iter_groups() else {}
 
         config = self.conda_config
         group = group or "default"
@@ -230,7 +219,7 @@ class CondaProject(Project):
     ) -> BaseProvider:
         from pdm_conda.resolver.providers import BaseProvider, CondaBaseProvider
 
-        kwargs = dict(direct_minimal_versions=direct_minimal_versions)
+        kwargs = {"direct_minimal_versions": direct_minimal_versions}
         provider = super().get_provider(strategy, tracked_names, for_install, ignore_compatibility, **kwargs)
         if isinstance(provider, BaseProvider) and not isinstance(provider, CondaBaseProvider):
             kwargs["locked_candidates"] = provider.locked_candidates

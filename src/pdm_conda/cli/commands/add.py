@@ -7,11 +7,7 @@ from pdm.cli.options import ArgumentGroup, split_lists
 from pdm.exceptions import RequirementError
 
 from pdm_conda.cli.utils import remove_quotes
-from pdm_conda.models.requirements import (
-    CondaRequirement,
-    is_conda_managed,
-    parse_requirement,
-)
+from pdm_conda.models.requirements import CondaRequirement, is_conda_managed, parse_requirement
 from pdm_conda.project import CondaProject
 
 if TYPE_CHECKING:
@@ -20,13 +16,7 @@ if TYPE_CHECKING:
     from pdm_conda.project import Project
 
 conda_group = ArgumentGroup("Conda Arguments")
-conda_group.add_argument(
-    "--conda",
-    dest="conda_packages",
-    action="append",
-    help="Specify Conda packages",
-    default=[],
-)
+conda_group.add_argument("--conda", dest="conda_packages", action="append", help="Specify Conda packages", default=[])
 
 conda_group.add_argument(
     "-c",

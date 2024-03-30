@@ -46,20 +46,19 @@ class CondaEnvironment(PythonEnvironment):
         return paths
 
     def get_working_set(self) -> WorkingSet:
-        """Get the working set based on local packages directory, include Conda
-        managed packages."""
+        """Get the working set based on local packages directory, include Conda managed packages."""
         working_set = super().get_working_set()
         if self.project.conda_config.is_initialized:
-            dist_map = getattr(working_set, "_dist_map") | conda_list(self.project)
-            setattr(working_set, "_dist_map", dist_map)
+            dist_map = working_set._dist_map | conda_list(self.project)
+            working_set._dist_map = dist_map
             shared_map = getattr(working_set, "_shared_map", {})
-            setattr(working_set, "_iter_map", ChainMap(dist_map, shared_map))
+            working_set._iter_map = ChainMap(dist_map, shared_map)
         return working_set
 
     @property
     def env_dependencies(self) -> dict[str, Requirement]:
         if self._env_dependencies is None:
-            self._env_dependencies = dict()
+            self._env_dependencies = {}
 
             def load_dependencies(name: str, packages: dict, dependencies: dict):
                 if name not in packages and name not in dependencies:

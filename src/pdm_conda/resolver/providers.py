@@ -18,14 +18,10 @@ from unearth.utils import LazySequence
 
 from pdm_conda.models.candidates import CondaCandidate
 from pdm_conda.models.repositories import CondaRepository
-from pdm_conda.models.requirements import (
-    CondaRequirement,
-    as_conda_requirement,
-    parse_requirement,
-)
+from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement, parse_requirement
 
 if TYPE_CHECKING:
-    from typing import Callable, Iterable, Iterator, Mapping, Sequence
+    from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 
     from pdm.models.candidates import Candidate
     from pdm.models.requirements import Requirement
@@ -57,7 +53,7 @@ class CondaBaseProvider(BaseProvider):
         :return: mapping
         """
         if self._overrides_requirements is None:
-            self._overrides_requirements = dict()
+            self._overrides_requirements = {}
             if self.overrides:
                 for identifier, requested in self.overrides.items():
                     if is_url(requested):
@@ -103,7 +99,7 @@ class CondaBaseProvider(BaseProvider):
             if identifier == "python":
                 candidates = find_python_matches(identifier, requirements)
                 return (c for c in candidates if c not in incompat)
-            elif identifier in self.overrides:
+            if identifier in self.overrides:
                 return iter(self.get_override_candidates(identifier))
             reqs = sorted(requirements[identifier], key=self.requirement_preference)
             if not reqs:

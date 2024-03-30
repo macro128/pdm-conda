@@ -4,19 +4,14 @@ import contextlib
 import json
 import re
 import subprocess
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 from shutil import which
 from tempfile import NamedTemporaryFile
 from typing import TYPE_CHECKING
 
 from pdm.cli.commands.venv.backends import VirtualenvCreateError
-from pdm.exceptions import (
-    InstallationError,
-    PdmException,
-    RequirementError,
-    UninstallError,
-)
+from pdm.exceptions import InstallationError, PdmException, RequirementError, UninstallError
 from pdm.models.finder import ReverseVersion
 from pdm.models.setup import Setup
 from pdm.termui import Verbosity
@@ -25,16 +20,12 @@ from pdm_conda import logger
 from pdm_conda.models.candidates import CondaCandidate, parse_channel
 from pdm_conda.models.conda import ChannelSorter
 from pdm_conda.models.config import CondaRunner
-from pdm_conda.models.requirements import (
-    CondaRequirement,
-    parse_conda_version,
-    parse_requirement,
-)
+from pdm_conda.models.requirements import CondaRequirement, parse_conda_version, parse_requirement
 from pdm_conda.models.setup import CondaSetupDistribution
 from pdm_conda.utils import normalize_name
 
 if TYPE_CHECKING:
-    from typing import Iterable
+    from collections.abc import Iterable
 
     from pdm_conda.project import CondaProject
 
@@ -44,12 +35,11 @@ _conda_response_packages_re = re.compile(r"(nothing provides requested|^.─)\s+
 class CondaExecutionError(PdmException):
     def __init__(self, *args, data: dict | None = None):
         super().__init__(*args)
-        self.data = data or dict()
+        self.data = data or {}
         self.message = self.data.get("message", "")
 
 
 class CondaResolutionError(CondaExecutionError):
-
     def __init__(self, *args, data: dict | None = None):
         super().__init__(*args, data=data)
         self.packages: list = self.data.get("packages", [])
@@ -65,8 +55,7 @@ class CondaRunnerNotFoundError(CondaExecutionError):
 
 @contextlib.contextmanager
 def _optional_temporary_file(environment: dict | list):
-    """If environment contains data then creates temporary file else yield
-    None.
+    """If environment contains data then creates temporary file else yield None.
 
     :param environment: environment data
     :return: Temporary file or None
@@ -108,8 +97,8 @@ def run_conda(
                         if isinstance(options, str):
                             f.write(f" {options}\n")
                             continue
-                        else:
-                            f.write("\n")
+
+                        f.write("\n")
                         for v in options:
                             f.write(f"  - {v}\n")
             f.seek(0)
@@ -161,7 +150,7 @@ def run_conda(
     return response
 
 
-@lru_cache(maxsize=None)
+@cache
 def _get_channel_sorter(platform: str, channels: tuple[str]) -> ChannelSorter:
     """Get channel sorter.
 
@@ -245,7 +234,7 @@ def _ensure_channels(
     return list(dict.fromkeys(channels))
 
 
-@lru_cache(maxsize=None)
+@cache
 def _conda_search(
     project: CondaProject,
     requirement: str,
@@ -271,14 +260,14 @@ def _conda_search(
         result = run_conda(command)
     except RequirementError as e:
         if "PackagesNotFoundError:" in str(e):
-            result = dict()
+            result = {}
         else:
             raise
 
     if config.runner == CondaRunner.CONDA:
         packages = result.get(parse_requirement(f"conda:{requirement}").name, [])
     else:
-        packages = result.get("result", dict()).get("pkgs", [])
+        packages = result.get("result", {}).get("pkgs", [])
     return packages
 
 
@@ -328,13 +317,12 @@ def conda_create(
     :param prefix: environment prefix
     :param name: environment name
     :param dry_run: don't install if dry run
-    :param fetch_candidates: if True ensure ensure candidates were
-        fetched
+    :param fetch_candidates: if True ensure ensure candidates were fetched
     """
     config = project.conda_config
     if not config.is_initialized:
         raise VirtualenvCreateError("Error creating environment, no pdm-conda configs were found on pyproject.toml.")
-    candidates = dict()
+    candidates = {}
     channels = channels or []
     for req in requirements:
         if req.channel:
@@ -385,7 +373,7 @@ def conda_create(
             err.packages = failed_packages
         raise
     if fetch_candidates:
-        actions = result.get("actions", dict())
+        actions = result.get("actions", {})
         fetch_packages = {pkg["name"]: pkg for pkg in actions.get("FETCH", [])}
         packages = actions.get("LINK", [])
         for i, pkg in enumerate(packages):
@@ -409,7 +397,7 @@ def conda_create(
                 candidates[name] = _parse_candidates(
                     project,
                     packages=[pkg],
-                    requirement=_requirements.get(name, None),
+                    requirement=_requirements.get(name),
                 )
     return candidates
 
@@ -470,7 +458,7 @@ def _conda_install(
         command.extend(packages)
     if dry_run:
         command.append("--dry-run")
-    kwargs: dict = dict()
+    kwargs: dict = {}
     if explicit:
         kwargs["lockfile"] = packages
     run_conda(command + ["--json"], exception_cls=exception_cls, exception_msg="", **kwargs)
@@ -536,14 +524,13 @@ def not_initialized_warning(project):
 
 
 def conda_info(project: CondaProject) -> dict:
-    """Get conda info containing virtual packages, default channels and
-    packages.
+    """Get conda info containing virtual packages, default channels and packages.
 
     :param project: PDM project
     :return: dict with conda info
     """
     config = project.conda_config
-    res: dict = dict(virtual_packages=set(), platform="", channels=[])
+    res: dict = {"virtual_packages": set(), "platform": "", "channels": []}
     if config.is_initialized:
         info = run_conda(config.command("info") + ["--json"])
         if config.runner != CondaRunner.MICROMAMBA:
@@ -566,7 +553,7 @@ def conda_list(project: CondaProject) -> dict[str, CondaSetupDistribution]:
     :return: packages distribution
     """
     config = project.conda_config
-    distributions = dict()
+    distributions = {}
     if config.is_initialized:
         packages = run_conda(config.command("list") + ["--json"])
         for package in packages:

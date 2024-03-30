@@ -1,14 +1,10 @@
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass, field
 from itertools import chain
 
-from resolvelib.resolvers import (
-    RequirementInformation,
-    Resolution,
-    Resolver,
-    _build_result,
-)
+from resolvelib.resolvers import RequirementInformation, Resolution, Resolver, _build_result
 
 from pdm_conda.conda import CondaResolutionError
 from pdm_conda.environments import CondaEnvironment
@@ -42,8 +38,8 @@ class CondaResolution(Resolution):
     ) -> None:
         super().__init__(*args, **kwargs)
         self._is_conda_environment = is_conda_environment
-        self._base_constrains = base_constrains or dict()
-        self._conda_resolution = conda_resolution or dict()
+        self._base_constrains = base_constrains or {}
+        self._conda_resolution = conda_resolution or {}
         self._conda_excluded_identifiers = conda_excluded_identifiers or set()
 
     @property
@@ -102,10 +98,7 @@ class CondaResolution(Resolution):
 
     def update_constrains(self, candidate: CondaCandidate, criteria=None, merge_old: bool | set[str] = True):
         if isinstance(merge_old, bool):
-            if merge_old:
-                merge_old = set(candidate.constrains.keys())
-            else:
-                merge_old = set()
+            merge_old = set(candidate.constrains.keys()) if merge_old else set()
         if criteria is not None:
             self._ensure_criteria(criteria)
             constrains = criteria[CONSTRAINS_KEY]
@@ -129,20 +122,18 @@ class CondaResolution(Resolution):
                     for i, criterion in criteria.items()
                     if i not in (CONDA_RESOLUTION_KEY, CONSTRAINS_KEY, CONDA_EXCLUDED_IDENTIFIERS_KEY)
                     and criterion.information
-                )
+                ),
             ),
         )
         if parent is not None:
             requirements.extend(self._p.get_dependencies(candidate=parent))
         self._ensure_criteria(criteria)
-        try:
+        with contextlib.suppress(CondaResolutionError):
             criteria[CONDA_EXCLUDED_IDENTIFIERS_KEY] = self._p.repository.update_conda_resolution(
                 [self._p.get_requirement_from_overrides(req) for req in requirements],
                 criteria[CONDA_RESOLUTION_KEY],
                 criteria[CONDA_EXCLUDED_IDENTIFIERS_KEY],
             )
-        except CondaResolutionError:
-            pass
 
     def _add_to_criteria(self, criteria, requirement, parent):
         _req = requirement
@@ -216,12 +207,11 @@ class CondaResolver(Resolver):
                 project.is_distribution = None
 
         # here we remove a self dependency we added because of the custom behavior
-        if is_conda_environment:
-            if conda_config.is_initialized:
-                if conda_config.custom_behavior and not project.is_distribution:
-                    for key, candidate in list(result.mapping.items()):
-                        if candidate.name == conda_config.project_name:
-                            del result.mapping[key]
-                if conda_config.auto_excludes:
-                    conda_config.excludes = state.conda_excluded_identifiers
+        if is_conda_environment and conda_config.is_initialized:
+            if conda_config.custom_behavior and not project.is_distribution:
+                for key, candidate in list(result.mapping.items()):
+                    if candidate.name == conda_config.project_name:
+                        del result.mapping[key]
+            if conda_config.auto_excludes:
+                conda_config.excludes = state.conda_excluded_identifiers
         return result
