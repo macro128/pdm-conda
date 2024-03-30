@@ -11,18 +11,23 @@ from tests.conftest import PREFERRED_VERSIONS, PYTHON_PACKAGE, PYTHON_REQUIREMEN
 @pytest.mark.parametrize("runner", ["conda", "micromamba"])
 @pytest.mark.parametrize("solver", ["conda", "libmamba"])
 @pytest.mark.parametrize("group", ["default", "dev", "other"])
-@pytest.mark.usefixtures("fake_python")
 @pytest.mark.order(1)
 class TestLock:
     @pytest.mark.parametrize(
-        "add_conflict,as_default_manager,num_missing_info_on_create",
-        [[True, True, 1], [True, True, 0], [False, True, 2], [False, False, 0]],
+        "add_conflict,auto_excludes,as_default_manager,num_missing_info_on_create",
+        [
+            [True, True, True, 1],
+            [True, False, True, 1],
+            [True, False, True, 0],
+            [False, False, True, 2],
+            [False, False, False, 0],
+        ],
     )
     @pytest.mark.parametrize("overrides", [True, False])
     @pytest.mark.parametrize("direct_minimal_versions", [True, False])
     @pytest.mark.parametrize(
         "inherit_metadata,marker",
-        [[True, 'python_version > "3.7"'], [True, None], [True, 'python_version > "3.7"']],
+        [[True, 'python_version > "3.7"'], [True, None], [False, None]],
     )
     def test_lock(
         self,
@@ -43,19 +48,20 @@ class TestLock:
         direct_minimal_versions,
         inherit_metadata,
         marker,
+        auto_excludes,
         refresh=False,
     ):
-        """
-        Test lock command work as expected
-        """
+        """Test lock command work as expected."""
         from pdm_conda.models.requirements import CondaRequirement
 
         python_dependencies = {c["name"] for c in PYTHON_REQUIREMENTS}
         conda_packages = [c for c in conda_info if c["name"] not in python_dependencies]
+        python_packages = []
         config = project.conda_config
         config.runner = runner
         config.solver = solver
         config.as_default_manager = as_default_manager
+        config.auto_excludes = auto_excludes
 
         name = conda_packages[-1]["name"]
         if marker:
@@ -91,10 +97,13 @@ class TestLock:
             name = conda_to_pypi(pkg["name"])
             extras = ["extra"]
             pkg["extras"] = extras
+            # add a package that is only python
+            if auto_excludes:
+                python_packages.append("python-only-dep")
             project.pyproject._data.update(
                 {
                     "project": {
-                        "dependencies": [f"{name}[{','.join(extras)}]"],
+                        "dependencies": [f"{name}[{','.join(extras)}]"] + python_packages,
                         "requires-python": project.pyproject.metadata["requires-python"],
                     },
                 },
@@ -102,11 +111,14 @@ class TestLock:
             config.excludes = [name]
             # this will assert that this package is searched on pypi
             pypi([pkg], with_dependencies=True)
+            for name in python_packages:
+                pkg = next(filter(lambda x: x["name"] == name, PYTHON_REQUIREMENTS))
+                pypi([pkg], with_dependencies=True)
 
         requirements = [
             r.conda_name
             for r in itertools.chain(*(deps.values() for deps in project.all_dependencies.values()))
-            if isinstance(r, CondaRequirement)
+            if isinstance(r, CondaRequirement) and r.name not in python_packages
         ]
 
         cmd = ["lock", "-vv", "-G", ":all"]
@@ -117,6 +129,9 @@ class TestLock:
         if not inherit_metadata:
             cmd += ["-S", "no_inherit_metadata"]
         pdm(cmd, obj=project, strict=True)
+
+        if auto_excludes:
+            assert all(True for pkg in python_dependencies if pkg in config.excludes)
 
         lockfile = project.lockfile
         assert set(lockfile.groups) == {"default", group}
@@ -149,23 +164,26 @@ class TestLock:
                 preferred_package = PREFERRED_VERSIONS[name]
                 version = overrides_versions.get(name, preferred_package["version"])
                 assert p["version"] == version
-                assert p["build_string"] == preferred_package["build_string"]
-                assert p["build_number"] == preferred_package["build_number"]
-                assert p["conda_managed"]
-                assert preferred_package["channel"].endswith(p["channel"])
-                hashes = p["files"]
-                assert len(hashes) == 1
-                _hash = hashes[0]
-                assert "file" not in _hash
-                assert _hash["url"] == preferred_package["url"]
-                assert _hash["hash"] == f"md5:{preferred_package['md5']}"
+                if name not in python_packages:
+                    assert p["build_string"] == preferred_package["build_string"]
+                    assert p["build_number"] == preferred_package["build_number"]
+                    assert p["conda_managed"]
+                    assert preferred_package["channel"].endswith(p["channel"])
+                    hashes = p["files"]
+                    assert len(hashes) == 1
+                    _hash = hashes[0]
+                    assert "file" not in _hash
+                    assert _hash["url"] == preferred_package["url"]
+                    assert _hash["hash"] == f"md5:{preferred_package['md5']}"
+                else:
+                    assert all(k not in p for k in ("build_string", "build_number", "conda_managed", "channel"))
 
         if add_conflict:
             assert num_extras > 0
         search_command = "search" if runner == "conda" else "repoquery"
         packages_to_search = {PYTHON_PACKAGE["name"], *requirements}
         cmd_order = (
-            ["create"]
+            ["create"] * (len(python_packages) + 1)
             + [search_command] * (0 if runner == "micromamba" else num_missing_info_on_create)
             + ["info"]
             + ["create"] * (1 if refresh else 0)
@@ -183,6 +201,7 @@ class TestLock:
         assert not cmd_order
         return project.lockfile
 
+    @pytest.mark.parametrize("inherit_metadata", [True, False])
     def test_lock_refresh(
         self,
         pdm,
@@ -195,6 +214,7 @@ class TestLock:
         group,
         conda_mapping,
         mock_conda_mapping,
+        inherit_metadata,
     ):
         old_lockfile = self.test_lock(
             pdm,
@@ -213,7 +233,8 @@ class TestLock:
             False,
             marker=None,
             direct_minimal_versions=False,
-            inherit_metadata=False,
+            auto_excludes=False,
+            inherit_metadata=inherit_metadata,
         )
         lockfile = self.test_lock(
             pdm,
@@ -233,7 +254,8 @@ class TestLock:
             marker=None,
             refresh=True,
             direct_minimal_versions=False,
-            inherit_metadata=False,
+            auto_excludes=False,
+            inherit_metadata=inherit_metadata,
         )
         assert old_lockfile == lockfile
 
@@ -258,7 +280,7 @@ class TestGroupsLock:
             show_message=False,
         )
         project.conda_config.as_default_manager = True
-        project.conda_config.runner = True
+        project.conda_config.runner = "micromamba"
 
         cmd = ["lock", "-vv", "-G", ":all"]
         pdm(cmd + ["--dev"], obj=project, strict=True)

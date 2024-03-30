@@ -9,6 +9,7 @@ from pdm_conda.mapping import MAPPING_DOWNLOAD_DIR_ENV_VAR
 @pytest.fixture
 def patch_download_dir(monkeypatch):
     with TemporaryDirectory() as d:
+        d = str(d)
         monkeypatch.setenv(MAPPING_DOWNLOAD_DIR_ENV_VAR, d)
         yield d
 
@@ -36,9 +37,8 @@ class TestMapping:
         mapping_url,
         monkeypatch,
     ):
-        """
-        Test project conda_mapping downloads conda mapping just one and mapping is as expected
-        """
+        """Test project conda_mapping downloads conda mapping just one and
+        mapping is as expected."""
         from pdm_conda.mapping import (
             MAPPING_URL,
             MAPPING_URL_ENV_VAR,

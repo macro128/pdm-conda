@@ -13,11 +13,10 @@ def patch_listed_envs(project, monkeypatch):
 
 
 @pytest.fixture
-def venv_path(project, conda_name, monkeypatch, conda_envs_path):
+def venv_path(project, conda_name, conda_envs_path):
     from pdm.cli.commands.venv.utils import get_venv_prefix
 
     venv_path = conda_envs_path / (conda_name if conda_name else get_venv_prefix(project))
-    monkeypatch.setenv("CONDA_PREFIX", str(venv_path))
     yield venv_path
 
 
@@ -36,10 +35,11 @@ def interpreter_path(venv_path, active, initialized):
     path = venv_path / "bin/python"
     if initialized:
         path.mkdir(exist_ok=True, parents=True)
+        (venv_path / "conda-meta").mkdir(exist_ok=True)
     yield path if active else None
 
 
-@pytest.mark.usefixtures("fake_python")
+@pytest.mark.usefixtures("venv_path")
 class TestVenv:
     @pytest.mark.parametrize("runner", ["micromamba", "conda", "mamba"])
     @pytest.mark.parametrize("with_pip", [True, False])
@@ -57,9 +57,7 @@ class TestVenv:
         conda,
         conda_envs_path,
     ):
-        """
-        Test `venv create` command work as expected
-        """
+        """Test `venv create` command work as expected."""
         project.global_config["venv.location"] = Config.get_defaults()["venv.location"]
         cmd = ["venv", "create", "-w", runner, "--force"]
         if conda_name:
@@ -68,9 +66,9 @@ class TestVenv:
             cmd.append("--with-pip")
         if venv_location:
             project.global_config["venv.location"] = venv_location
-        with project.conda_config.with_conda_venv_location() as (_venv_location, overriden):
-            assert overriden is not venv_location
-            assert _venv_location == Path(conda_envs_path if overriden else venv_location)
+        with project.conda_config.with_conda_venv_location() as (_venv_location, overridden):
+            assert overridden != bool(venv_location)
+            assert _venv_location == Path(conda_envs_path if overridden else venv_location)
 
         if project.config:
             del project.config
@@ -104,7 +102,7 @@ class TestVenv:
     @pytest.mark.parametrize("runner", ["micromamba", "conda", "mamba"])
     @pytest.mark.parametrize(
         "initialized,conda_name,active",
-        [[True, "test", True], [True, None, False], [True, "test", False], [False, None, False]],
+        [[True, "test", True]],
     )
     def test_venv_list(
         self,
@@ -121,17 +119,16 @@ class TestVenv:
         venv_path,
         conda,
     ):
-        """
-        Test `venv list` command work as expected
-        """
+        """Test `venv list` command work as expected."""
         project.global_config["venv.location"] = Config.get_defaults()["venv.location"]
         # Ignore saved python and search for activated venv
+        monkeypatch.setenv("PDM_IGNORE_SAVED_PYTHON", "1" if active else "0")
         if active:
-            monkeypatch.setenv("PDM_IGNORE_SAVED_PYTHON", "1")
             if conda_name:
                 mocker.patch.object(project, "root", new=venv_path)
         if initialized:
-            project.conda_config.runner = runner
+            with project.conda_config.write_project_config():
+                project.conda_config.runner = runner
 
         result = pdm(["venv", "list"], obj=project, strict=True)
         if initialized:

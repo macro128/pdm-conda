@@ -23,9 +23,7 @@ class TestPluginConfig:
     )
     @pytest.mark.parametrize("set_before", [True, False])
     def test_set_configs(self, project, mocker, set_before, config_name, config_value):
-        """
-        Test settings configs correctly
-        """
+        """Test settings configs correctly."""
         from pdm_conda.models.config import _CONFIG_MAP, CONFIGS
 
         config = project.conda_config
@@ -57,9 +55,8 @@ class TestPluginConfig:
 
         assert subscribed.call_count == (1 if set_before else 0)
         if config_value is not None:
-            with config.write_project_config():
-                setattr(config, conda_config_name, assert_value)
-            project.pyproject.reload()
+            setattr(config, conda_config_name, assert_value)
+            project.pyproject.write(False)
             if not set_before and config_value == config_default:
                 assert (
                     "conda" not in project.pyproject.settings or config_name not in project.pyproject.settings["conda"]
@@ -99,9 +96,7 @@ class TestPluginConfig:
     @pytest.mark.parametrize("runner", ["micromamba", "mamba", "conda", None])
     @pytest.mark.parametrize("as_default_manager", [True, False, None])
     def test_get_configs(self, project, channels, runner, as_default_manager):
-        """
-        Test loading configs correctly
-        """
+        """Test loading configs correctly."""
         dependencies = ["pytest"]
         optional_dependencies = {"dev": ["pytest"]}
 
@@ -139,9 +134,7 @@ class TestPluginConfig:
 
     @pytest.mark.parametrize("name", ["runner", "installation-method", "runner"])
     def test_incorrect_config(self, project, name):
-        """
-        Test load config raises on incorrect config
-        """
+        """Test load config raises on incorrect config."""
         config_value = "incorrect config value"
         with pytest.raises(ProjectError, match=f"Invalid Conda [^:]+: {config_value}"):
             project.pyproject._data.update(

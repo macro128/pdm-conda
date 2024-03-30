@@ -1,4 +1,5 @@
 """Configuration for the pytest test suite."""
+
 import os
 import sys
 from copy import deepcopy
@@ -24,7 +25,7 @@ pytest_plugins = "pdm.pytest"
 
 PYTHON_VERSION = sys.version.split(" ")[0]
 
-PYTHON_PACKAGE = generate_package_info("python", PYTHON_VERSION, ["lib 1.0", "python-only-dep", "__unix =0"])
+PYTHON_PACKAGE = generate_package_info("python", PYTHON_VERSION, ["lib 1.0", "__unix =0"])
 PYTHON_REQUIREMENTS = [
     generate_package_info("openssl", "1.1.1a"),
     generate_package_info("openssl", "1.1.1c"),
@@ -34,7 +35,7 @@ PYTHON_REQUIREMENTS = [
 PREFERRED_VERSIONS = dict(python=PYTHON_PACKAGE)
 _python_dep = f"python >={PYTHON_VERSION}"
 _packages = [
-    generate_package_info("python-only-dep", "1.0"),
+    generate_package_info("python-only-dep", "1.0", python_only=True),
     generate_package_info("pip", "1.0"),
     generate_package_info("openssl", "1.1.1b"),
     generate_package_info("lib2", "1.0.0g"),
@@ -53,7 +54,7 @@ for _p in CONDA_REQUIREMENTS:
     PREFERRED_VERSIONS[_p["name"]] = _p
 
 _CONDA_INFO = [
-    *PYTHON_REQUIREMENTS,
+    *(pkg for pkg in PYTHON_REQUIREMENTS if not pkg["python_only"]),
     generate_package_info("another-dep", "1!0.1gg", depends=["lib ==1.0"]),
     generate_package_info("another-dep", "1!0.1gg", timestamp=3),
     generate_package_info(
@@ -82,8 +83,9 @@ for _p in _packages:
     _CONDA_INFO.append(_p)
 
 CONDA_MAPPING = {f"{p['name']}-pip": p["name"] for p in _CONDA_INFO}
-CONDA_INFO = [*PYTHON_REQUIREMENTS, *_CONDA_INFO]
+CONDA_INFO = [*_CONDA_INFO]
 BUILD_BACKEND = generate_package_info("pdm-backend", "2.0")
+CONDA_PREFIX = os.getenv("CONDA_PREFIX")
 
 
 @pytest.fixture(autouse=True, name="test_name")
@@ -107,7 +109,6 @@ def core_with_plugin(core, monkeypatch) -> Core:
     from pdm_conda import main
 
     Config._config_map["python.use_venv"].default = True
-    monkeypatch.setenv("_CONDA_PREFIX", os.getenv("CONDA_PREFIX"))
     for conf in [
         "INSTALLATION_METHOD",
         "RUNNER",
@@ -146,7 +147,7 @@ def project(core, project_no_init, monkeypatch):
     _project.pyproject.write()
     # Clean the cached property
     _project._environment = None
-    monkeypatch.setenv("CONDA_PREFIX", os.getenv("_CONDA_PREFIX"))
+    monkeypatch.setenv("CONDA_PREFIX", CONDA_PREFIX)
     yield _project
 
 
@@ -233,12 +234,14 @@ def mock_conda(mocker: MockerFixture, conda_info: dict | list, num_missing_info_
         elif subcommand == "create":
 
             def _fetch_package(req, packages, fetch_info):
-                name = req.split(" ")[0].split(":")[-1].split("=")[0].split("<")[0].split(">")[0]
-                for comma in ("'", '"'):
-                    name = name.removeprefix(comma).removesuffix(comma)
+                name = req.split(" ")[0].split(":")[-1].split("=")[0].split("<")[0].split(">")[0].strip("\"'")
                 if name not in packages and not name.startswith("__"):
                     packages.add(name)
                     pkg = PREFERRED_VERSIONS[name]
+                    if pkg["python_only"]:
+                        from pdm_conda.conda import CondaResolutionError
+
+                        raise CondaResolutionError(data={"message": f"nothing provides requested {req}"})
                     fetch_info.append(deepcopy(pkg))
                     for d in pkg["depends"]:
                         _fetch_package(d, packages, fetch_info)
@@ -337,14 +340,13 @@ def mock_pypi(mocked_responses):
 
 @pytest.fixture(name="installed_packages")
 def mock_installed():
-    pkgs = {n["name"] for n in PYTHON_REQUIREMENTS}
+    pkgs = {n["name"] for n in PYTHON_REQUIREMENTS if not n["python_only"]}
     return [PREFERRED_VERSIONS[n] for n in pkgs]
 
 
 @pytest.fixture
 def working_set(mocker: MockerFixture) -> dict:
-    """
-    a mock working set as a fixture
+    """A mock working set as a fixture.
 
     Returns:
         a mock working set
@@ -366,7 +368,7 @@ def working_set(mocker: MockerFixture) -> dict:
         ws[candidate.name] = candidate.prepare(self.environment).metadata
 
     def uninstall(dist: Distribution) -> None:
-        del ws[dist.name]
+        ws.pop(dist.name)
 
     mocker.patch.object(InstallManager, "install", side_effect=install, autospec=True)
     mocker.patch.object(InstallManager, "uninstall", side_effect=uninstall)
@@ -395,18 +397,24 @@ def interpreter_path():
     return None
 
 
-@pytest.fixture(name="fake_python")
-def mock_python(mocker: MockerFixture, interpreter_path):
+@pytest.fixture
+def venv_path():
+    return None
+
+
+@pytest.fixture(name="fake_python", autouse=True)
+def mock_python(mocker: MockerFixture, interpreter_path, venv_path, monkeypatch):
     from findpython import PythonVersion
     from packaging.version import Version
     from pdm.environments import BaseEnvironment
 
+    monkeypatch.setenv("CONDA_PREFIX", venv_path or CONDA_PREFIX)
     mocker.patch.object(PythonVersion, "_get_version", return_value=Version(PYTHON_VERSION))
     mocker.patch.object(PythonVersion, "_get_architecture", return_value="aarch64")
     mocker.patch.object(
         PythonVersion,
         "_get_interpreter",
-        return_value=interpreter_path or "/opt/conda/envs/app/bin/python",
+        return_value=interpreter_path or f"{CONDA_PREFIX}/bin/python",
     )
     mocker.patch.object(BaseEnvironment, "_patch_target_python")
 

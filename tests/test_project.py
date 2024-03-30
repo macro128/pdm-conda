@@ -110,9 +110,8 @@ class TestProject:
         as_default_manager,
         mock_conda_mapping,
     ):
-        """
-        Test get project dependencies with conda dependencies and correct parse requirements
-        """
+        """Test get project dependencies with conda dependencies and correct
+        parse requirements."""
 
         def dependencies_conf(dependencies, group):
             if group == "default":
@@ -244,10 +243,9 @@ class TestProject:
         assert original_hash == project.pyproject.content_hash()
 
 
-@pytest.mark.usefixtures("fake_python")
 class TestProjectProviders:
     @pytest.mark.parametrize("strategy", ["all", "reuse", "eager", "reuse-installed"])
-    def test_provider(self, project, strategy):
+    def test_provider(self, project, strategy, conda):
         from pdm_conda.resolver.providers import (
             CondaBaseProvider,
             CondaEagerUpdateProvider,
