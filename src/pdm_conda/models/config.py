@@ -171,12 +171,12 @@ class PluginConfig:
                 config = self._project.pyproject.settings
                 should_delete = value == config_item.default and not self._force_set_project_config
                 for p in name_path:
-                    if should_delete and p not in config:
+                    if should_delete and p != "conda" and p not in config:
                         break
                     config = config.setdefault(p, dict())
 
                 if should_delete:
-                    # if value is default and was not setted before then delete it
+                    # if value is default and was not set before then delete it
                     if config.get(name, value) != value:
                         config.pop(name)
                     else:
@@ -185,9 +185,11 @@ class PluginConfig:
                     _value = value
                     if isinstance(value, list):
                         _value = make_array(value, multiline=len(value) > 1)
+                    elif isinstance(value, Path):
+                        _value = str(value)
 
                     config[name] = _value
-                self.is_initialized |= self._project.pyproject.exists()
+                self.is_initialized |= self._project.pyproject.exists() and "conda" in self._project.pyproject.settings
                 if (project_config_name := PDM_CONFIG.get(name, None)) is not None:
                     project_config = self._project.project_config
                     if should_delete:
@@ -246,6 +248,15 @@ class PluginConfig:
             yield
 
     @contextmanager
+    def write_project_config(self, show_message=False):
+        """
+        Context manager that forces writing pyproject settings
+        """
+        with self.force_set_project_config():
+            yield
+        self._project.pyproject.write(show_message=show_message)
+
+    @contextmanager
     def force_set_project_config(self):
         """
         Context manager that forces setting pyproject settings, even default values
@@ -291,10 +302,16 @@ class PluginConfig:
 
     @contextmanager
     def with_conda_venv_location(self):
+        """
+        Context manager that ensures the PDM venv location is set to the detected Conda environment
+        if was the default value.
+
+        :yields: The path to the venv location and a boolean indicating if the value was overridden
+        """
         conf_name = "venv.location"
-        overriden = False
+        overridden = False
         if (previous_value := self._project.config[conf_name]) == Config.get_defaults()[conf_name] and (
-            venv_location := os.getenv("VIRTUAL_ENV", os.getenv("CONDA_PREFIX", None))
+            venv_location := os.getenv("CONDA_PREFIX", None)
         ) is not None:
             venv_location = Path(venv_location)
             for parent in (venv_location, *venv_location.parents):
@@ -302,13 +319,13 @@ class PluginConfig:
                     logger.info(f"Using detected Conda path for environment: [success]{venv_path}[/]")
                     self._project.global_config[conf_name] = str(venv_path)
                     del self._project.config
-                    overriden = True
+                    overridden = True
                     break
         try:
-            yield Path(self._project.config[conf_name]), overriden
+            yield Path(self._project.config[conf_name]), overridden
         finally:
             self._project.global_config[conf_name] = previous_value
-            if overriden:
+            if overridden:
                 del self._project.config
 
     @classmethod
@@ -339,7 +356,7 @@ class PluginConfig:
                 value = project.config[n]
                 if prop_name == "mapping_download_dir":
                     value = Path(value)
-                elif prop_name in ("as_default_manager", "batched_commands", "custom_behavior"):
+                elif prop_name in ("as_default_manager", "batched_commands", "custom_behavior", "auto_excludes"):
                     value = str(value).lower() in ("true", "1")
                 config[prop_name] = value
         config |= kwargs
