@@ -59,10 +59,10 @@ class TestInstall:
         )
         assert conda.call_count == len(cmd_order)
 
-        urls = dict()
+        _urls = {}
         for p in conda_info:
-            urls[p["name"]] = format_url(p)
-        urls = list(urls.values())
+            _urls[p["name"]] = format_url(p)
+        urls = list(_urls.values())
         for (cmd,), kwargs in conda.call_args_list:
             assert cmd[0] == runner
             cmd_subcommand = cmd[1]

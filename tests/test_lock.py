@@ -73,10 +73,9 @@ class TestLock:
             else:
                 config.dev_dependencies = packages
         else:
-            packages = packages[group]
-            config.dependencies = packages
+            config.dependencies = packages[group]
 
-        overrides_versions = dict()
+        overrides_versions = {}
         if overrides:
             pkg = conda_packages[0]
             name = pkg["name"]
@@ -85,7 +84,7 @@ class TestLock:
 
                 name = conda_to_pypi(name)
             overrides_versions = {name: pkg["version"]}
-            project.pyproject.settings.setdefault("resolution", dict()).setdefault("overrides", dict()).update(
+            project.pyproject.settings.setdefault("resolution", {}).setdefault("overrides", {}).update(
                 overrides_versions,
             )
         # if add conflict then we expect resolver to first search package with PyPI and then use conda
@@ -190,7 +189,7 @@ class TestLock:
         )
 
         assert conda.call_count == len(cmd_order)
-        for (cmd,), kwargs in conda.call_args_list:
+        for (cmd,), _ in conda.call_args_list:
             assert cmd[0] == runner
             assert (cmd_subcommand := cmd[1]) == cmd_order.pop(0)
             if cmd_subcommand == "create":

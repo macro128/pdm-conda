@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 from pdm.exceptions import ProjectError
 
@@ -5,20 +7,20 @@ from pdm.exceptions import ProjectError
 @pytest.mark.usefixtures("mock_conda_mapping")
 class TestPluginConfig:
     @pytest.mark.parametrize(
-        ("config_name", "config_value"),
+        "config_name,config_value",
         [
-            ("channels", []),
-            ("channels", ["defaults"]),
-            ("channels", ["other"]),
-            ("excludes", ["another-dep-pip"]),
-            ("batched-commands", True),
-            ("custom-behavior", True),
-            ("batched-commands", False),
-            ("dependencies", ["package"]),
-            ("dev-dependencies", {"dev": ["package"]}),
-            ("optional-dependencies", {"other": ["package"]}),
-            ("pypi-mapping.url", "https://example.com/mapping.yaml"),
-            ("pypi-mapping", {"url": "https://example.com/mapping.yaml"}),
+            ["channels", []],
+            ["channels", ["defaults"]],
+            ["channels", ["other"]],
+            ["excludes", ["another-dep-pip"]],
+            ["batched-commands", True],
+            ["custom-behavior", True],
+            ["batched-commands", False],
+            ["dependencies", ["package"]],
+            ["dev-dependencies", {"dev": ["package"]}],
+            ["optional-dependencies", {"other": ["package"]}],
+            ["pypi-mapping.url", "https://example.com/mapping.yaml"],
+            ["pypi-mapping", {"url": "https://example.com/mapping.yaml"}],
         ],
     )
     @pytest.mark.parametrize("set_before", [True, False])
@@ -69,14 +71,14 @@ class TestPluginConfig:
                 assert config_value == _config
 
     @pytest.mark.parametrize(
-        ("config_name", "config_value"),
+        "config_name,config_value",
         [
-            ("channels", []),
-            ("channels", ["defaults"]),
-            ("excludes", ["another-dep-pip"]),
-            ("batched-commands", True),
-            ("batched-commands", False),
-            ("dependencies", ["package"]),
+            ["channels", []],
+            ["channels", ["defaults"]],
+            ["excludes", ["another-dep-pip"]],
+            ["batched-commands", True],
+            ["batched-commands", False],
+            ["dependencies", ["package"]],
         ],
     )
     def test_with_config(self, project, mocker, config_name, config_value):
@@ -100,7 +102,7 @@ class TestPluginConfig:
         dependencies = ["pytest"]
         optional_dependencies = {"dev": ["pytest"]}
 
-        conf = {
+        conf: dict[str, Any] = {
             "dependencies": dependencies,
             "optional-dependencies": optional_dependencies,
         }
@@ -132,7 +134,7 @@ class TestPluginConfig:
         assert config.channels == channels
         assert config.as_default_manager == as_default_manager
 
-    @pytest.mark.parametrize("name", ["runner", "installation-method", "runner"])
+    @pytest.mark.parametrize("name", ["runner", "installation-method"])
     def test_incorrect_config(self, project, name):
         """Test load config raises on incorrect config."""
         config_value = "incorrect config value"

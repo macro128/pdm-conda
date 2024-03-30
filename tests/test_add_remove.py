@@ -66,7 +66,7 @@ class TestAddRemove:
 
         project.pyproject.reload()
         packages = [p.replace("'", "").replace('"', "") for p in packages]
-        channels = set(p.split("::")[0] for p in packages if "::" in p)
+        channels = {p.split("::")[0] for p in packages if "::" in p}
         if channel:
             channels.add(channel)
 
@@ -77,7 +77,7 @@ class TestAddRemove:
         assert set(project.lockfile.groups) == {group, "default"}
         cmd_order = ["create", "info", "list", "install"]
         assert conda.call_count == len(cmd_order)
-        for (cmd,), kwargs in conda.call_args_list:
+        for (cmd,), _ in conda.call_args_list:
             assert cmd[0] == runner
             assert cmd[1] == cmd_order.pop(0)
         assert not cmd_order
@@ -148,12 +148,12 @@ class TestAddRemove:
             assert _package not in dependencies
 
         packages = [p["name"] for p in conda_info]
-        python_packages = [
+        python_packages = [  # type: ignore[assignment]
             f"{p['name']}=={p['version']}={p['build']}"
             for p in PYTHON_REQUIREMENTS + CONDA_REQUIREMENTS
             if not p["python_only"]
         ]
-        for (cmd,), kwargs in conda.call_args_list:
+        for (cmd,), _ in conda.call_args_list:
             assert cmd[0] == (runner or self.default_runner)
             cmd_subcommand = cmd[1]
             assert cmd_subcommand == cmd_order.pop(0)

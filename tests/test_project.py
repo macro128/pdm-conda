@@ -2,9 +2,9 @@ import re
 
 import pytest
 
-DEPENDENCIES = dict(
-    argnames=["dependencies", "conda_dependencies"],
-    argvalues=[
+DEPENDENCIES = {
+    "argnames": ["dependencies", "conda_dependencies"],
+    "argvalues": [
         (["pytest"], ["pytest-cov"]),
         (["pytest>=3.1"], ["pytest-conda"]),
         (["pytest[extra]"], ["pytest-conda"]),
@@ -24,7 +24,7 @@ DEPENDENCIES = dict(
         ([], ["__virtual_package"]),
         ([], ["__package==1.0.0"]),
     ],
-    ids=[
+    "ids": [
         "different pkgs",
         "pypi version inherit",
         "conda extras override",
@@ -44,13 +44,13 @@ DEPENDENCIES = dict(
         "virtual package",
         "conda with underscore",
     ],
-)
-CONDA_MAPPING = dict(
-    argnames="conda_mapping",
-    argvalues=[{"pytest": "pytest-conda"}],
-    ids=["use conda mapping"],
-)
-GROUPS = dict(argnames="group", argvalues=["default", "dev", "optional"])
+}
+CONDA_MAPPING = {
+    "argnames": "conda_mapping",
+    "argvalues": [{"pytest": "pytest-conda"}],
+    "ids": ["use conda mapping"],
+}
+GROUPS = {"argnames": "group", "argvalues": ["default", "dev", "optional"]}
 
 
 @pytest.mark.parametrize(**CONDA_MAPPING)
@@ -64,7 +64,7 @@ class TestProject:
         from pdm_conda.mapping import pypi_to_conda
         from pdm_conda.models.requirements import CondaRequirement, parse_requirement
 
-        requirements = dict()
+        requirements = {}
         for d in dependencies:
             if as_default_manager:
                 d = f"conda:{d}"
@@ -110,19 +110,20 @@ class TestProject:
         as_default_manager,
         mock_conda_mapping,
     ):
-        """Test get project dependencies with conda dependencies and correct
-        parse requirements."""
+        """Test get project dependencies with conda dependencies and correct parse requirements."""
 
         def dependencies_conf(dependencies, group):
             if group == "default":
                 return {"dependencies": dependencies}
-            else:
-                return {f"{group}-dependencies": {"dev": dependencies}}
+            return {f"{group}-dependencies": {"dev": dependencies}}
 
         def project_conf(dependencies, conda_dependencies, group, as_default_manager):
-            dependencies, conda_dependencies = dependencies_conf(dependencies, group), dependencies_conf(
-                conda_dependencies,
-                group,
+            dependencies, conda_dependencies = (
+                dependencies_conf(dependencies, group),
+                dependencies_conf(
+                    conda_dependencies,
+                    group,
+                ),
             )
 
             if group == "dev":
@@ -136,7 +137,7 @@ class TestProject:
                     },
                 }
             if as_default_manager:
-                conf["tool"]["pdm"].setdefault("conda", dict())["as-default-manager"] = True
+                conf["tool"]["pdm"].setdefault("conda", {})["as-default-manager"] = True
 
             return conf
 
@@ -152,7 +153,7 @@ class TestProject:
         )
 
         for project_requirements in (project.get_dependencies(group), project.all_dependencies[group]):
-            for name, req in project_requirements.items():
+            for req in project_requirements.values():
                 conda_req = requirements[req.identify()]
                 assert conda_req == req
                 assert isinstance(req, type(conda_req))
@@ -215,18 +216,18 @@ class TestProject:
                 assert asserted == num_assertions
 
     @pytest.mark.parametrize(
-        ("config_name", "config_value", "must_be_different"),
+        "config_name,config_value,must_be_different",
         [
-            ("channels", ["other"], True),
-            ("batched_commands", True, False),
-            ("runner", "micromamba", False),
-            ("solver", "libmamba", False),
-            ("installation_method", "copy", False),
-            ("as_default_manager", True, True),
-            ("dependencies", ["package"], True),
-            ("excludes", ["package"], True),
-            ("dev_dependencies", {"dev": ["package"]}, True),
-            ("optional_dependencies", {"other": ["package"]}, True),
+            ["channels", ["other"], True],
+            ["batched_commands", True, False],
+            ["runner", "micromamba", False],
+            ["solver", "libmamba", False],
+            ["installation_method", "copy", False],
+            ["as_default_manager", True, True],
+            ["dependencies", ["package"], True],
+            ["excludes", ["package"], True],
+            ["dev_dependencies", {"dev": ["package"]}, True],
+            ["optional_dependencies", {"other": ["package"]}, True],
         ],
     )
     def test_pyproject_hash(self, project, config_name, config_value, must_be_different, mock_conda_mapping):

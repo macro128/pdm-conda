@@ -2,7 +2,6 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import pytest
-
 from pdm_conda.mapping import MAPPING_DOWNLOAD_DIR_ENV_VAR
 
 
@@ -16,11 +15,11 @@ def patch_download_dir(monkeypatch):
 
 @pytest.fixture
 def patch_conda_mapping_fixes(mocker, conda_mapping_fixes):
-    yield mocker.patch("pdm_conda.mapping.get_mapping_fixes", return_value=conda_mapping_fixes)
+    return mocker.patch("pdm_conda.mapping.get_mapping_fixes", return_value=conda_mapping_fixes)
 
 
 class TestMapping:
-    @pytest.mark.parametrize("conda_mapping", [{"pytest": "pytest-conda", "other": "other-conda"}, dict()])
+    @pytest.mark.parametrize("conda_mapping", [{"pytest": "pytest-conda", "other": "other-conda"}, {}])
     @pytest.mark.parametrize("mapping_url", [None, "https://example.com/mapping.yaml"])
     @pytest.mark.parametrize(
         "conda_mapping_fixes",
@@ -37,14 +36,8 @@ class TestMapping:
         mapping_url,
         monkeypatch,
     ):
-        """Test project conda_mapping downloads conda mapping just one and
-        mapping is as expected."""
-        from pdm_conda.mapping import (
-            MAPPING_URL,
-            MAPPING_URL_ENV_VAR,
-            get_conda_mapping,
-            get_pypi_mapping,
-        )
+        """Test project conda_mapping downloads conda mapping just one and mapping is as expected."""
+        from pdm_conda.mapping import MAPPING_URL, MAPPING_URL_ENV_VAR, get_conda_mapping, get_pypi_mapping
 
         get_pypi_mapping.cache_clear()
         get_conda_mapping.cache_clear()
@@ -78,7 +71,7 @@ class TestMapping:
 
     @pytest.mark.parametrize("conda_mapping", [{"pytest": "pytest-conda", "other": "other-conda"}])
     @pytest.mark.parametrize("package", ["pytest", "other", "otherPackage"])
-    @pytest.mark.parametrize("conda_mapping_fixes", [dict()])
+    @pytest.mark.parametrize("conda_mapping_fixes", [{}])
     def test_pypi_mapping(
         self,
         patch_download_dir,

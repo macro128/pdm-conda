@@ -16,8 +16,7 @@ def patch_listed_envs(project, monkeypatch):
 def venv_path(project, conda_name, conda_envs_path):
     from pdm.cli.commands.venv.utils import get_venv_prefix
 
-    venv_path = conda_envs_path / (conda_name if conda_name else get_venv_prefix(project))
-    yield venv_path
+    return conda_envs_path / (conda_name if conda_name else get_venv_prefix(project))
 
 
 @pytest.fixture
@@ -36,7 +35,7 @@ def interpreter_path(venv_path, active, initialized):
     if initialized:
         path.mkdir(exist_ok=True, parents=True)
         (venv_path / "conda-meta").mkdir(exist_ok=True)
-    yield path if active else None
+    return path if active else None
 
 
 @pytest.mark.usefixtures("venv_path")
@@ -80,11 +79,11 @@ class TestVenv:
             cmd_order = ["env"] + cmd_order
         venv_name = conda_name if conda_name else f"{project.root.name}-"
         assert conda.call_count == len(cmd_order)
-        for (cmd,), kwargs in conda.call_args_list:
+        for (cmd,), _ in conda.call_args_list:
             assert (conda_venv_command := cmd[1]) in cmd_order
             if conda_venv_command == "create":
-                assert (env_prefix := cmd.index("--prefix")) != -1
-                env_prefix = Path(cmd[env_prefix + 1])
+                assert (idx := cmd.index("--prefix")) != -1
+                env_prefix = Path(cmd[idx + 1])
                 assert venv_name in env_prefix.name
                 if with_pip:
                     assert "pip" in cmd
@@ -123,9 +122,8 @@ class TestVenv:
         project.global_config["venv.location"] = Config.get_defaults()["venv.location"]
         # Ignore saved python and search for activated venv
         monkeypatch.setenv("PDM_IGNORE_SAVED_PYTHON", "1" if active else "0")
-        if active:
-            if conda_name:
-                mocker.patch.object(project, "root", new=venv_path)
+        if active and conda_name:
+            mocker.patch.object(project, "root", new=venv_path)
         if initialized:
             with project.conda_config.write_project_config():
                 project.conda_config.runner = runner

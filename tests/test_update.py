@@ -46,7 +46,7 @@ class TestUpdate:
         pdm(command, obj=project, strict=True)
 
         project.pyproject.reload()
-        requirements = dict()
+        requirements = {}
         for group in project.iter_groups():
             requirements[group] = project.get_dependencies(group)
 
@@ -57,7 +57,7 @@ class TestUpdate:
         pdm(command, obj=project, strict=True)
 
         project.pyproject.reload()
-        updated_requirements = dict()
+        updated_requirements = {}
         for group in project.iter_groups():
             updated_requirements[group] = project.get_dependencies(group)
 

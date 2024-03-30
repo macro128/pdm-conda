@@ -5,6 +5,7 @@ import sys
 from copy import deepcopy
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import Any
 
 import pytest
 import responses
@@ -13,13 +14,7 @@ from pdm.models.backends import PDMBackend
 from pdm.project import Config
 from pytest_mock import MockerFixture
 
-from tests.utils import (
-    DEFAULT_CHANNEL,
-    PLATFORM,
-    REPO_BASE,
-    channel_url,
-    generate_package_info,
-)
+from tests.utils import DEFAULT_CHANNEL, PLATFORM, REPO_BASE, channel_url, generate_package_info
 
 pytest_plugins = "pdm.pytest"
 
@@ -32,7 +27,7 @@ PYTHON_REQUIREMENTS = [
     PYTHON_PACKAGE,
 ]
 
-PREFERRED_VERSIONS = dict(python=PYTHON_PACKAGE)
+PREFERRED_VERSIONS = {"python": PYTHON_PACKAGE}
 _python_dep = f"python >={PYTHON_VERSION}"
 _packages = [
     generate_package_info("python-only-dep", "1.0", python_only=True),
@@ -88,14 +83,14 @@ BUILD_BACKEND = generate_package_info("pdm-backend", "2.0")
 CONDA_PREFIX = os.getenv("CONDA_PREFIX")
 
 
-@pytest.fixture(autouse=True, name="test_name")
-def _test_name():
-    yield os.getenv("PYTEST_CURRENT_TEST").split(":")[-1]
+@pytest.fixture(autouse=True)
+def test_name():
+    return os.getenv("PYTEST_CURRENT_TEST", "").split(":")[-1]
 
 
-@pytest.fixture(name="test_id")
-def _test_id(test_name):
-    yield test_name.split("[")[-1].split("]")[0]
+@pytest.fixture
+def test_id(test_name):
+    return test_name.split("[")[-1].split("]")[0]
 
 
 @pytest.fixture(scope="session")
@@ -119,7 +114,7 @@ def core_with_plugin(core, monkeypatch) -> Core:
     ]:
         monkeypatch.delenv(f"PDM_CONDA_{conf}", raising=False)
     main(core)
-    yield core
+    return core
 
 
 @pytest.fixture
@@ -148,27 +143,27 @@ def project(core, project_no_init, monkeypatch):
     # Clean the cached property
     _project._environment = None
     monkeypatch.setenv("CONDA_PREFIX", CONDA_PREFIX)
-    yield _project
+    return _project
 
 
 @pytest.fixture(name="pdm")
 def pdm_run(core, pdm):
-    yield pdm
+    return pdm
 
 
 @pytest.fixture
 def num_missing_info_on_create():
-    yield 0
+    return 0
 
 
 @pytest.fixture
 def conda_info():
-    yield CONDA_INFO
+    return CONDA_INFO
 
 
 @pytest.fixture
 def conda_mapping():
-    yield dict(CONDA_MAPPING)
+    return dict(CONDA_MAPPING)
 
 
 @pytest.fixture(name="conda")
@@ -187,13 +182,13 @@ def mock_conda(mocker: MockerFixture, conda_info: dict | list, num_missing_info_
             installed_packages.extend(install_response)
 
             return {"actions": {"LINK": deepcopy(install_response)}}
-        elif subcommand == "remove":
+        if subcommand == "remove":
             for name in (arg for arg in cmd[2:] if not arg.startswith("-")):
                 installed_packages.pop(installed_packages.index(PREFERRED_VERSIONS[name]))
             return {"message": "ok"}
-        elif subcommand == "env" and cmd[2] == "list":
+        if subcommand == "env" and cmd[2] == "list":
             return {"envs": conda_info}
-        elif subcommand == "list":
+        if subcommand == "list":
             res = [deepcopy(p) for p in installed_packages]
             if runner in ("conda", "mamba"):
                 res.append(deepcopy(PREFERRED_VERSIONS["conda"]))
@@ -203,20 +198,20 @@ def mock_conda(mocker: MockerFixture, conda_info: dict | list, num_missing_info_
                 if p["channel"].startswith("http"):
                     p["channel"] = p["channel"].split(f"{REPO_BASE}/")[-1]
             return res
-        elif subcommand == "info":
+        if subcommand == "info":
             virtual_packages = [
                 ["__unix", "0", "0"],
                 ["__linux", "5.10.109", "0"],
                 ["__glibc", "2.35", "0"],
                 ["__archspec", "1", PLATFORM],
             ]
-            info = dict(
-                platform=PLATFORM,
-                channels=[
+            info: dict[str, Any] = {
+                "platform": PLATFORM,
+                "channels": [
                     channel_url(f"{DEFAULT_CHANNEL}/{PLATFORM}"),
                     channel_url(f"{DEFAULT_CHANNEL}/noarch"),
                 ],
-            )
+            }
 
             if runner != "micromamba":
                 info["virtual_pkgs"] = virtual_packages
@@ -224,14 +219,14 @@ def mock_conda(mocker: MockerFixture, conda_info: dict | list, num_missing_info_
                 info["virtual packages"] = ["=".join(p) for p in virtual_packages]
 
             return info
-        elif subcommand in ("repoquery", "search"):
+        if subcommand in ("repoquery", "search"):
             name = next(filter(lambda x: not x.startswith("-") and x != "search", cmd[2:]))
             name = name.split(">")[0].split("<")[0].split("=")[0].split("~")[0]
             packages = [deepcopy(p) for p in conda_info + CONDA_REQUIREMENTS if p["name"] == name]
             if runner != "micromamba":
                 return {name: packages}
             return {"result": {"pkgs": packages}}
-        elif subcommand == "create":
+        if subcommand == "create":
 
             def _fetch_package(req, packages, fetch_info):
                 name = req.split(" ")[0].split(":")[-1].split("=")[0].split("<")[0].split(">")[0].strip("\"'")
@@ -246,32 +241,31 @@ def mock_conda(mocker: MockerFixture, conda_info: dict | list, num_missing_info_
                     for d in pkg["depends"]:
                         _fetch_package(d, packages, fetch_info)
 
-            packages = set()
-            fetch_info = []
+            _packages: set[dict] = set()
+            fetch_info: list[dict] = []
             i = 2
             while i < len(cmd):
                 req = cmd[i]
                 i += 1
                 if req == "-c":
                     break
-                elif req.startswith("-"):
+                if req.startswith("-"):
                     if req in ("--prefix", "--solver"):
                         i += 1
                     continue
-                _fetch_package(req, packages, fetch_info)
+                _fetch_package(req, _packages, fetch_info)
 
             link_info = deepcopy(fetch_info)
             if runner != "micromamba":
-                for i, p in enumerate(link_info):
+                for p in link_info:
                     p.pop("depends")
                     p.pop("constrains")
                 fetch_info = fetch_info[num_missing_info_on_create:]
             return {"actions": {"FETCH": fetch_info, "LINK": link_info}}
-        else:
-            return {"message": "ok"}
+        return {"message": "ok"}
 
     mocker.patch("pdm_conda.conda.which")
-    yield mocker.patch("pdm_conda.conda.run_conda", side_effect=_mock)
+    return mocker.patch("pdm_conda.conda.run_conda", side_effect=_mock)
 
 
 @pytest.fixture(name="pypi")
@@ -280,7 +274,7 @@ def mock_pypi(mocked_responses):
         from pdm_conda.mapping import conda_to_pypi
         from pdm_conda.models.requirements import parse_conda_version
 
-        _responses = dict()
+        _responses = {}
         if with_dependencies is None:
             with_dependencies = []
         for package in conda_info:
@@ -305,8 +299,8 @@ def mock_pypi(mocked_responses):
             _responses[url] = mocked_responses.get(
                 url,
                 content_type="application/vnd.pypi.simple.v1+json",
-                json=dict(
-                    files=[
+                json={
+                    "files": [
                         {
                             "url": f"{name}#egg={name}-{version}",
                             "requires-python": requires_python,
@@ -315,7 +309,7 @@ def mock_pypi(mocked_responses):
                             "hashes": None,
                         },
                     ],
-                ),
+                },
             )
 
             if (isinstance(with_dependencies, bool) and with_dependencies) or (
@@ -324,16 +318,16 @@ def mock_pypi(mocked_responses):
                 url = f"{REPO_BASE}/pypi/{name}/{version}/json"
                 _responses[url] = mocked_responses.get(
                     url,
-                    json=dict(
-                        info=dict(
-                            summary="",
-                            requires_python=requires_python,
-                            requires=[d.split("|")[0] for d in dependencies],
-                        ),
-                    ),
+                    json={
+                        "info": {
+                            "summary": "",
+                            "requires_python": requires_python,
+                            "requires": [d.split("|")[0] for d in dependencies],
+                        },
+                    },
                 )
 
-            return _responses
+        return _responses
 
     return _mocker
 
@@ -357,7 +351,7 @@ def working_set(mocker: MockerFixture) -> dict:
     from pdm.models.candidates import Candidate
     from pdm.models.working_set import WorkingSet
 
-    ws: dict[str, Distribution] = dict()
+    ws: dict[str, Distribution] = {}
 
     def _init_ws(self, *args, **kwargs):
         self._dist_map = ws
@@ -389,7 +383,7 @@ def mocked_responses():
 @pytest.fixture
 def mock_conda_mapping(mocker: MockerFixture, mocked_responses, conda_mapping):
     mocker.patch("pdm_conda.mapping.get_mapping_fixes", return_value={})
-    yield mocker.patch("pdm_conda.mapping.get_pypi_mapping", return_value=conda_mapping)
+    return mocker.patch("pdm_conda.mapping.get_pypi_mapping", return_value=conda_mapping)
 
 
 @pytest.fixture
@@ -423,4 +417,4 @@ def mock_python(mocker: MockerFixture, interpreter_path, venv_path, monkeypatch)
 def temp_working_path(request, monkeypatch):
     with TemporaryDirectory() as td:
         monkeypatch.chdir(td)
-        yield
+        yield td
