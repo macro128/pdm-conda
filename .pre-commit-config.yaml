@@ -51,4 +51,4 @@ repos:
       - id: docformatter
         additional_dependencies: [tomli]
         args: [--in-place, --config, ./pyproject.toml]
-        exclude: ^(tests|notebooks)/
+        exclude: ^(notebooks)/
