@@ -65,8 +65,9 @@ class CondaRunnerNotFoundError(CondaExecutionError):
 
 @contextlib.contextmanager
 def _optional_temporary_file(environment: dict | list):
-    """
-    If environment contains data then creates temporary file else yield None
+    """If environment contains data then creates temporary file else yield
+    None.
+
     :param environment: environment data
     :return: Temporary file or None
     """
@@ -83,8 +84,8 @@ def run_conda(
     exception_msg: str = "Error locking dependencies",
     **environment,
 ) -> dict:
-    """
-    Optionally creates temporary environment file and run conda command
+    """Optionally creates temporary environment file and run conda command.
+
     :param cmd: conda command
     :param exception_cls: exception to raise on error
     :param exception_msg: base message to show on error
@@ -162,8 +163,8 @@ def run_conda(
 
 @lru_cache(maxsize=None)
 def _get_channel_sorter(platform: str, channels: tuple[str]) -> ChannelSorter:
-    """
-    Get channel sorter
+    """Get channel sorter.
+
     :param channels: list of conda channels used to determine priority
     :param platform: env platform
     :return: channel sorter
@@ -179,6 +180,7 @@ def sort_candidates(
     """
     Sort candidates following mamba specification
     (https://mamba.readthedocs.io/en/latest/advanced_usage/package_resolution.html).
+
     :param project: PDM project
     :param packages: list of conda candidates
     :return: sorted conda candidates
@@ -200,8 +202,8 @@ def sort_candidates(
 
 
 def _parse_candidates(project: CondaProject, packages: list[dict], requirement=None) -> list[CondaCandidate]:
-    """
-    Convert conda packages to candidates
+    """Convert conda packages to candidates.
+
     :param project: PDM project
     :param packages: conda packages
     :param requirement: requirement linked to packages
@@ -228,8 +230,8 @@ def _ensure_channels(
     channels: list[str],
     log_message: str = "No channels specified, using defaults if exist.",
 ) -> list[str]:
-    """
-    Ensure channels and if empty use defaults
+    """Ensure channels and if empty use defaults.
+
     :param project: PDM project
     :param channels: channels to validate
     :param log_message: log message to display if using defaults
@@ -249,8 +251,8 @@ def _conda_search(
     requirement: str,
     channels: tuple[str],
 ) -> list[dict]:
-    """
-    Search conda candidates for a requirement
+    """Search conda candidates for a requirement.
+
     :param project: PDM project
     :param requirement: requirement
     :param channels: requirement channels
@@ -285,8 +287,8 @@ def conda_search(
     requirement: CondaRequirement | str,
     channel: str | None = None,
 ) -> list[CondaCandidate]:
-    """
-    Search conda candidates for a requirement
+    """Search conda candidates for a requirement.
+
     :param project: PDM project
     :param requirement: requirement
     :param channel: requirement channel
@@ -318,15 +320,16 @@ def conda_create(
     dry_run: bool = False,
     fetch_candidates: bool = True,
 ) -> dict[str, list[CondaCandidate]]:
-    """
-    Creates environment using conda
+    """Creates environment using conda.
+
     :param project: PDM project
     :param requirements: conda requirements
     :param channels: requirement channels
     :param prefix: environment prefix
     :param name: environment name
     :param dry_run: don't install if dry run
-    :param fetch_candidates: if True ensure ensure candidates were fetched
+    :param fetch_candidates: if True ensure ensure candidates were
+        fetched
     """
     config = project.conda_config
     if not config.is_initialized:
@@ -412,8 +415,8 @@ def conda_create(
 
 
 def conda_env_remove(project: CondaProject, prefix: Path | str | None = None, name: str = "", dry_run: bool = False):
-    """
-    Removes environment using conda
+    """Removes environment using conda.
+
     :param project: PDM project
     :param prefix: environment prefix
     :param name: environment name
@@ -438,8 +441,8 @@ def conda_env_remove(project: CondaProject, prefix: Path | str | None = None, na
 
 
 def conda_env_list(project: CondaProject) -> list[Path]:
-    """
-    List Conda environments
+    """List Conda environments.
+
     :param project: PDM project
     :return: list of conda environments
     """
@@ -479,8 +482,8 @@ def conda_install(
     dry_run: bool = False,
     no_deps: bool = False,
 ):
-    """
-    Install resolved packages using conda
+    """Install resolved packages using conda.
+
     :param project: PDM project
     :param packages: resolved packages
     :param dry_run: don't install if dry run
@@ -508,8 +511,8 @@ def conda_uninstall(
     dry_run: bool = False,
     no_deps: bool = False,
 ):
-    """
-    Uninstall resolved packages using conda
+    """Uninstall resolved packages using conda.
+
     :param project: PDM project
     :param packages: resolved packages
     :param dry_run: don't uninstall if dry run
@@ -533,8 +536,9 @@ def not_initialized_warning(project):
 
 
 def conda_info(project: CondaProject) -> dict:
-    """
-    Get conda info containing virtual packages, default channels and packages
+    """Get conda info containing virtual packages, default channels and
+    packages.
+
     :param project: PDM project
     :return: dict with conda info
     """
@@ -556,8 +560,8 @@ def conda_info(project: CondaProject) -> dict:
 
 
 def conda_list(project: CondaProject) -> dict[str, CondaSetupDistribution]:
-    """
-    List conda installed packages
+    """List conda installed packages.
+
     :param project: PDM project
     :return: packages distribution
     """

@@ -56,9 +56,9 @@ class CondaRepository(BaseRepository):
         self._excluded_identifiers: set[str] = set()
 
     def is_conda_managed(self, requirement: Requirement, excluded_identifiers: set[str] | None = None) -> bool:
-        """
-        True if requirement is conda requirement or (not excluded and named requirement
-        and conda as default manager or used by another conda requirement)
+        """True if requirement is conda requirement or (not excluded and named
+        requirement and conda as default manager or used by another conda
+        requirement)
 
         :param requirement: requirement to evaluate
         :param excluded_identifiers: identifiers to exclude
@@ -75,8 +75,7 @@ class CondaRepository(BaseRepository):
         resolution: dict | None = None,
         excluded_identifiers: set[str] | None = None,
     ) -> set[str]:
-        """
-        Updates the existing conda resolution if new requirements.
+        """Updates the existing conda resolution if new requirements.
 
         :param requirements: list of requirements
         :param resolution: resolution to override existing
@@ -115,8 +114,8 @@ class CondaRepository(BaseRepository):
         return super().get_hashes(candidate)
 
     def update_hashes(self, mapping: dict[str, Candidate]):
-        """
-        Update hashes for candidates in mapping using conda create
+        """Update hashes for candidates in mapping using conda create.
+
         :param mapping: mapping of candidates
         """
         conda_requirements = [can.req for can in mapping.values() if isinstance(can, CondaCandidate) and not can.hashes]

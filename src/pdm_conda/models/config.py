@@ -208,8 +208,8 @@ class PluginConfig:
 
     @staticmethod
     def suscribe(config, func):
-        """
-        Suscribe to function call and after executed refresh config
+        """Suscribe to function call and after executed refresh config.
+
         :param config: PluginConfig to refresh
         :param func: function to decorate
         """
@@ -224,9 +224,8 @@ class PluginConfig:
 
     @contextmanager
     def with_config(self, **kwargs):
-        """
-        Context manager that temporarily updates configs without updating pyproject settings
-        """
+        """Context manager that temporarily updates configs without updating
+        pyproject settings."""
         configs = ["_dry_run"] + list(kwargs)
         kwargs["_dry_run"] = True and not kwargs.get("_force_set_project_config", False)
         old_values = {}
@@ -241,26 +240,21 @@ class PluginConfig:
 
     @contextmanager
     def dry_run(self):
-        """
-        Context manager that deactivates updating pyproject settings
-        """
+        """Context manager that deactivates updating pyproject settings."""
         with self.with_config():
             yield
 
     @contextmanager
     def write_project_config(self, show_message=False):
-        """
-        Context manager that forces writing pyproject settings
-        """
+        """Context manager that forces writing pyproject settings."""
         with self.force_set_project_config():
             yield
         self._project.pyproject.write(show_message=show_message)
 
     @contextmanager
     def force_set_project_config(self):
-        """
-        Context manager that forces setting pyproject settings, even default values
-        """
+        """Context manager that forces setting pyproject settings, even default
+        values."""
         with self.with_config(_force_set_project_config=True):
             yield
 
@@ -302,11 +296,11 @@ class PluginConfig:
 
     @contextmanager
     def with_conda_venv_location(self):
-        """
-        Context manager that ensures the PDM venv location is set to the detected Conda environment
-        if was the default value.
+        """Context manager that ensures the PDM venv location is set to the
+        detected Conda environment if was the default value.
 
-        :yields: The path to the venv location and a boolean indicating if the value was overridden
+        :return: The path to the venv location and a boolean indicating
+            if the value was overridden
         """
         conf_name = "venv.location"
         overridden = False
@@ -330,8 +324,8 @@ class PluginConfig:
 
     @classmethod
     def load_config(cls, project: Project, **kwargs) -> "PluginConfig":
-        """
-        Load plugin configs from project settings.
+        """Load plugin configs from project settings.
+
         :param project: Project
         :param kwargs: settings overwrites
         :return: plugin configs
@@ -367,8 +361,8 @@ class PluginConfig:
         return plugin_config
 
     def command(self, cmd="install"):
-        """
-        Get runner command args
+        """Get runner command args.
+
         :param cmd: command, install by default
         :return: args list
         """

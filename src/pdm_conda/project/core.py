@@ -115,9 +115,7 @@ class CondaProject(Project):
         self._default_channels = info["channels"]
 
     def get_conda_pyproject_dependencies(self, group: str, dev: bool = False, set_defaults=False) -> list[str]:
-        """
-        Get the conda dependencies array in the pyproject.toml
-        """
+        """Get the conda dependencies array in the pyproject.toml."""
 
         def _getter(conf, name, default, set_defaults=False):
             return (conf.setdefault if set_defaults else conf.get)(name, default)

@@ -4,8 +4,8 @@ _patched = False
 
 
 def normalize_name(name: str, lowercase: bool = True) -> str:
-    """
-    Normalize name and keep _
+    """Normalize name and keep `_`.
+
     :param name: name to normalize
     :param lowercase: if true lowercase name
     :return: normalized name

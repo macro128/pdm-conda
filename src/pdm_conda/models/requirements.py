@@ -128,8 +128,8 @@ class CondaRequirement(NamedRequirement):
         return _compatible
 
     def merge(self, requirement: Requirement) -> "CondaRequirement":
-        """
-        Merge with other requirement to get more specific
+        """Merge with other requirement to get more specific.
+
         :param requirement: other requirement
         :return: merged requirement
         """
@@ -180,9 +180,9 @@ def is_conda_managed(
     conda_config: PluginConfig,
     excluded_identifiers: set[str] | None = None,
 ) -> bool:
-    """
-    True if requirement is conda requirement or (not excluded and named requirement
-    and conda as default manager or used by another conda requirement)
+    """True if requirement is conda requirement or (not excluded and named
+    requirement and conda as default manager or used by another conda
+    requirement)
 
     :param requirement: requirement to evaluate
     :param conda_config: conda config

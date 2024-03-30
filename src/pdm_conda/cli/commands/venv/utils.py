@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 class CondaProvider(BaseProvider):
-    """A provider that finds python installed with Conda"""
+    """A provider that finds python installed with Conda."""
 
     def __init__(self, project: CondaProject) -> None:
         super().__init__()

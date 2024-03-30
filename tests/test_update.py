@@ -28,9 +28,7 @@ class TestUpdate:
         dev,
         custom_behavior,
     ):
-        """
-        Test `update` command work as expected using custom behavior
-        """
+        """Test `update` command work as expected using custom behavior."""
         from pdm_conda.project import CondaProject
 
         project = cast(CondaProject, project)

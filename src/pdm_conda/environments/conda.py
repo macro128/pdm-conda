@@ -46,9 +46,8 @@ class CondaEnvironment(PythonEnvironment):
         return paths
 
     def get_working_set(self) -> WorkingSet:
-        """
-        Get the working set based on local packages directory, include Conda managed packages.
-        """
+        """Get the working set based on local packages directory, include Conda
+        managed packages."""
         working_set = super().get_working_set()
         if self.project.conda_config.is_initialized:
             dist_map = getattr(working_set, "_dist_map") | conda_list(self.project)

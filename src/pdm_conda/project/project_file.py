@@ -6,9 +6,9 @@ from pdm.project.project_file import PyProject as PyProjectBase
 
 class PyProject(PyProjectBase):
     def content_hash(self, algo: str = "sha256") -> str:
-        """
-        Generate a hash of the sensible content of the pyproject.toml file.
+        """Generate a hash of the sensible content of the pyproject.toml file.
         When the hash changes, it means the project needs to be relocked.
+
         :param algo: hash algorithm name
         :return: pyproject.toml hash
         """

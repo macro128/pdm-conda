@@ -31,8 +31,8 @@ if TYPE_CHECKING:
 
 
 def parse_channel(channel_url: str) -> str:
-    """
-    Parse channel from channel url
+    """Parse channel from channel url.
+
     :param channel_url: channel url from package
     :return: channel
     """
@@ -47,8 +47,8 @@ class CondaPreparedCandidate(PreparedCandidate):
     candidate: CondaCandidate
 
     def get_dependencies_from_metadata(self) -> list[str]:
-        """
-        Get the dependencies of a candidate from pre-fetched package.
+        """Get the dependencies of a candidate from pre-fetched package.
+
         :return: list of dependencies
         """
         return [d.as_line(as_conda=True, with_build_string=True) for d in self.candidate.dependencies]
@@ -162,8 +162,8 @@ class CondaCandidate(Candidate):
 
     @classmethod
     def from_lock_package(cls, package: dict) -> "CondaCandidate":
-        """
-        Create conda candidate from lockfile package.
+        """Create conda candidate from lockfile package.
+
         :param package: lockfile package
         :return: conda candidate
         """
@@ -182,10 +182,11 @@ class CondaCandidate(Candidate):
 
     @classmethod
     def from_conda_package(cls, package: dict, requirement: CondaRequirement | None = None) -> "CondaCandidate":
-        """
-        Create conda candidate from conda package.
+        """Create conda candidate from conda package.
+
         :param package: conda package
-        :param requirement: conda requirement associated with conda package
+        :param requirement: conda requirement associated with conda
+            package
         :return: conda candidate
         """
         dependencies: list = package["depends"] or []

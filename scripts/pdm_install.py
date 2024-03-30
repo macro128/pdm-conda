@@ -5,8 +5,8 @@ import subprocess
 
 
 def get_pdm_executable() -> str:
-    """
-    Get local PDM executable path
+    """Get local PDM executable path.
+
     :return: PDM path
     """
     exc = RuntimeError("pdm local executable not found")

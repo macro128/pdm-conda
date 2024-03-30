@@ -52,8 +52,8 @@ class CondaBaseProvider(BaseProvider):
 
     @property
     def overrides_requirements(self) -> dict[str, Requirement]:
-        """
-        Identifier and requirement mapping for overrides
+        """Identifier and requirement mapping for overrides.
+
         :return: mapping
         """
         if self._overrides_requirements is None:

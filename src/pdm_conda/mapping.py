@@ -14,8 +14,8 @@ MAPPING_URL_ENV_VAR = "PDM_CONDA_PYPI_MAPPING_URL"
 
 
 def process_mapping(yaml_path: Path, dict_path: Path):
-    """
-    Create json mapping from yaml mapping
+    """Create json mapping from yaml mapping.
+
     :param yaml_path: yaml path
     :param dict_path: json path
     """
@@ -39,10 +39,11 @@ def process_mapping(yaml_path: Path, dict_path: Path):
 
 
 def download_mapping(download_dir: Path, update_interval: timedelta | None = None) -> dict[str, str]:
-    """
-    Download and process Conda-PyPI mapping from GitHub
+    """Download and process Conda-PyPI mapping from GitHub.
+
     :param download_dir: download dir
-    :param update_interval: update interval, if mapping file modified date is greater than update interval the reload
+    :param update_interval: update interval, if mapping file modified
+        date is greater than update interval the reload
     :return: Conda mapping
     """
     if update_interval is None:
@@ -95,8 +96,8 @@ def _requirement_map(requirement: str, mapping: dict):
 
 
 def pypi_to_conda(requirement: str) -> str:
-    """
-    Map PyPI requirement to Conda version
+    """Map PyPI requirement to Conda version.
+
     :param requirement: PyPI requirement
     :return: Conda requirement
     """
@@ -104,8 +105,8 @@ def pypi_to_conda(requirement: str) -> str:
 
 
 def conda_to_pypi(requirement: str) -> str:
-    """
-    Map Conda requirement to PyPI version
+    """Map Conda requirement to PyPI version.
+
     :param requirement: Conda requirement
     :return: PyPI requirement
     """
