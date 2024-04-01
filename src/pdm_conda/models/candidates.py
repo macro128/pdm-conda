@@ -83,13 +83,17 @@ class CondaCandidate(Candidate):
             cast(CondaRequirement, parse_requirement(f"conda:{r}")) for r in dependencies
         ]
         self.constrains: dict[str, CondaRequirement] = {}
-        self.hashes: list[FileHash] = [
-            {
-                "url": self.link.url_without_fragment,
-                "file": "",
-                "hash": f"{self.link.hash_name}:{self.link.hash}",
-            },
-        ]
+        self.hashes: list[FileHash] = (
+            [
+                {
+                    "url": self.link.url_without_fragment,
+                    "file": "",
+                    "hash": f"{self.link.hash_name}:{self.link.hash}",
+                },
+            ]
+            if self.link is not None
+            else []
+        )
         for r in constrains or []:
             c = cast(CondaRequirement, parse_requirement(f"conda:{r}"))
             self.constrains[str(c.conda_name)] = c
