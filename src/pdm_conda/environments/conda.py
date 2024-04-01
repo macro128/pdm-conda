@@ -4,7 +4,6 @@ import os
 import sysconfig
 import uuid
 from collections import ChainMap
-from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from pdm.exceptions import ProjectError
@@ -33,17 +32,16 @@ class CondaEnvironment(PythonEnvironment):
         super().__init__(project)
         self.project = cast(CondaProject, project)
         self._env_dependencies: dict[str, Requirement] | None = None
-        self.python_requires &= PySpecSet(f"=={self.interpreter.version}")
-
-    @property
-    def packages_path(self) -> Path:
-        return Path(ensure_conda_env())
+        if self.project.conda_config.is_initialized:
+            self.python_requires &= PySpecSet(f"=={self.interpreter.version}")
 
     def get_paths(self, dist_name: str | None = None) -> dict[str, str]:
-        prefix = ensure_conda_env()
-        paths = sysconfig.get_paths(vars={k: prefix for k in ("base", "platbase", "installed_base")}, expand=True)
-        paths.setdefault("prefix", prefix)
-        return paths
+        if self.project.conda_config.is_initialized:
+            prefix = ensure_conda_env()
+            paths = sysconfig.get_paths(vars={k: prefix for k in ("base", "platbase", "installed_base")}, expand=True)
+            paths.setdefault("prefix", prefix)
+            return paths
+        return super().get_paths(dist_name)
 
     def get_working_set(self) -> WorkingSet:
         """Get the working set based on local packages directory, include Conda managed packages."""
