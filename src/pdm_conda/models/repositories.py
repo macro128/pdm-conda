@@ -80,8 +80,7 @@ class CondaRepository(BaseRepository):
             if not self.is_conda_managed(req, excluded_identifiers):
                 continue
             req = as_conda_requirement(req)
-            key = req.identify()
-            if key not in resolution:
+            if (key := req.conda_name) not in resolution:
                 logger.info(f"Requirement {req} is not present in Conda resolution")
                 return False
             for can in resolution[key]:
@@ -178,14 +177,14 @@ class PyPICondaRepository(PyPIRepository, CondaRepository):
 
         if _requirements:
             try:
+                _requirements += [
+                    as_conda_requirement(req)
+                    for req in requirements or []
+                    if self.is_conda_managed(req, excluded_identifiers)
+                ]
                 new_resolution = conda_create(
                     self.environment.project,
-                    _requirements
-                    + [
-                        as_conda_requirement(req)
-                        for req in requirements or []
-                        if self.is_conda_managed(req, excluded_identifiers)
-                    ],
+                    _requirements,
                     prefix=f"/tmp/{uuid.uuid4()}",
                     dry_run=True,
                 )

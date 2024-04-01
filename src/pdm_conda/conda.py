@@ -29,7 +29,10 @@ if TYPE_CHECKING:
 
     from pdm_conda.project import CondaProject
 
-_conda_response_packages_re = re.compile(r"(nothing provides( requested)?|^.─)\s+(?P<package>[^\s\[\"\'=<>|~!]+)")
+_conda_response_packages_res = [
+    re.compile(r"(nothing provides( requested)?|^.(\s+.)?─)\s+(?P<package>\S+)"),
+    re.compile(r"(nothing provides .* needed by)\s+(?P<package>.+)-\d+\.\w+\.\w+-.+$"),
+]
 
 
 class CondaExecutionError(PdmException):
@@ -366,11 +369,12 @@ def conda_create(
         )
     except CondaResolutionError as err:
         if not err.packages:
-            failed_packages = []
+            failed_packages = set()
             for line in err.message.split("\n"):
-                if (match := _conda_response_packages_re.search(line)) is not None:
-                    failed_packages.append(match.group("package"))
-            err.packages = failed_packages
+                for pat in _conda_response_packages_res:
+                    if (match := pat.search(line)) is not None:
+                        failed_packages.add(match.group("package"))
+            err.packages = list(failed_packages)
         raise
     if fetch_candidates:
         actions = result.get("actions", {})
