@@ -43,7 +43,7 @@ class TestUpdate:
         for package in packages:
             command += ["--conda", package]
         pdm(command, obj=project, strict=True)
-
+        conda.reset_mock()
         project.pyproject.reload()
         requirements = {}
         for group in project.iter_groups():
@@ -54,7 +54,7 @@ class TestUpdate:
             command.append(f"--save-{save_strategy}")
         assert conf.custom_behavior == custom_behavior
         pdm(command, obj=project, strict=True)
-
+        assert conda.call_count == 0
         project.pyproject.reload()
         updated_requirements = {}
         for group in project.iter_groups():

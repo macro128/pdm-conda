@@ -187,12 +187,13 @@ class CondaResolution(Resolution):
 
     def initialize_conda_resolution(self, requirements, excluded_identifiers: set[str] | None):
         # update conda resolution
-        if not self._p.compatible_with_resolution(requirements, self._conda_resolution, excluded_identifiers):
-            self._conda_excluded_identifiers = self._p.update_conda_resolution(
-                requirements,
-                resolution=self._conda_resolution,
-                excluded_identifiers=excluded_identifiers,
-            )
+        self._conda_excluded_identifiers = self._p.update_conda_resolution(
+            requirements
+            if not self._p.compatible_with_resolution(requirements, self._conda_resolution, excluded_identifiers)
+            else None,
+            resolution=self._conda_resolution,
+            excluded_identifiers=excluded_identifiers,
+        )
 
         # update constrains
         for candidates in self._conda_resolution.values():
