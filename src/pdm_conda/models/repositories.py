@@ -47,7 +47,6 @@ class CondaRepository(BaseRepository):
         super().__init__(sources, environment, ignore_compatibility)
         self.environment = cast(CondaEnvironment, environment)
         self._conda_resolution: dict[str, list[CondaCandidate]] = {}
-        self._compatible_requirements: set[CondaRequirement] = set()
         self._excluded_identifiers: set[str] = set()
 
     def is_conda_managed(self, requirement: Requirement, excluded_identifiers: set[str] | None = None) -> bool:
@@ -63,14 +62,44 @@ class CondaRepository(BaseRepository):
 
         return _is_conda_managed(requirement, self.environment.project.conda_config, excluded_identifiers)
 
+    def compatible_with_resolution(
+        self,
+        requirements: list[Requirement],
+        resolution: dict[str, list[CondaCandidate]],
+        excluded_identifiers: set[str],
+    ):
+        """True if all requirements are compatible with the resolution.
+
+        :param requirements: list of requirements
+        :param resolution: resolution to check
+        :param excluded_identifiers: identifiers to exclude
+        :return: True if all requirements are compatible with the resolution
+        """
+        # if any requirement not in saved candidates or incompatible candidates
+        for req in requirements:
+            if not self.is_conda_managed(req, excluded_identifiers):
+                continue
+            req = as_conda_requirement(req)
+            key = req.identify()
+            if key not in resolution:
+                logger.info(f"Requirement {req} is not present in Conda resolution")
+                return False
+            for can in resolution[key]:
+                if not req.is_compatible(can):
+                    logger.info(f"Requirement {req} is not compatible with {can}")
+                    return False
+        return True
+
     def update_conda_resolution(
         self,
+        new_requirements: list[Requirement] | None = None,
         requirements: list[Requirement] | None = None,
         resolution: dict | None = None,
         excluded_identifiers: set[str] | None = None,
     ) -> set[str]:
         """Updates the existing conda resolution if new requirements.
 
+        :param new_requirements: new requirements to add
         :param requirements: list of requirements
         :param resolution: resolution to override existing
         :param excluded_identifiers: identifiers to exclude
@@ -130,51 +159,49 @@ class CondaRepository(BaseRepository):
 class PyPICondaRepository(PyPIRepository, CondaRepository):
     def update_conda_resolution(
         self,
+        new_requirements: list[Requirement] | None = None,
         requirements: list[Requirement] | None = None,
         resolution: dict | None = None,
         excluded_identifiers: set[str] | None = None,
     ) -> set[str]:
-        excluded_identifiers = super().update_conda_resolution(requirements, resolution, excluded_identifiers)
-        requirements = requirements or []
-        requirements = [
-            as_conda_requirement(req) for req in requirements if self.is_conda_managed(req, excluded_identifiers)
+        excluded_identifiers = super().update_conda_resolution(
+            new_requirements=new_requirements,
+            requirements=requirements,
+            resolution=resolution,
+            excluded_identifiers=excluded_identifiers,
+        )
+        _requirements = [
+            as_conda_requirement(req)
+            for req in new_requirements or []
+            if self.is_conda_managed(req, excluded_identifiers)
         ]
-        update = False
-        if requirements_to_test := (set(requirements) - self._compatible_requirements):
-            # if any requirement not in saved candidates or incompatible candidates
-            for req in requirements_to_test:
-                if update:
-                    break
-                key = req.conda_name
-                if key not in self._conda_resolution:
-                    update = True
-                    break
-                for can in self._conda_resolution[key]:
-                    if not req.is_compatible(can):
-                        update = True
-                        break
-                self._compatible_requirements.add(req)
 
-        if update:
+        if _requirements:
             try:
-                resolution = conda_create(
+                new_resolution = conda_create(
                     self.environment.project,
-                    requirements,
+                    _requirements
+                    + [
+                        as_conda_requirement(req)
+                        for req in requirements or []
+                        if self.is_conda_managed(req, excluded_identifiers)
+                    ],
                     prefix=f"/tmp/{uuid.uuid4()}",
                     dry_run=True,
                 )
-                _requirements = {r.conda_name: r for r in requirements}
-                for name, candidates in resolution.items():
-                    req = _requirements.get(name, candidates[0].req)
+                conda_requirements = {r.conda_name: r for r in _requirements}
+                for name, candidates in new_resolution.items():
+                    req = conda_requirements.get(name, candidates[0].req)
                     key = req.conda_name
                     self._conda_resolution[key] = candidates
-                self._compatible_requirements = set(requirements)
+
             except CondaResolutionError as err:
                 logger.info(err)
                 if err.packages:
                     if self.environment.project.conda_config.auto_excludes:
                         logger.info(f"Adding {_format_packages(err.packages)} to excludes list")
                         return self.update_conda_resolution(
+                            new_requirements,
                             requirements,
                             resolution,
                             excluded_identifiers | set(err.packages),

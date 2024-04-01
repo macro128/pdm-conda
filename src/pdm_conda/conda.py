@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 
     from pdm_conda.project import CondaProject
 
-_conda_response_packages_re = re.compile(r"(nothing provides requested|^.─)\s+([^\s\[\"\'=<>|~!]+)")
+_conda_response_packages_re = re.compile(r"(nothing provides( requested)?|^.─)\s+(?P<package>[^\s\[\"\'=<>|~!]+)")
 
 
 class CondaExecutionError(PdmException):
@@ -369,7 +369,7 @@ def conda_create(
             failed_packages = []
             for line in err.message.split("\n"):
                 if (match := _conda_response_packages_re.search(line)) is not None:
-                    failed_packages.append(match.group(2))
+                    failed_packages.append(match.group("package"))
             err.packages = failed_packages
         raise
     if fetch_candidates:
