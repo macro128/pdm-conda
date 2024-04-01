@@ -3,7 +3,6 @@ from typing import cast
 import pytest
 
 
-@pytest.mark.usefixtures("fake_python")
 @pytest.mark.usefixtures("working_set")
 @pytest.mark.parametrize("runner", ["micromamba"])
 class TestUpdate:

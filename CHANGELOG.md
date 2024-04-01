@@ -17,12 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 * Allow multiple channels specified using `pdm init --channel`.
-* Faster `pdm lock --refresh` execution.
-* Faster resolution time.
+* Faster resolution time with mixed Conda and PyPi packages.
 
 ### Fixed
 
 * Fix locked packages dropping information when running `pdm lock --refresh`.
+* Fix calling `conda` commands unnecessarily on `pdm add/remove/update reuse` when lockfile exists.
 
 ## [0.16.5] - 18/03/2024
 

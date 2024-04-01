@@ -6,7 +6,6 @@ import pytest
 from tests.conftest import CONDA_REQUIREMENTS, PREFERRED_VERSIONS, PYTHON_REQUIREMENTS
 
 
-@pytest.mark.usefixtures("fake_python")
 @pytest.mark.parametrize("runner", [None, "micromamba", "conda"])
 @pytest.mark.parametrize("group", ["default", "other"])
 @pytest.mark.usefixtures("working_set")
@@ -133,7 +132,7 @@ class TestAddRemove:
         cmd_order = []
         if packages_to_remove:
             # get working set + get python packages
-            cmd_order = ["create", "list", "list"]
+            cmd_order = ["list", "list"]
             if project.conda_config.runner in ("mamba", "micromamba") or project.conda_config.solver == "libmamba":
                 cmd_order.append("create")
             else:
