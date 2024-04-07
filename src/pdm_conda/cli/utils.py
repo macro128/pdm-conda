@@ -93,7 +93,7 @@ def wrap_format_lockfile(func):
                     include_dependencies = True
                 dependencies.append(dep.as_line(**kwargs))
             if include_dependencies:
-                package["dependencies"] = make_array(sorted(dependencies), True)
+                package["dependencies"] = make_array(sorted(set(dependencies)), True)
 
         res["package"] = sorted(res["package"], key=lambda x: x["name"])
         return res
