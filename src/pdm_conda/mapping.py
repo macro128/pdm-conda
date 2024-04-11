@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 
-import requests
+import httpx
 
 MAPPING_URL = "https://github.com/regro/cf-graph-countyfair/raw/master/mappings/pypi/grayskull_pypi_mapping.yaml"
 MAPPING_DOWNLOAD_DIR_ENV_VAR = "PDM_CONDA_PYPI_MAPPING_DIR"
@@ -53,10 +53,9 @@ def download_mapping(download_dir: Path, update_interval: timedelta | None = Non
     dict_path = yaml_path.with_suffix(".json")
 
     if not yaml_path.exists() or datetime.fromtimestamp(yaml_path.stat().st_mtime) + update_interval < datetime.now():
-        response = requests.get(os.getenv(MAPPING_URL_ENV_VAR, MAPPING_URL), stream=True, timeout=timeout)
+        response = httpx.get(os.getenv(MAPPING_URL_ENV_VAR, MAPPING_URL), timeout=timeout)
         with yaml_path.open("wb") as f:
-            for chunk in response.iter_content(chunk_size=128):
-                f.write(chunk)
+            f.write(response.content)
         process_mapping(yaml_path, dict_path)
 
     with dict_path.open() as f:
