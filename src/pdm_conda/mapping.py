@@ -38,11 +38,12 @@ def process_mapping(yaml_path: Path, dict_path: Path):
         json.dump(mappings, f)
 
 
-def download_mapping(download_dir: Path, update_interval: timedelta | None = None) -> dict[str, str]:
+def download_mapping(download_dir: Path, update_interval: timedelta | None = None, timeout: int = 15) -> dict[str, str]:
     """Download and process Conda-PyPI mapping from GitHub.
 
     :param download_dir: download dir
     :param update_interval: update interval, if mapping file modified date is greater than update interval the reload
+    :param timeout: request timeout
     :return: Conda mapping
     """
     if update_interval is None:
@@ -52,7 +53,7 @@ def download_mapping(download_dir: Path, update_interval: timedelta | None = Non
     dict_path = yaml_path.with_suffix(".json")
 
     if not yaml_path.exists() or datetime.fromtimestamp(yaml_path.stat().st_mtime) + update_interval < datetime.now():
-        response = requests.get(os.getenv(MAPPING_URL_ENV_VAR, MAPPING_URL), stream=True)
+        response = requests.get(os.getenv(MAPPING_URL_ENV_VAR, MAPPING_URL), stream=True, timeout=timeout)
         with yaml_path.open("wb") as f:
             for chunk in response.iter_content(chunk_size=128):
                 f.write(chunk)
@@ -75,7 +76,8 @@ def get_mapping_fixes() -> dict:
 @lru_cache
 def get_pypi_mapping() -> dict[str, str]:
     download_dir = os.getenv(MAPPING_DOWNLOAD_DIR_ENV_VAR)
-    mapping = download_mapping(Path(str(download_dir)))
+    timeout = int(os.getenv("PDM_REQUEST_TIMEOUT", 15))
+    mapping = download_mapping(Path(str(download_dir)), timeout=timeout)
     mapping.update(get_mapping_fixes())
     return mapping
 
