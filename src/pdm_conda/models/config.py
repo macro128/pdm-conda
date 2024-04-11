@@ -111,7 +111,7 @@ def is_conda_config_initialized(project: Project):
 class PluginConfig:
     _project: Project = field(repr=False, default=None)
     _initialized: bool = field(repr=False, default=False, compare=False)
-    _dry_run: bool = field(repr=False, default=False, compare=False, init=False)
+    _dry_run: bool = field(repr=False, default=True, compare=False, init=False)
     _force_set_project_config: bool = field(repr=False, default=False, compare=False, init=False)
     _excludes: list[str] = field(repr=False, compare=False, init=False, default_factory=list)
     _excluded_identifiers: set[str] | None = field(default=None, repr=False, init=False)
