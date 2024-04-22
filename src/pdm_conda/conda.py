@@ -4,19 +4,14 @@ import contextlib
 import json
 import re
 import subprocess
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 from shutil import which
 from tempfile import NamedTemporaryFile
 from typing import TYPE_CHECKING
 
 from pdm.cli.commands.venv.backends import VirtualenvCreateError
-from pdm.exceptions import (
-    InstallationError,
-    PdmException,
-    RequirementError,
-    UninstallError,
-)
+from pdm.exceptions import InstallationError, PdmException, RequirementError, UninstallError
 from pdm.models.finder import ReverseVersion
 from pdm.models.setup import Setup
 from pdm.termui import Verbosity
@@ -25,31 +20,29 @@ from pdm_conda import logger
 from pdm_conda.models.candidates import CondaCandidate, parse_channel
 from pdm_conda.models.conda import ChannelSorter
 from pdm_conda.models.config import CondaRunner
-from pdm_conda.models.requirements import (
-    CondaRequirement,
-    parse_conda_version,
-    parse_requirement,
-)
+from pdm_conda.models.requirements import CondaRequirement, parse_conda_version, parse_requirement
 from pdm_conda.models.setup import CondaSetupDistribution
 from pdm_conda.utils import normalize_name
 
 if TYPE_CHECKING:
-    from typing import Iterable
+    from collections.abc import Iterable
 
     from pdm_conda.project import CondaProject
 
-_conda_response_packages_re = re.compile(r"(nothing provides requested|^.─)\s+([^\s\[\"\'=<>|~!]+)")
+_conda_response_packages_res = [
+    re.compile(r"(nothing provides( requested)?|^.(\s+.)?─)\s+(?P<package>\S+)"),
+    re.compile(r"(nothing provides .* needed by)\s+(?P<package>.+)-\d+\.\w+\.\w+-.+$"),
+]
 
 
 class CondaExecutionError(PdmException):
     def __init__(self, *args, data: dict | None = None):
         super().__init__(*args)
-        self.data = data or dict()
+        self.data = data or {}
         self.message = self.data.get("message", "")
 
 
 class CondaResolutionError(CondaExecutionError):
-
     def __init__(self, *args, data: dict | None = None):
         super().__init__(*args, data=data)
         self.packages: list = self.data.get("packages", [])
@@ -65,8 +58,8 @@ class CondaRunnerNotFoundError(CondaExecutionError):
 
 @contextlib.contextmanager
 def _optional_temporary_file(environment: dict | list):
-    """
-    If environment contains data then creates temporary file else yield None
+    """If environment contains data then creates temporary file else yield None.
+
     :param environment: environment data
     :return: Temporary file or None
     """
@@ -83,8 +76,8 @@ def run_conda(
     exception_msg: str = "Error locking dependencies",
     **environment,
 ) -> dict:
-    """
-    Optionally creates temporary environment file and run conda command
+    """Optionally creates temporary environment file and run conda command.
+
     :param cmd: conda command
     :param exception_cls: exception to raise on error
     :param exception_msg: base message to show on error
@@ -107,8 +100,8 @@ def run_conda(
                         if isinstance(options, str):
                             f.write(f" {options}\n")
                             continue
-                        else:
-                            f.write("\n")
+
+                        f.write("\n")
                         for v in options:
                             f.write(f"  - {v}\n")
             f.seek(0)
@@ -160,10 +153,10 @@ def run_conda(
     return response
 
 
-@lru_cache(maxsize=None)
+@cache
 def _get_channel_sorter(platform: str, channels: tuple[str]) -> ChannelSorter:
-    """
-    Get channel sorter
+    """Get channel sorter.
+
     :param channels: list of conda channels used to determine priority
     :param platform: env platform
     :return: channel sorter
@@ -179,6 +172,7 @@ def sort_candidates(
     """
     Sort candidates following mamba specification
     (https://mamba.readthedocs.io/en/latest/advanced_usage/package_resolution.html).
+
     :param project: PDM project
     :param packages: list of conda candidates
     :return: sorted conda candidates
@@ -200,8 +194,8 @@ def sort_candidates(
 
 
 def _parse_candidates(project: CondaProject, packages: list[dict], requirement=None) -> list[CondaCandidate]:
-    """
-    Convert conda packages to candidates
+    """Convert conda packages to candidates.
+
     :param project: PDM project
     :param packages: conda packages
     :param requirement: requirement linked to packages
@@ -228,8 +222,8 @@ def _ensure_channels(
     channels: list[str],
     log_message: str = "No channels specified, using defaults if exist.",
 ) -> list[str]:
-    """
-    Ensure channels and if empty use defaults
+    """Ensure channels and if empty use defaults.
+
     :param project: PDM project
     :param channels: channels to validate
     :param log_message: log message to display if using defaults
@@ -243,14 +237,14 @@ def _ensure_channels(
     return list(dict.fromkeys(channels))
 
 
-@lru_cache(maxsize=None)
+@cache
 def _conda_search(
     project: CondaProject,
     requirement: str,
     channels: tuple[str],
 ) -> list[dict]:
-    """
-    Search conda candidates for a requirement
+    """Search conda candidates for a requirement.
+
     :param project: PDM project
     :param requirement: requirement
     :param channels: requirement channels
@@ -269,14 +263,14 @@ def _conda_search(
         result = run_conda(command)
     except RequirementError as e:
         if "PackagesNotFoundError:" in str(e):
-            result = dict()
+            result = {}
         else:
             raise
 
     if config.runner == CondaRunner.CONDA:
         packages = result.get(parse_requirement(f"conda:{requirement}").name, [])
     else:
-        packages = result.get("result", dict()).get("pkgs", [])
+        packages = result.get("result", {}).get("pkgs", [])
     return packages
 
 
@@ -285,8 +279,8 @@ def conda_search(
     requirement: CondaRequirement | str,
     channel: str | None = None,
 ) -> list[CondaCandidate]:
-    """
-    Search conda candidates for a requirement
+    """Search conda candidates for a requirement.
+
     :param project: PDM project
     :param requirement: requirement
     :param channel: requirement channel
@@ -318,8 +312,8 @@ def conda_create(
     dry_run: bool = False,
     fetch_candidates: bool = True,
 ) -> dict[str, list[CondaCandidate]]:
-    """
-    Creates environment using conda
+    """Creates environment using conda.
+
     :param project: PDM project
     :param requirements: conda requirements
     :param channels: requirement channels
@@ -331,7 +325,7 @@ def conda_create(
     config = project.conda_config
     if not config.is_initialized:
         raise VirtualenvCreateError("Error creating environment, no pdm-conda configs were found on pyproject.toml.")
-    candidates = dict()
+    candidates = {}
     channels = channels or []
     for req in requirements:
         if req.channel:
@@ -341,7 +335,7 @@ def conda_create(
         channels,
         "No channels specified for creating environment, using defaults if exist.",
     )
-    command = config.command("create")
+    command = config.command("create", use_project_env=False)
     command.append("--json")
     if prefix is not None:
         command.extend(["--prefix", str(prefix)])
@@ -375,14 +369,15 @@ def conda_create(
         )
     except CondaResolutionError as err:
         if not err.packages:
-            failed_packages = []
+            failed_packages = set()
             for line in err.message.split("\n"):
-                if (match := _conda_response_packages_re.search(line)) is not None:
-                    failed_packages.append(match.group(2))
-            err.packages = failed_packages
+                for pat in _conda_response_packages_res:
+                    if (match := pat.search(line)) is not None:
+                        failed_packages.add(match.group("package"))
+            err.packages = list(failed_packages)
         raise
     if fetch_candidates:
-        actions = result.get("actions", dict())
+        actions = result.get("actions", {})
         fetch_packages = {pkg["name"]: pkg for pkg in actions.get("FETCH", [])}
         packages = actions.get("LINK", [])
         for i, pkg in enumerate(packages):
@@ -406,14 +401,14 @@ def conda_create(
                 candidates[name] = _parse_candidates(
                     project,
                     packages=[pkg],
-                    requirement=_requirements.get(name, None),
+                    requirement=_requirements.get(name),
                 )
     return candidates
 
 
 def conda_env_remove(project: CondaProject, prefix: Path | str | None = None, name: str = "", dry_run: bool = False):
-    """
-    Removes environment using conda
+    """Removes environment using conda.
+
     :param project: PDM project
     :param prefix: environment prefix
     :param name: environment name
@@ -422,7 +417,7 @@ def conda_env_remove(project: CondaProject, prefix: Path | str | None = None, na
     config = project.conda_config
     if not config.is_initialized:
         raise VirtualenvCreateError("Error removing environment, no pdm-conda configs were found on pyproject.toml.")
-    command = config.command("env remove")
+    command = config.command("env remove", use_project_env=False)
     command.append("--json")
     if prefix is not None:
         command += ["--prefix", str(prefix)]
@@ -438,13 +433,13 @@ def conda_env_remove(project: CondaProject, prefix: Path | str | None = None, na
 
 
 def conda_env_list(project: CondaProject) -> list[Path]:
-    """
-    List Conda environments
+    """List Conda environments.
+
     :param project: PDM project
     :return: list of conda environments
     """
     config = project.conda_config
-    command = config.command("env list")
+    command = config.command("env list", use_project_env=False)
     command.append("--json")
     environments = run_conda(command, exception_cls=CondaExecutionError, exception_msg="Error listing environments")
     return [Path(env) for env in environments.get("envs", [])]
@@ -467,7 +462,7 @@ def _conda_install(
         command.extend(packages)
     if dry_run:
         command.append("--dry-run")
-    kwargs: dict = dict()
+    kwargs: dict = {}
     if explicit:
         kwargs["lockfile"] = packages
     run_conda(command + ["--json"], exception_cls=exception_cls, exception_msg="", **kwargs)
@@ -479,8 +474,8 @@ def conda_install(
     dry_run: bool = False,
     no_deps: bool = False,
 ):
-    """
-    Install resolved packages using conda
+    """Install resolved packages using conda.
+
     :param project: PDM project
     :param packages: resolved packages
     :param dry_run: don't install if dry run
@@ -508,8 +503,8 @@ def conda_uninstall(
     dry_run: bool = False,
     no_deps: bool = False,
 ):
-    """
-    Uninstall resolved packages using conda
+    """Uninstall resolved packages using conda.
+
     :param project: PDM project
     :param packages: resolved packages
     :param dry_run: don't uninstall if dry run
@@ -533,13 +528,13 @@ def not_initialized_warning(project):
 
 
 def conda_info(project: CondaProject) -> dict:
-    """
-    Get conda info containing virtual packages, default channels and packages
+    """Get conda info containing virtual packages, default channels and packages.
+
     :param project: PDM project
     :return: dict with conda info
     """
     config = project.conda_config
-    res: dict = dict(virtual_packages=set(), platform="", channels=[])
+    res: dict = {"virtual_packages": set(), "platform": "", "channels": []}
     if config.is_initialized:
         info = run_conda(config.command("info") + ["--json"])
         if config.runner != CondaRunner.MICROMAMBA:
@@ -556,13 +551,13 @@ def conda_info(project: CondaProject) -> dict:
 
 
 def conda_list(project: CondaProject) -> dict[str, CondaSetupDistribution]:
-    """
-    List conda installed packages
+    """List conda installed packages.
+
     :param project: PDM project
     :return: packages distribution
     """
     config = project.conda_config
-    distributions = dict()
+    distributions = {}
     if config.is_initialized:
         packages = run_conda(config.command("list") + ["--json"])
         for package in packages:

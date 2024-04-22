@@ -12,12 +12,7 @@ from pdm.models.candidates import Candidate, PreparedCandidate
 from pdm.models.setup import Setup
 from unearth import Link
 
-from pdm_conda.models.requirements import (
-    CondaRequirement,
-    as_conda_requirement,
-    parse_conda_version,
-    parse_requirement,
-)
+from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement, parse_conda_version, parse_requirement
 from pdm_conda.models.setup import CondaSetupDistribution
 
 if TYPE_CHECKING:
@@ -31,8 +26,8 @@ if TYPE_CHECKING:
 
 
 def parse_channel(channel_url: str) -> str:
-    """
-    Parse channel from channel url
+    """Parse channel from channel url.
+
     :param channel_url: channel url from package
     :return: channel
     """
@@ -47,8 +42,8 @@ class CondaPreparedCandidate(PreparedCandidate):
     candidate: CondaCandidate
 
     def get_dependencies_from_metadata(self) -> list[str]:
-        """
-        Get the dependencies of a candidate from pre-fetched package.
+        """Get the dependencies of a candidate from pre-fetched package.
+
         :return: list of dependencies
         """
         return [d.as_line(as_conda=True, with_build_string=True) for d in self.candidate.dependencies]
@@ -87,14 +82,18 @@ class CondaCandidate(Candidate):
         self.dependencies: list[CondaRequirement] = [
             cast(CondaRequirement, parse_requirement(f"conda:{r}")) for r in dependencies
         ]
-        self.constrains: dict[str, CondaRequirement] = dict()
-        self.hashes: list[FileHash] = [
-            dict(
-                url=self.link.url_without_fragment,
-                file="",
-                hash=f"{self.link.hash_name}:{self.link.hash}",
-            ),
-        ]
+        self.constrains: dict[str, CondaRequirement] = {}
+        self.hashes: list[FileHash] = (
+            [
+                {
+                    "url": self.link.url_without_fragment,
+                    "file": "",
+                    "hash": f"{self.link.hash_name}:{self.link.hash}",
+                },
+            ]
+            if self.link is not None
+            else []
+        )
         for r in constrains or []:
             c = cast(CondaRequirement, parse_requirement(f"conda:{r}"))
             self.constrains[str(c.conda_name)] = c
@@ -104,7 +103,7 @@ class CondaCandidate(Candidate):
         self.channel = channel
         self.track_feature = track_feature
 
-    def copy_with(self, requirement: Requirement, merge_requirements: bool = False) -> Candidate:
+    def copy_with(self, requirement: Requirement, merge_requirements: bool = True) -> Candidate:
         can = copy(self)
         if isinstance(requirement, CondaRequirement) and merge_requirements:
             requirement.is_python_package &= can.req.is_python_package
@@ -161,9 +160,9 @@ class CondaCandidate(Candidate):
         return self._prepared
 
     @classmethod
-    def from_lock_package(cls, package: dict) -> "CondaCandidate":
-        """
-        Create conda candidate from lockfile package.
+    def from_lock_package(cls, package: dict) -> CondaCandidate:
+        """Create conda candidate from lockfile package.
+
         :param package: lockfile package
         :return: conda candidate
         """
@@ -181,9 +180,9 @@ class CondaCandidate(Candidate):
         return CondaCandidate.from_conda_package(package | corrections)
 
     @classmethod
-    def from_conda_package(cls, package: dict, requirement: CondaRequirement | None = None) -> "CondaCandidate":
-        """
-        Create conda candidate from conda package.
+    def from_conda_package(cls, package: dict, requirement: CondaRequirement | None = None) -> CondaCandidate:
+        """Create conda candidate from conda package.
+
         :param package: conda package
         :param requirement: conda requirement associated with conda package
         :return: conda candidate
@@ -207,7 +206,7 @@ class CondaCandidate(Candidate):
         name, version = package["name"], package["version"]
         build_string = package.get("build", package.get("build_string", ""))
         channel = parse_channel(package["channel"])
-        marker = package.get("marker", None)
+        marker = package.get("marker")
         if requirement is not None:
             requirement = as_conda_requirement(copy(requirement))
             requirement.version_mapping.update({parse_conda_version(version): version})
@@ -234,7 +233,7 @@ class CondaCandidate(Candidate):
             ),
             channel=channel,
             dependencies=dependencies,
-            constrains=package.get("constrains", None) or [],
+            constrains=package.get("constrains") or [],
             build_string=build_string,
             build_number=package.get("build_number", 0),
             track_feature=package.get("track_feature", ""),

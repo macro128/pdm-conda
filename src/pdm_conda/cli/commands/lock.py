@@ -26,7 +26,6 @@ class Command(BaseCommand):
             ] + [
                 f"no_{FLAG_CROSS_PLATFORM}",
             ]
-            if options.groups:
-                if ":all" in options.groups:
-                    options.groups += list(project.iter_groups(dev=True if options.dev is None else options.dev))
+            if options.groups and ":all" in options.groups:
+                options.groups += list(project.iter_groups(dev=True if options.dev is None else options.dev))
         super().handle(project=project, options=options)

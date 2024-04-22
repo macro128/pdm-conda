@@ -4,8 +4,8 @@ _patched = False
 
 
 def normalize_name(name: str, lowercase: bool = True) -> str:
-    """
-    Normalize name and keep _
+    """Normalize name and keep `_`.
+
     :param name: name to normalize
     :param lowercase: if true lowercase name
     :return: normalized name
@@ -28,6 +28,6 @@ if not _patched:
         working_set,
     ]
     for m in modules:
-        setattr(m, "normalize_name", normalize_name)
+        m.normalize_name = normalize_name
 
     _patched = True

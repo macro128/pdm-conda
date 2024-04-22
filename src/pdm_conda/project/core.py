@@ -4,25 +4,20 @@ from functools import cached_property
 from typing import TYPE_CHECKING, cast
 
 from pdm.exceptions import ProjectError
+from pdm.models.python import PythonInfo
 from pdm.project import Project
 from pdm.project.lockfile import Lockfile
 from pdm.utils import get_venv_like_prefix
 from tomlkit.items import Array
 
 from pdm_conda.models.config import PluginConfig
-from pdm_conda.models.requirements import (
-    CondaRequirement,
-    as_conda_requirement,
-    is_conda_managed,
-    parse_requirement,
-)
+from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement, is_conda_managed, parse_requirement
 from pdm_conda.project.project_file import PyProject
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
     from pathlib import Path
-    from typing import Iterable
 
-    from findpython import Finder
     from pdm.core import Core
     from pdm.environments import BaseEnvironment
     from pdm.models.repositories import LockedRepository
@@ -41,10 +36,7 @@ class CondaProject(Project):
         from pdm_conda.environments import CondaEnvironment
         from pdm_conda.installers.manager import CondaInstallManager
         from pdm_conda.installers.synchronizers import CondaSynchronizer
-        from pdm_conda.models.repositories import (
-            LockedCondaRepository,
-            PyPICondaRepository,
-        )
+        from pdm_conda.models.repositories import LockedCondaRepository, PyPICondaRepository
         from pdm_conda.resolvers import CondaResolver
 
         super().__init__(core, root_path, is_global, global_config)
@@ -54,32 +46,34 @@ class CondaProject(Project):
         self.core.resolver_class = CondaResolver
         self.locked_repository_class = LockedCondaRepository
         self.environment_class = CondaEnvironment
-        self._virtual_packages: set[CondaRequirement] | None = None
-        self._platform: str | None = None
-        self._default_channels: list[str] | None = None
-        self._conda_mapping: dict[str, str] = dict()
-        self._pypi_mapping: dict[str, str] = dict()
+        self._conda_mapping: dict[str, str] = {}
+        self._pypi_mapping: dict[str, str] = {}
         self.conda_config = PluginConfig.load_config(self)
         self._is_distribution: bool | None = None
 
-    def _check_update_info(self, prop):
-        if prop is None:
-            self._get_conda_info()
-
-    @cached_property
+    @property
     def virtual_packages(self) -> set[CondaRequirement]:
-        self._check_update_info(self._virtual_packages)
-        return self._virtual_packages  # type: ignore
+        from pdm_conda.environments import CondaEnvironment
+
+        if isinstance(self.environment, CondaEnvironment):
+            return self.environment.virtual_packages
+        return set()
 
     @property
     def platform(self) -> str:
-        self._check_update_info(self._platform)
-        return self._platform  # type: ignore
+        from pdm_conda.environments import CondaEnvironment
+
+        if isinstance(self.environment, CondaEnvironment):
+            return self.environment.platform
+        return ""
 
     @property
     def default_channels(self) -> list[str]:
-        self._check_update_info(self._default_channels)
-        return self._default_channels  # type: ignore
+        from pdm_conda.environments import CondaEnvironment
+
+        if isinstance(self.environment, CondaEnvironment):
+            return self.environment.default_channels
+        return []
 
     @property
     def locked_repository(self) -> LockedRepository:
@@ -88,7 +82,13 @@ class CondaProject(Project):
         except ProjectError:
             lockfile = {}
 
-        return self.locked_repository_class(lockfile, self.sources, self.environment)
+        return self.locked_repository_class(lockfile=lockfile, sources=self.sources, environment=self.environment)  # type: ignore
+
+    @Project.python.setter
+    def python(self, value: PythonInfo) -> None:
+        self._python = value
+        self._saved_python = value.path.as_posix()
+        self.environment = None
 
     @cached_property
     def pyproject(self) -> PyProject:
@@ -115,19 +115,17 @@ class CondaProject(Project):
         self._default_channels = info["channels"]
 
     def get_conda_pyproject_dependencies(self, group: str, dev: bool = False, set_defaults=False) -> list[str]:
-        """
-        Get the conda dependencies array in the pyproject.toml
-        """
+        """Get the conda dependencies array in the pyproject.toml."""
 
         def _getter(conf, name, default, set_defaults=False):
             return (conf.setdefault if set_defaults else conf.get)(name, default)
 
-        settings = _getter(self.pyproject.settings, "conda", dict(), set_defaults)
+        settings = _getter(self.pyproject.settings, "conda", {}, set_defaults)
         if group == "default":
             group = "dependencies"
         else:
             name = "optional" if not dev else "dev"
-            settings = _getter(settings, f"{name}-dependencies", dict(), set_defaults)
+            settings = _getter(settings, f"{name}-dependencies", {}, set_defaults)
         return _getter(settings, group, [], set_defaults)
 
     def iter_groups(self, dev: bool = True) -> Iterable[str]:
@@ -142,10 +140,7 @@ class CondaProject(Project):
         return groups
 
     def get_dependencies(self, group: str | None = None) -> dict[str, Requirement]:
-        if group in super().iter_groups():
-            result = super().get_dependencies(group)
-        else:
-            result = dict()
+        result = super().get_dependencies(group) if group in super().iter_groups() else {}
 
         config = self.conda_config
         group = group or "default"
@@ -217,7 +212,7 @@ class CondaProject(Project):
 
         if not self.config["python.use_venv"]:
             raise ProjectError("python.use_venv is required to use Conda.")
-        if get_venv_like_prefix(self.python.executable) is None:
+        if not get_venv_like_prefix(self.python.executable)[1]:
             raise ProjectError("Conda environment not detected.")
 
         return self.environment_class(self)
@@ -232,20 +227,12 @@ class CondaProject(Project):
     ) -> BaseProvider:
         from pdm_conda.resolver.providers import BaseProvider, CondaBaseProvider
 
-        kwargs = dict(direct_minimal_versions=direct_minimal_versions)
+        kwargs = {"direct_minimal_versions": direct_minimal_versions}
         provider = super().get_provider(strategy, tracked_names, for_install, ignore_compatibility, **kwargs)
         if isinstance(provider, BaseProvider) and not isinstance(provider, CondaBaseProvider):
             kwargs["locked_candidates"] = provider.locked_candidates
             return CondaBaseProvider(provider.repository, **kwargs)  # type: ignore[arg-type]
         return provider
-
-    def _get_python_finder(self, search_venv: bool = True) -> Finder:
-        finder = super()._get_python_finder(search_venv)
-        from pdm_conda.cli.commands.venv.utils import CondaProvider
-
-        if self.conda_config.is_initialized:
-            finder.add_provider(CondaProvider(self), 0)
-        return finder
 
     @property
     def is_distribution(self) -> bool:

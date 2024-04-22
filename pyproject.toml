@@ -28,9 +28,9 @@ classifiers = [
 ]
 
 dependencies = [
-    "pdm==2.12.4",
-    "requests>=2.31.0",
+    "pdm==2.15.0",
     "typing-extensions>=4.10.0",
+    "httpx>=0.27.0",
 ]
 
 [tool.pdm.dev-dependencies]
@@ -39,8 +39,8 @@ dev = [
     "pytest-mock>=3.12.0",
     "pytest-cov>=4.1.0",
     "pytest-random-num>=1.0.13",
-    "responses>=0.25.0",
     "pytest-order>=1.2.0",
+    "pytest-httpx>=0.30.0",
 ]
 
 [tool.pdm]
@@ -61,10 +61,10 @@ excludes = ["tests"]
 [tool.pdm.scripts]
 test = "pytest --cov=src/ tests/{args} --cov-report xml --cov-report term"
 fix-report = "python scripts/fix_report.py"
-test-cov = { composite = ["test {args}", "fix-report"] }
+test-cov = { composite = ["test {args}", "fix-report"], keep_going = true }
 
 [tool.pytest.ini_options]
-addopts = "--random-order"
+addopts = "--random-order -x -m \"not manual_only\""
 filterwarnings = [
     "ignore::pytest.PytestReturnNotNoneWarning"
 ]
@@ -72,59 +72,94 @@ filterwarnings = [
 [tool.mypy]
 python_version = "3.10"
 pretty = true
+check_untyped_defs = true
 
-[tool.isort]
-honor_noqa = true
-profile = "black"
-combine_star = true
-remove_redundant_aliases = true
-multi_line_output = 3
+[tool.docformatter]
+recursive = true
+style = "sphinx"
+wrap-summaries = 120
+wrap-descriptions = 120
 
-[tool.black]
+[tool.ruff]
 line-length = 120
 
-[tool.flake8]
-inline-quotes = "double"
-max-line-length = 120
-extend-ignore = [
-    # black
-    "E203", "W503",
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ruff.lint]
+extend-select = [
+    # sorting imports
+    "I",
+    "ICN",
+    # async checks
+    "ASYNC",
+    # bugbear
+    "B",
+    # builtins shadowing
+    "A",
+    # trailing commas
+    "COM",
+    # comprehensions
+    "C4",
+    # debugger trace
+    "T10",
+    # package init
+    "INP",
+    # string concat
+    "ISC",
+    # misc fixes
+    "PIE",
+    # pytest
+    "PT",
+    # raise
+    "RSE",
+    # return
+    "RET",
+    # simplify
+    "SIM",
+    # future annotation
+    "FA",
+    # prefer pathlib
+    "PTH",
+    # pyupgrade
+    "UP",
+]
+extend-safe-fixes = ["UP", "I", "C4"]
+ignore = [
     # Too broad except
     "E722",
     # Missing docstring in __init__
     "D107",
-    # Found `__init__.py` module with logic
-    "WPS412", "WPS326",
+    # Missing trailing comma
+    "COM812",
+    # Add leading underscore
+    "PT004",
+    # Non PEP604
+    "UP038",
 ]
 
-per-file-ignores = [
-    # all init files
-    "__init__.py:",
+[tool.ruff.lint.isort]
+split-on-trailing-comma = false
+known-local-folder = ["src", "tests", "pdm-conda"]
+
+[tool.ruff.lint.flake8-pytest-style]
+fixture-parentheses = false
+mark-parentheses = false
+parametrize-names-type = "csv"
+parametrize-values-row-type = "list"
+
+[tool.ruff.lint.per-file-ignores]
+# all init files
+"__init__.py" = [
     # ignore not used imports
     "F401",
     # ignore import with wildcard
     "F403",
-    # Found wrong metadata variable
-    "WPS410",
-    # all tests
-    "test_*.py,tests.py,tests_*.py,*/tests/*,conftest.py:",
-    # Use of assert detected
-    "S101",
-    # Found outer scope names shadowing
-    "WPS442",
-    # Found too many local variables
-    "WPS210",
-    # Found magic number
-    "WPS432",
-    # Missing parameter(s) in Docstring
-    "DAR101",
-    # Found too many arguments
-    "WPS211",
 ]
 
-exclude = [
-    "./.git",
-    "./venv",
-    "migrations",
-    "./var",
+# all tests
+"**/tests/*" = [
+    # Use of assert detected
+    "S101",
+    "D"
 ]

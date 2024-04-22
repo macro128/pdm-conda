@@ -1,5 +1,5 @@
 {
-  "ipopt": "cyipopt",
   "conda_package_streaming": "conda-package-streaming",
+  "ipopt": "cyipopt",
   "seaborn": "seaborn-base"
 }

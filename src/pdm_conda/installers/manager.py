@@ -17,8 +17,14 @@ if TYPE_CHECKING:
 
 
 class CondaInstallManager(InstallManager):
-    def __init__(self, environment: BaseEnvironment, *, use_install_cache: bool = False) -> None:
-        super().__init__(environment, use_install_cache=use_install_cache)
+    def __init__(
+        self,
+        environment: BaseEnvironment,
+        *,
+        use_install_cache: bool = False,
+        rename_pth: bool = False,
+    ) -> None:
+        super().__init__(environment, use_install_cache=use_install_cache, rename_pth=rename_pth)
         self.environment = cast(CondaEnvironment, environment)
         self._num_install = 0
         self._num_remove = 0
@@ -45,8 +51,8 @@ class CondaInstallManager(InstallManager):
                 raise
 
     def install(self, candidate: Candidate) -> Distribution:
-        """
-        Install candidate, use conda if conda package else default installer
+        """Install candidate, use conda if conda package else default installer.
+
         :param candidate: candidate to install
         """
         if isinstance(candidate, CondaCandidate):
@@ -57,12 +63,12 @@ class CondaInstallManager(InstallManager):
                 self._num_install,
             )
             return candidate.distribution
-        else:
-            return super().install(candidate)
+
+        return super().install(candidate)
 
     def uninstall(self, dist: Distribution) -> None:
-        """
-        Uninstall distribution, use conda if conda package else default uninstaller
+        """Uninstall distribution, use conda if conda package else default uninstaller.
+
         :param dist: distribution to uninstall
         """
         if isinstance(dist, CondaSetupDistribution):
@@ -71,8 +77,9 @@ class CondaInstallManager(InstallManager):
             super().uninstall(dist)
 
     def overwrite(self, dist: Distribution, candidate: Candidate) -> None:
-        """
-        Overwrite distribution with candidate, uninstall and install with conda if conda package else default overwrite
+        """Overwrite distribution with candidate, uninstall and install with conda if conda package else default
+        overwrite.
+
         :param dist: distribution to uninstall
         :param candidate: candidate to install
         """

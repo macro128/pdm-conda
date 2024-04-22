@@ -4,7 +4,7 @@ import pytest
 from pytest_mock import MockFixture
 
 
-@pytest.mark.usefixtures("temp_working_path", "fake_python")
+@pytest.mark.usefixtures("temp_working_path")
 class TestInit:
     @pytest.mark.parametrize("runner", ["micromamba", "conda", "mamba"])
     @pytest.mark.parametrize(
@@ -35,7 +35,4 @@ class TestInit:
             assert all(True for c in channels if c in project.conda_config.channels)
             assert project.pyproject.settings["conda"]["channels"] == channels
         assert "Creating a pyproject.toml for PDM..." in res.stdout
-        assert conda.call_count == 1
-        (cmd,), kwargs = conda.call_args_list[0]
-        assert cmd == [runner, "env", "list", "--json"]
         assert find_interpreters.call_count == 1

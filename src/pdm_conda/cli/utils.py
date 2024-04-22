@@ -4,13 +4,14 @@ import functools
 from typing import TYPE_CHECKING
 
 from pdm.formats.base import array_of_inline_tables, make_array
+from pdm.models.specifiers import get_specifier
 
 from pdm_conda.models.candidates import CondaCandidate
 from pdm_conda.models.repositories import CondaRepository
-from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement
+from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement, comparable_version
 
 if TYPE_CHECKING:
-    from typing import Mapping
+    from collections.abc import Mapping
 
     from pdm.project import Project
 
@@ -49,12 +50,20 @@ def wrap_save_version_specifiers(func):
     ) -> None:
         func(requirements, resolved, save_strategy)
         for reqs in requirements.values():
-            for name in reqs:
-                if isinstance(can := resolved[name], CondaCandidate):
-                    req = as_conda_requirement(reqs[name])
-                    req.version_mapping.update(can.req.version_mapping)
-                    req.is_python_package = can.req.is_python_package
-                    reqs[name] = req
+            for name, r in reqs.items():
+                can = resolved[name]
+                if save_strategy == "compatible" and r.is_named and (version := comparable_version(can.version)).epoch:
+                    if version.is_prerelease or version.is_devrelease:
+                        r.specifier = get_specifier(
+                            f">={version.epoch}!{version},<{version.epoch}!{version.major + 1}",
+                        )
+                    else:
+                        r.specifier = get_specifier(f"~={version.epoch}!{version.major}.{version.minor}")
+                if isinstance(can, CondaCandidate):
+                    r = as_conda_requirement(r)
+                    r.version_mapping.update(can.req.version_mapping)
+                    r.is_python_package = can.req.is_python_package
+                    reqs[name] = r
 
     return wrapper
 
@@ -70,12 +79,12 @@ def wrap_format_lockfile(func):
     ) -> dict:
         res = func(project, mapping, fetched_dependencies, *args, **kwargs)
         # ensure no duplicated groups in metadata
-        if groups := res.get("metadata", dict()).get("groups"):
+        if groups := res.get("metadata", {}).get("groups"):
             res["metadata"]["groups"] = list({group: None for group in groups}.keys())
 
         assert len(res["package"]) == len(mapping)
         # fix conda packages
-        for package, (_, can) in zip(res["package"], sorted(mapping.items())):
+        for package, (_, can) in zip(res["package"], sorted(mapping.items()), strict=False):
             # only static-url allowed for conda packages
             if isinstance(can, CondaCandidate):
                 package["files"] = array_of_inline_tables(
@@ -93,7 +102,7 @@ def wrap_format_lockfile(func):
                     include_dependencies = True
                 dependencies.append(dep.as_line(**kwargs))
             if include_dependencies:
-                package["dependencies"] = make_array(sorted(dependencies), True)
+                package["dependencies"] = make_array(sorted(set(dependencies)), True)
 
         res["package"] = sorted(res["package"], key=lambda x: x["name"])
         return res
@@ -108,7 +117,7 @@ if not _patched:
     format_lockfile = wrap_format_lockfile(utils.format_lockfile)
     wrap_fetch_hashes = wrap_fetch_hashes(actions.fetch_hashes)
     for m in [utils, actions]:
-        setattr(m, "save_version_specifiers", save_version_specifiers)
-        setattr(m, "format_lockfile", format_lockfile)
-        setattr(m, "fetch_hashes", wrap_fetch_hashes)
+        m.save_version_specifiers = save_version_specifiers
+        m.format_lockfile = format_lockfile
+        m.fetch_hashes = wrap_fetch_hashes
     _patched = True

@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 
-import requests
+import httpx
 
 MAPPING_URL = "https://github.com/regro/cf-graph-countyfair/raw/master/mappings/pypi/grayskull_pypi_mapping.yaml"
 MAPPING_DOWNLOAD_DIR_ENV_VAR = "PDM_CONDA_PYPI_MAPPING_DIR"
@@ -14,8 +14,8 @@ MAPPING_URL_ENV_VAR = "PDM_CONDA_PYPI_MAPPING_URL"
 
 
 def process_mapping(yaml_path: Path, dict_path: Path):
-    """
-    Create json mapping from yaml mapping
+    """Create json mapping from yaml mapping.
+
     :param yaml_path: yaml path
     :param dict_path: json path
     """
@@ -27,7 +27,7 @@ def process_mapping(yaml_path: Path, dict_path: Path):
                 return line.split(key)[-1].strip()
         return None
 
-    mappings = dict()
+    mappings = {}
     with yaml_path.open() as f:
         while (conda_name := find_key("conda_name:", f)) is not None:
             pypi_name = find_key("pypi_name:", f)
@@ -38,11 +38,12 @@ def process_mapping(yaml_path: Path, dict_path: Path):
         json.dump(mappings, f)
 
 
-def download_mapping(download_dir: Path, update_interval: timedelta | None = None) -> dict[str, str]:
-    """
-    Download and process Conda-PyPI mapping from GitHub
+def download_mapping(download_dir: Path, update_interval: timedelta | None = None, timeout: int = 15) -> dict[str, str]:
+    """Download and process Conda-PyPI mapping from GitHub.
+
     :param download_dir: download dir
     :param update_interval: update interval, if mapping file modified date is greater than update interval the reload
+    :param timeout: request timeout
     :return: Conda mapping
     """
     if update_interval is None:
@@ -52,10 +53,9 @@ def download_mapping(download_dir: Path, update_interval: timedelta | None = Non
     dict_path = yaml_path.with_suffix(".json")
 
     if not yaml_path.exists() or datetime.fromtimestamp(yaml_path.stat().st_mtime) + update_interval < datetime.now():
-        response = requests.get(os.getenv(MAPPING_URL_ENV_VAR, MAPPING_URL), stream=True)
+        response = httpx.get(os.getenv(MAPPING_URL_ENV_VAR, MAPPING_URL), timeout=timeout, follow_redirects=True)
         with yaml_path.open("wb") as f:
-            for chunk in response.iter_content(chunk_size=128):
-                f.write(chunk)
+            f.write(response.content)
         process_mapping(yaml_path, dict_path)
 
     with dict_path.open() as f:
@@ -63,7 +63,7 @@ def download_mapping(download_dir: Path, update_interval: timedelta | None = Non
 
 
 def get_mapping_fixes() -> dict:
-    fixes = dict()
+    fixes = {}
     for path in Path(__file__).parents[:3]:
         if (fixes_file := path / "data/mapping_fixes.json").exists():
             with fixes_file.open() as f:
@@ -75,7 +75,8 @@ def get_mapping_fixes() -> dict:
 @lru_cache
 def get_pypi_mapping() -> dict[str, str]:
     download_dir = os.getenv(MAPPING_DOWNLOAD_DIR_ENV_VAR)
-    mapping = download_mapping(Path(str(download_dir)))
+    timeout = int(os.getenv("PDM_REQUEST_TIMEOUT", 15))
+    mapping = download_mapping(Path(str(download_dir)), timeout=timeout)
     mapping.update(get_mapping_fixes())
     return mapping
 
@@ -95,8 +96,8 @@ def _requirement_map(requirement: str, mapping: dict):
 
 
 def pypi_to_conda(requirement: str) -> str:
-    """
-    Map PyPI requirement to Conda version
+    """Map PyPI requirement to Conda version.
+
     :param requirement: PyPI requirement
     :return: Conda requirement
     """
@@ -104,8 +105,8 @@ def pypi_to_conda(requirement: str) -> str:
 
 
 def conda_to_pypi(requirement: str) -> str:
-    """
-    Map Conda requirement to PyPI version
+    """Map Conda requirement to PyPI version.
+
     :param requirement: Conda requirement
     :return: PyPI requirement
     """

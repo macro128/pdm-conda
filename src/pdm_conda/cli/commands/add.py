@@ -3,15 +3,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, cast
 
 from pdm.cli.commands.add import Command as BaseCommand
-from pdm.cli.options import ArgumentGroup
+from pdm.cli.options import ArgumentGroup, split_lists
 from pdm.exceptions import RequirementError
 
 from pdm_conda.cli.utils import remove_quotes
-from pdm_conda.models.requirements import (
-    CondaRequirement,
-    is_conda_managed,
-    parse_requirement,
-)
+from pdm_conda.models.requirements import CondaRequirement, is_conda_managed, parse_requirement
 from pdm_conda.project import CondaProject
 
 if TYPE_CHECKING:
@@ -19,53 +15,54 @@ if TYPE_CHECKING:
 
     from pdm_conda.project import Project
 
-conda_group = ArgumentGroup("Conda Arguments")
-conda_group.add_argument(
-    "--conda",
-    dest="conda_packages",
-    action="append",
-    help="Specify Conda packages",
-    default=[],
-)
-
-conda_group.add_argument(
-    "-c",
-    "--channel",
-    dest="conda_channel",
-    type=str,
-    help="Specify Conda channel",
-    default="",
-)
-
-conda_group.add_argument(
-    "-r",
-    "--runner",
-    dest="conda_runner",
-    type=str,
-    help="Specify Conda runner executable",
-    default="",
-)
-conda_group.add_argument(
-    "--conda-as-default-manager",
-    dest="conda_as_default_manager",
-    default=False,
-    action="store_true",
-    help="Specify Conda as default manager",
-)
-conda_group.add_argument(
-    "-ce",
-    "--conda-excludes",
-    dest="conda_excludes",
-    type=str,
-    help="Specify Conda excluded dependencies separated by comma",
-    default="",
-)
-
 
 class Command(BaseCommand):
     description = BaseCommand.__doc__
     name = "add"
-    arguments = (*BaseCommand.arguments, conda_group)
+
+    def add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        super().add_arguments(parser)
+        conda_group = ArgumentGroup("Conda Arguments")
+        conda_group.add_argument(
+            "--conda",
+            dest="conda_packages",
+            action="append",
+            help="Specify Conda packages",
+        )
+
+        conda_group.add_argument(
+            "-c",
+            "--channel",
+            dest="conda_channel",
+            type=str,
+            help="Specify Conda channel",
+            default="",
+        )
+
+        conda_group.add_argument(
+            "-r",
+            "--runner",
+            dest="conda_runner",
+            type=str,
+            help="Specify Conda runner executable",
+            default="",
+        )
+        conda_group.add_argument(
+            "--conda-as-default-manager",
+            dest="conda_as_default_manager",
+            default=False,
+            action="store_true",
+            help="Specify Conda as default manager",
+        )
+        conda_group.add_argument(
+            "-ce",
+            "--conda-excludes",
+            dest="conda_excludes",
+            metavar="PACKAGE",
+            action=split_lists(","),
+            help="Specify Conda excluded dependencies separated by comma, can be supplied multiple times",
+        )
+        conda_group.add_to_parser(parser)
 
     def handle(self, project: Project, options: argparse.Namespace) -> None:
         project = cast(CondaProject, project)
@@ -76,13 +73,12 @@ class Command(BaseCommand):
         if (channel := options.conda_channel) and channel not in existing_channels:
             existing_channels.append(channel)
             config.channels = existing_channels
-        if conda_excludes := options.conda_excludes:
-            conda_excludes = set(conda_excludes.split(","))
+        if conda_excludes := (options.conda_excludes or []):
             config.excludes = set(conda_excludes).union(config.excludes)
         if options.conda_as_default_manager:
             config.as_default_manager = True
 
-        conda_packages = options.conda_packages
+        conda_packages = options.conda_packages or []
         for i, p in enumerate(conda_packages):
             if not p.startswith("conda:"):
                 conda_packages[i] = f"conda:{remove_quotes(p)}"

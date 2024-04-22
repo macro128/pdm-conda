@@ -8,9 +8,8 @@ from copy import copy
 from typing import TYPE_CHECKING
 
 from packaging.version import Version
-from pdm.models.requirements import NamedRequirement, Requirement
+from pdm.models.requirements import NamedRequirement, Requirement, strip_extras
 from pdm.models.requirements import parse_requirement as _parse_requirement
-from pdm.models.requirements import strip_extras
 
 from pdm_conda.mapping import conda_to_pypi, pypi_to_conda
 from pdm_conda.utils import normalize_name
@@ -127,9 +126,9 @@ class CondaRequirement(NamedRequirement):
         _compatible &= all(spec.contains(v) for v in versions)
         return _compatible
 
-    def merge(self, requirement: Requirement) -> "CondaRequirement":
-        """
-        Merge with other requirement to get more specific
+    def merge(self, requirement: Requirement) -> CondaRequirement:
+        """Merge with other requirement to get more specific.
+
         :param requirement: other requirement
         :return: merged requirement
         """
@@ -142,7 +141,7 @@ class CondaRequirement(NamedRequirement):
                 _req.build_string = requirement.build_string
             elif requirement.build_string and requirement.build_string != _req.build_string:
                 # test compatibility
-                _compatible = dict()
+                _compatible = {}
                 build_strings = [requirement.build_string, _req.build_string]
                 for build_string in build_strings:
                     if build_string not in _compatible:
@@ -175,22 +174,27 @@ def as_conda_requirement(requirement: NamedRequirement | CondaRequirement) -> Co
     return conda_req
 
 
-def is_conda_managed(requirement: Requirement, conda_config: PluginConfig) -> bool:
-    """
-    True if requirement is conda requirement or (not excluded and named requirement
-    and conda as default manager or used by another conda requirement)
+def is_conda_managed(
+    requirement: Requirement,
+    conda_config: PluginConfig,
+    excluded_identifiers: set[str] | None = None,
+) -> bool:
+    """True if requirement is conda requirement or (not excluded and named requirement and conda as default manager or
+    used by another conda requirement)
 
     :param requirement: requirement to evaluate
     :param conda_config: conda config
+    :param excluded_identifiers: identifiers to exclude
     """
     from pdm.resolver.python import PythonRequirement
 
+    excluded_identifiers = excluded_identifiers or conda_config.excluded_identifiers
     identifier = requirement.key
     return (
         identifier != conda_config.project_name
-        and all(not fnmatch.fnmatch(identifier, pattern) for pattern in conda_config.excluded_identifiers)
+        and all(not fnmatch.fnmatch(identifier, pattern) for pattern in excluded_identifiers)
         and (
-            isinstance(requirement, (CondaRequirement, PythonRequirement))
+            isinstance(requirement, CondaRequirement | PythonRequirement)
             or (isinstance(requirement, NamedRequirement) and conda_config.as_default_manager)
         )
     )
@@ -234,7 +238,7 @@ def comparable_version(version: str) -> Version:
 
 def parse_requirement(line: str, editable: bool = False) -> Requirement:
     if (match := _conda_meta_req_re.match(line)) is not None:
-        version_mapping = dict()
+        version_mapping = {}
         channel, line = match.groups()
         if channel:
             channel = channel[:-2]
@@ -271,11 +275,7 @@ def parse_requirement(line: str, editable: bool = False) -> Requirement:
                             star_version = _conda_specifier_star_re.match(conda_version_or)
                             if spec_eq and not star_version:
                                 conda_version_or += ".*"
-                            if star_version:
-                                s = "~"
-                            else:
-                                s = "="
-                            conda_version_or = f"{s}={conda_version_or}"
+                            conda_version_or = f"{'~' if star_version else '='}={conda_version_or}"
                         _version = conda_version_or
                         if not _version.startswith("=="):
                             _version = _conda_specifier_star_re.sub(correct_specifier_star, _version)
@@ -343,13 +343,9 @@ if not _patched:
     from pdm.models import requirements
 
     for m in [utils, actions, requirements]:
-        setattr(m, "parse_requirement", parse_requirement)
+        m.parse_requirement = parse_requirement
 
-    setattr(
-        utils,
-        "filter_requirements_with_extras",
-        wrap_filter_requirements_with_extras(utils.filter_requirements_with_extras),
-    )
-    setattr(Requirement, "conda_name", property(conda_name))
-    setattr(Requirement, "key", property(key))
+    utils.filter_requirements_with_extras = wrap_filter_requirements_with_extras(utils.filter_requirements_with_extras)
+    Requirement.conda_name = property(conda_name)
+    Requirement.key = property(key)
     _patched = True

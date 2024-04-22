@@ -1,13 +1,10 @@
 import pytest
 
 
-@pytest.mark.usefixtures("fake_python")
 class TestList:
     @pytest.mark.parametrize("runner", ["micromamba", "conda"])
     def test_list(self, pdm, project, conda, conda_info, runner, mock_conda_mapping, installed_packages, working_set):
-        """
-        Test `list` command work as expected
-        """
+        """Test `list` command work as expected."""
 
         project.pyproject._data.update(
             {

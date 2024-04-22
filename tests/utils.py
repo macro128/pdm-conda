@@ -23,6 +23,7 @@ def generate_package_info(
     build_number: int = 0,
     timestamp: int = 0,
     channel: str = f"{DEFAULT_CHANNEL}/{PLATFORM}",
+    python_only: bool = False,
 ) -> dict:
     channel = channel_url(channel)
     build_string = f"{name}_{build_number}"
@@ -38,4 +39,5 @@ def generate_package_info(
         "build": build_string,
         "build_string": build_string,
         "timestamp": timestamp,
+        "python_only": python_only,
     }

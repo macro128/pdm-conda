@@ -3,7 +3,6 @@ from typing import cast
 import pytest
 
 
-@pytest.mark.usefixtures("fake_python")
 @pytest.mark.usefixtures("working_set")
 @pytest.mark.parametrize("runner", ["micromamba"])
 class TestUpdate:
@@ -28,9 +27,7 @@ class TestUpdate:
         dev,
         custom_behavior,
     ):
-        """
-        Test `update` command work as expected using custom behavior
-        """
+        """Test `update` command work as expected using custom behavior."""
         from pdm_conda.project import CondaProject
 
         project = cast(CondaProject, project)
@@ -46,20 +43,20 @@ class TestUpdate:
         for package in packages:
             command += ["--conda", package]
         pdm(command, obj=project, strict=True)
-
+        conda.reset_mock()
         project.pyproject.reload()
-        requirements = dict()
+        requirements = {}
         for group in project.iter_groups():
             requirements[group] = project.get_dependencies(group)
 
-        command = ["update", "--no-sync", "-G", ":all"]
+        command = ["update", "--no-sync", "-G", ":all", "-vv"]
         if save_strategy:
             command.append(f"--save-{save_strategy}")
         assert conf.custom_behavior == custom_behavior
         pdm(command, obj=project, strict=True)
-
+        assert conda.call_count == (1 if packages else 0)
         project.pyproject.reload()
-        updated_requirements = dict()
+        updated_requirements = {}
         for group in project.iter_groups():
             updated_requirements[group] = project.get_dependencies(group)
 

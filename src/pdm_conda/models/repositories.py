@@ -9,25 +9,32 @@ from pdm.models.repositories import BaseRepository, LockedRepository, PyPIReposi
 from pdm.models.specifiers import PySpecSet
 
 from pdm_conda import logger
-from pdm_conda.conda import (
-    CondaResolutionError,
-    CondaSearchError,
-    conda_create,
-    conda_search,
-    sort_candidates,
-)
+from pdm_conda.conda import CondaResolutionError, CondaSearchError, conda_create, conda_search, sort_candidates
 from pdm_conda.environments import CondaEnvironment
 from pdm_conda.models.candidates import CondaCandidate
 from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement
 
 if TYPE_CHECKING:
-    from typing import Any, Iterable, Mapping
+    from collections.abc import Iterable, Mapping
+    from typing import Any
 
     from pdm.models.repositories import CandidateKey, RepositoryConfig
 
     from pdm_conda.environments import BaseEnvironment
     from pdm_conda.models.candidates import Candidate, FileHash
     from pdm_conda.models.requirements import Requirement
+
+
+def _format_packages(packages: list[str], pretty_print=False) -> str:
+    result = ""
+    for i, package in enumerate(packages):
+        result += f"[success]{package}[/success]" if pretty_print else package
+        if i < len(packages) - 1:
+            if i == len(packages) - 2:
+                result += " and "
+            else:
+                result += ", "
+    return result
 
 
 class CondaRepository(BaseRepository):
@@ -39,34 +46,69 @@ class CondaRepository(BaseRepository):
     ) -> None:
         super().__init__(sources, environment, ignore_compatibility)
         self.environment = cast(CondaEnvironment, environment)
-        self._conda_resolution: dict[str, list[CondaCandidate]] = dict()
-        self._compatible_requirements: set[CondaRequirement] = set()
+        self._conda_resolution: dict[str, list[CondaCandidate]] = {}
+        self._excluded_identifiers: set[str] = set()
 
-    def is_conda_managed(self, requirement: Requirement) -> bool:
-        """
-        True if requirement is conda requirement or (not excluded and named requirement
-        and conda as default manager or used by another conda requirement)
+    def is_conda_managed(self, requirement: Requirement, excluded_identifiers: set[str] | None = None) -> bool:
+        """True if requirement is conda requirement or (not excluded and named requirement and conda as default manager
+        or used by another conda requirement)
+
         :param requirement: requirement to evaluate
+        :param excluded_identifiers: identifiers to exclude
         """
         if not isinstance(self.environment, CondaEnvironment):
             return False
         from pdm_conda.models.requirements import is_conda_managed as _is_conda_managed
 
-        return _is_conda_managed(requirement, self.environment.project.conda_config)
+        return _is_conda_managed(requirement, self.environment.project.conda_config, excluded_identifiers)
+
+    def compatible_with_resolution(
+        self,
+        requirements: list[Requirement],
+        resolution: dict[str, list[CondaCandidate]],
+        excluded_identifiers: set[str],
+    ):
+        """True if all requirements are compatible with the resolution.
+
+        :param requirements: list of requirements
+        :param resolution: resolution to check
+        :param excluded_identifiers: identifiers to exclude
+        :return: True if all requirements are compatible with the resolution
+        """
+        # if any requirement not in saved candidates or incompatible candidates
+        for req in requirements:
+            if not self.is_conda_managed(req, excluded_identifiers):
+                continue
+            req = as_conda_requirement(req)
+            if (key := req.conda_name) not in resolution:
+                logger.info(f"Requirement {req} is not present in Conda resolution")
+                return False
+            for can in resolution[key]:
+                if not req.is_compatible(can):
+                    logger.info(f"Requirement {req} is not compatible with {can}")
+                    return False
+        return True
 
     def update_conda_resolution(
         self,
+        new_requirements: list[Requirement] | None = None,
         requirements: list[Requirement] | None = None,
         resolution: dict | None = None,
-    ):
-        """
-        Updates the existing conda resolution if new requirements.
+        excluded_identifiers: set[str] | None = None,
+    ) -> set[str]:
+        """Updates the existing conda resolution if new requirements.
+
+        :param new_requirements: new requirements to add
         :param requirements: list of requirements
         :param resolution: resolution to override existing
-        :return: list of changed requirements
+        :param excluded_identifiers: identifiers to exclude
+        :return: list of excluded identifiers
         """
         if resolution is not None:
             self._conda_resolution = resolution
+        if excluded_identifiers is not None:
+            self._excluded_identifiers = excluded_identifiers
+        return self._excluded_identifiers
 
     def get_dependencies(self, candidate: Candidate) -> tuple[list[Requirement], PySpecSet, str]:
         if isinstance(candidate, CondaCandidate):
@@ -83,19 +125,18 @@ class CondaRepository(BaseRepository):
         return dependencies, requires_python, summary
 
     def get_hashes(self, candidate: Candidate) -> list[FileHash]:
-        if isinstance(candidate, CondaCandidate):
-            if not candidate.hashes:
-                termui.logger.info(f"Fetching hashes for {candidate}")
-                _candidates = conda_search(self.environment.project, candidate.req)
-                if not _candidates:
-                    raise CondaSearchError(f"Cannot find hashes for {candidate}")
+        if isinstance(candidate, CondaCandidate) and not candidate.hashes:
+            termui.logger.info(f"Fetching hashes for {candidate}")
+            _candidates = conda_search(self.environment.project, candidate.req)
+            if not _candidates:
+                raise CondaSearchError(f"Cannot find hashes for {candidate}")
 
-                candidate.hashes = _candidates[0].hashes
+            candidate.hashes = _candidates[0].hashes
         return super().get_hashes(candidate)
 
     def update_hashes(self, mapping: dict[str, Candidate]):
-        """
-        Update hashes for candidates in mapping using conda create
+        """Update hashes for candidates in mapping using conda create.
+
         :param mapping: mapping of candidates
         """
         conda_requirements = [can.req for can in mapping.values() if isinstance(can, CondaCandidate) and not can.hashes]
@@ -117,59 +158,64 @@ class CondaRepository(BaseRepository):
 class PyPICondaRepository(PyPIRepository, CondaRepository):
     def update_conda_resolution(
         self,
+        new_requirements: list[Requirement] | None = None,
         requirements: list[Requirement] | None = None,
         resolution: dict | None = None,
-    ):
-        super().update_conda_resolution(requirements, resolution)
-        requirements = requirements or []
-        requirements = [as_conda_requirement(req) for req in requirements if self.is_conda_managed(req)]
-        update = False
-        if requirements_to_test := (set(requirements) - self._compatible_requirements):
-            # if any requirement not in saved candidates or incompatible candidates
-            for req in requirements_to_test:
-                if update:
-                    break
-                key = req.conda_name
-                if key not in self._conda_resolution:
-                    update = True
-                    break
-                for can in self._conda_resolution[key]:
-                    if not req.is_compatible(can):
-                        update = True
-                        break
-                self._compatible_requirements.add(req)
+        excluded_identifiers: set[str] | None = None,
+    ) -> set[str]:
+        excluded_identifiers = super().update_conda_resolution(
+            new_requirements=new_requirements,
+            requirements=requirements,
+            resolution=resolution,
+            excluded_identifiers=excluded_identifiers,
+        )
+        _requirements = [
+            as_conda_requirement(req)
+            for req in new_requirements or []
+            if self.is_conda_managed(req, excluded_identifiers)
+        ]
 
-        if update:
+        if _requirements:
             try:
-                resolution = conda_create(
+                _requirements += [
+                    as_conda_requirement(req)
+                    for req in requirements or []
+                    if self.is_conda_managed(req, excluded_identifiers)
+                ]
+                new_resolution = conda_create(
                     self.environment.project,
-                    requirements,
+                    _requirements,
                     prefix=f"/tmp/{uuid.uuid4()}",
                     dry_run=True,
                 )
-                _requirements = {r.conda_name: r for r in requirements}
-                for name, candidates in resolution.items():
-                    req = _requirements.get(name, candidates[0].req)
+                conda_requirements = {r.conda_name: r for r in _requirements}
+                for name, candidates in new_resolution.items():
+                    req = conda_requirements.get(name, candidates[0].req)
                     key = req.conda_name
                     self._conda_resolution[key] = candidates
-                self._compatible_requirements = set(requirements)
+
             except CondaResolutionError as err:
                 logger.info(err)
                 if err.packages:
-                    msg = "Unable to find candidates for "
-                    for i, package in enumerate(err.packages):
-                        msg += f"[success]{package}[/success]"
-                        if i < len(err.packages) - 1:
-                            if i == len(err.packages) - 2:
-                                msg += " and "
-                            else:
-                                msg += ", "
-                    msg += " with Conda.\nYou should add more channels or add the packages to the excludes list."
-                    raise CandidateNotFound(msg)
+                    if self.environment.project.conda_config.auto_excludes:
+                        logger.info(f"Adding {_format_packages(err.packages)} to excludes list")
+                        return self.update_conda_resolution(
+                            new_requirements,
+                            requirements,
+                            resolution,
+                            excluded_identifiers | set(err.packages),
+                        )
+
+                    raise CandidateNotFound(
+                        f"Unable to find candidates for {_format_packages(err.packages, pretty_print=True)} "
+                        f"with Conda.\n"
+                        f"You should add more channels or add the packages to the excludes list.",
+                    ) from err
                 raise
+        return excluded_identifiers
 
     def _find_candidates(self, requirement: Requirement, minimal_version: bool) -> Iterable[Candidate]:
-        if self.is_conda_managed(requirement):
+        if self.is_conda_managed(requirement, excluded_identifiers=self._excluded_identifiers):
             requirement = as_conda_requirement(requirement)
             candidates = self._conda_resolution.get(requirement.conda_name, [])
             candidates = [

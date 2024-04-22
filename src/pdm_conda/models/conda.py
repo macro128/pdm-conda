@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import re
-from typing import Iterable
+from collections.abc import Iterable
 
 
 class ChannelSorter:
     def __init__(self, platform: str, channels: Iterable[str] | None = None) -> None:
-        self._priority: dict[str, int] = dict()
-        self._tree: dict[str, list[str]] = dict()
+        self._priority: dict[str, int] = {}
+        self._tree: dict[str, list[str]] = {}
         self.platform = platform
         if channels:
             for channel in channels:

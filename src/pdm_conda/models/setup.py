@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 class CondaSetupDistribution(SetupDistribution):
     def __init__(self, data: Setup, package: dict | None = None) -> None:
-        self.package = package or dict()
+        self.package = package or {}
         super().__init__(data)
 
     @property

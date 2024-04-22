@@ -23,9 +23,10 @@ class CondaBackend(BackendBase):
         with self.project.conda_config.with_conda_venv_location() as (venv_location, _):
             if conda_name := (name is not None and name.startswith("conda:")):
                 name = name[6:]
-            location = super().get_location(name)
             if conda_name:
                 location = venv_location / name
+            else:
+                location = super().get_location(name)
             return location
 
     def _ensure_clean(self, location: Path, force: bool = False) -> None:

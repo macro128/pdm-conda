@@ -1,3 +1,4 @@
+import itertools
 from typing import cast
 
 import pytest
@@ -5,7 +6,6 @@ import pytest
 from tests.conftest import CONDA_REQUIREMENTS, PREFERRED_VERSIONS, PYTHON_REQUIREMENTS
 
 
-@pytest.mark.usefixtures("fake_python")
 @pytest.mark.parametrize("runner", [None, "micromamba", "conda"])
 @pytest.mark.parametrize("group", ["default", "other"])
 @pytest.mark.usefixtures("working_set")
@@ -22,7 +22,7 @@ class TestAddRemove:
         ],
     )
     @pytest.mark.parametrize("channel", [None, "another_channel"])
-    @pytest.mark.parametrize("excludes", [[], ["excluded-dep1", "excluded-dep2"]])
+    @pytest.mark.parametrize("excludes", [None, ["excluded-dep1", "excluded-dep2"], "excluded-dep1,excluded-dep2"])
     def test_add(
         self,
         pdm,
@@ -36,9 +36,7 @@ class TestAddRemove:
         excludes,
         group,
     ):
-        """
-        Test `add` command work as expected
-        """
+        """Test `add` command work as expected."""
         from pdm_conda.project import CondaProject
 
         project = cast(CondaProject, project)
@@ -56,12 +54,18 @@ class TestAddRemove:
         else:
             runner = self.default_runner
         if excludes:
-            command += ["-ce", ",".join(excludes)]
+            if not isinstance(excludes, list):
+                excludes = [excludes]
+            for pkg in excludes:
+                command += ["-ce", pkg]
+            excludes = list(itertools.chain.from_iterable(pkg.split(",") for pkg in excludes))
+        else:
+            excludes = []
         pdm(command, obj=project, strict=True)
 
         project.pyproject.reload()
         packages = [p.replace("'", "").replace('"', "") for p in packages]
-        channels = set(p.split("::")[0] for p in packages if "::" in p)
+        channels = {p.split("::")[0] for p in packages if "::" in p}
         if channel:
             channels.add(channel)
 
@@ -72,7 +76,7 @@ class TestAddRemove:
         assert set(project.lockfile.groups) == {group, "default"}
         cmd_order = ["create", "info", "list", "install"]
         assert conda.call_count == len(cmd_order)
-        for (cmd,), kwargs in conda.call_args_list:
+        for (cmd,), _ in conda.call_args_list:
             assert cmd[0] == runner
             assert cmd[1] == cmd_order.pop(0)
         assert not cmd_order
@@ -117,7 +121,7 @@ class TestAddRemove:
         project.conda_config.batched_commands = batch_commands
         pdm(["remove", "--no-self", "-vv", "--group", group] + packages, obj=project, strict=True)
 
-        python_packages = {p["name"] for p in PYTHON_REQUIREMENTS}
+        python_packages = {p["name"] for p in PYTHON_REQUIREMENTS if not p["python_only"]}
         packages_to_remove = set()
         for p in packages:
             pkg = PREFERRED_VERSIONS[p.split("::")[-1]]
@@ -128,11 +132,11 @@ class TestAddRemove:
         cmd_order = []
         if packages_to_remove:
             # get working set + get python packages
-            cmd_order = ["create", "list", "list"]
+            cmd_order = ["list", "list"]
             if project.conda_config.runner in ("mamba", "micromamba") or project.conda_config.solver == "libmamba":
                 cmd_order.append("create")
             else:
-                num_searches = len({p["name"] for p in PYTHON_REQUIREMENTS})
+                num_searches = len(python_packages)
                 cmd_order += ["search" if runner == "conda" else "repoquery"] * num_searches
             cmd_order += ["remove"] * (1 if batch_commands else len(packages_to_remove))
         assert conda.call_count == len(cmd_order)
@@ -143,15 +147,17 @@ class TestAddRemove:
             assert _package not in dependencies
 
         packages = [p["name"] for p in conda_info]
-        python_packages = [
-            f"{p['name']}=={p['version']}={p['build']}" for p in PYTHON_REQUIREMENTS + CONDA_REQUIREMENTS
+        python_packages = [  # type: ignore[assignment]
+            f"{p['name']}=={p['version']}={p['build']}"
+            for p in PYTHON_REQUIREMENTS + CONDA_REQUIREMENTS
+            if not p["python_only"]
         ]
-        for (cmd,), kwargs in conda.call_args_list:
+        for (cmd,), _ in conda.call_args_list:
             assert cmd[0] == (runner or self.default_runner)
             cmd_subcommand = cmd[1]
             assert cmd_subcommand == cmd_order.pop(0)
             if cmd_subcommand in ("remove", "search", "repoquery"):
-                name = next(filter(lambda x: not x.startswith("-") and x != "search", cmd[2:]))
+                name = next(filter(lambda x: not x.startswith("-") and x != "search" and "/" not in x, cmd[2:]))
                 if cmd_subcommand == "remove":
                     assert name in packages
                     assert "-f" not in cmd

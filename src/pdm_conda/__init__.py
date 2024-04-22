@@ -8,11 +8,11 @@ if TYPE_CHECKING:
     from pdm.core import Core
 
 logger = termui.logger
-__version__ = "0.16.5"
+__version__ = "0.17.0"
 
 
 def main(core: Core):
-    from pdm_conda import utils
+    from pdm_conda import hooks, utils
     from pdm_conda.cli import utils as cli_utils
     from pdm_conda.cli.commands.add import Command as AddCommand
     from pdm_conda.cli.commands.init import Command as InitCommand

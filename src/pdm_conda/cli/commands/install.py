@@ -18,7 +18,6 @@ class Command(BaseCommand):
 
     def handle(self, project: Project, options: argparse.Namespace) -> None:
         project = cast(CondaProject, project)
-        if options.groups:
-            if ":all" in options.groups:
-                options.groups += list(project.iter_groups())
+        if options.groups and ":all" in options.groups:
+            options.groups += list(project.iter_groups())
         super().handle(project, options)

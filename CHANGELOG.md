@@ -7,9 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 22/04/2024
+
+### Added
+
+* Add `conda.auto-exludes` config and auto-excludes behavior.
+* Now compatible with `pdm==v2.15.0`.
+
 ### Changed
 
-* Faster `pdm lock --refresh` execution.
+* Allow multiple channels specified using `pdm init --channel`.
+* Faster resolution time with mixed Conda and PyPi packages.
+
+### Fixed
+
+* Fix locked packages dropping information when running `pdm lock --refresh`.
+* Fix calling `conda` commands unnecessarily on `pdm add/remove/update reuse` when lockfile exists.
+* Ensure all commands apply to the correct environment when using Conda.
 
 ## [0.16.5] - 18/03/2024
 

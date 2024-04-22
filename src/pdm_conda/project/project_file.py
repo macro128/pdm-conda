@@ -4,16 +4,29 @@ import json
 from pdm.project.project_file import PyProject as PyProjectBase
 
 
+def _remove_empty_groups(doc: dict) -> None:
+    for k, v in list(doc.items()):
+        if isinstance(v, list) and not v:
+            del doc[k]
+
+
 class PyProject(PyProjectBase):
+    def write(self, show_message: bool = True) -> None:
+        _remove_empty_groups(self._data.get("project", {}).get("optional-dependencies", {}))
+        _remove_empty_groups(
+            self._data.get("tool", {}).get("pdm", {}).get("conda", {}).get("optional-dependencies", {}),
+        )
+        super().write(show_message)
+
     def content_hash(self, algo: str = "sha256") -> str:
-        """
-        Generate a hash of the sensible content of the pyproject.toml file.
-        When the hash changes, it means the project needs to be relocked.
+        """Generate a hash of the sensible content of the pyproject.toml file. When the hash changes, it means the
+        project needs to be relocked.
+
         :param algo: hash algorithm name
         :return: pyproject.toml hash
         """
-        pdm_conda_data = self.settings.get("conda", dict())
-        pdm_conda_dump_data = dict()
+        pdm_conda_data = self.settings.get("conda", {})
+        pdm_conda_dump_data = {}
         for hash_config in (
             "channels",
             "as-default-manager",
