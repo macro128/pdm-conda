@@ -147,9 +147,9 @@ class CondaRepository(BaseRepository):
                 prefix=f"/tmp/{uuid.uuid4()}",
                 dry_run=True,
             )
-            for name, candidate in mapping.items():
+            for candidate in mapping.values():
                 termui.logger.info(f"Fetching hashes for {candidate}")
-                if (cans := resolution.get(name, [])) and cans[0].req.is_compatible(candidate.req):
+                if (cans := resolution.get(candidate.name, [])) and cans[0].req.is_compatible(candidate.req):
                     candidate.hashes = cans[0].hashes
                 else:
                     raise CondaSearchError(f"Cannot find hashes for {candidate}")

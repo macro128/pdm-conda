@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.1] - 22/04/2024
+
+### Fixed
+
+* Fix `pdm lock --refresh` failing with packages with extras.
+
+
 ## [0.17.0] - 22/04/2024
 
 ### Added
