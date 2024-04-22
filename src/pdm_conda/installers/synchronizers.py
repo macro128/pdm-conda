@@ -30,6 +30,7 @@ class CondaSynchronizer(Synchronizer):
         reinstall: bool = False,
         only_keep: bool = False,
         fail_fast: bool = False,
+        use_install_cache: bool | None = None,
     ) -> None:
         super().__init__(
             candidates,
@@ -42,6 +43,7 @@ class CondaSynchronizer(Synchronizer):
             reinstall,
             only_keep,
             fail_fast,
+            use_install_cache,
         )
         self.environment = cast(CondaEnvironment, environment)
         self.parallel = bool(self.parallel)  # type: ignore

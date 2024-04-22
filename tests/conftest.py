@@ -8,10 +8,10 @@ from tempfile import TemporaryDirectory
 from typing import Any
 
 import pytest
-import responses
 from pdm.core import Core
 from pdm.models.backends import PDMBackend
 from pdm.project import Config
+from pytest_httpx import HTTPXMock
 from pytest_mock import MockerFixture
 
 from tests.utils import DEFAULT_CHANNEL, PLATFORM, REPO_BASE, channel_url, generate_package_info
@@ -167,7 +167,13 @@ def conda_mapping():
 
 
 @pytest.fixture(name="conda")
-def mock_conda(mocker: MockerFixture, conda_info: dict | list, num_missing_info_on_create: int, installed_packages):
+def mock_conda(
+    httpx_mock,
+    mocker: MockerFixture,
+    conda_info: dict | list,
+    num_missing_info_on_create: int,
+    installed_packages,
+):
     if isinstance(conda_info, dict):
         conda_info = [conda_info]
 
@@ -269,12 +275,11 @@ def mock_conda(mocker: MockerFixture, conda_info: dict | list, num_missing_info_
 
 
 @pytest.fixture(name="pypi")
-def mock_pypi(mocked_responses):
+def mock_pypi(httpx_mock: HTTPXMock):
     def _mocker(conda_info, with_dependencies: bool | list[str] | None = None):
         from pdm_conda.mapping import conda_to_pypi
         from pdm_conda.models.requirements import parse_conda_version
 
-        _responses = {}
         if with_dependencies is None:
             with_dependencies = []
         for package in conda_info:
@@ -296,9 +301,10 @@ def mock_pypi(mocked_responses):
             for d in to_delete:
                 dependencies.remove(d)
             url = f"{REPO_BASE}/simple/{name}/"
-            _responses[url] = mocked_responses.get(
-                url,
-                content_type="application/vnd.pypi.simple.v1+json",
+            httpx_mock.add_response(
+                url=url,
+                method="GET",
+                headers={"Content-Type": "application/vnd.pypi.simple.v1+json"},
                 json={
                     "files": [
                         {
@@ -316,8 +322,9 @@ def mock_pypi(mocked_responses):
                 isinstance(with_dependencies, list) and name in with_dependencies
             ):
                 url = f"{REPO_BASE}/pypi/{name}/{version}/json"
-                _responses[url] = mocked_responses.get(
-                    url,
+                httpx_mock.add_response(
+                    url=url,
+                    method="GET",
                     json={
                         "info": {
                             "summary": "",
@@ -326,8 +333,6 @@ def mock_pypi(mocked_responses):
                         },
                     },
                 )
-
-        return _responses
 
     return _mocker
 
@@ -371,17 +376,11 @@ def working_set(mocker: MockerFixture) -> dict:
 
 @pytest.fixture
 def build_backend(pypi, working_set):
-    return pypi([BUILD_BACKEND], with_dependencies=True)
+    pypi([BUILD_BACKEND], with_dependencies=True)
 
 
 @pytest.fixture
-def mocked_responses():
-    with responses.RequestsMock(assert_all_requests_are_fired=False) as rsps:
-        yield rsps
-
-
-@pytest.fixture
-def mock_conda_mapping(mocker: MockerFixture, mocked_responses, conda_mapping):
+def mock_conda_mapping(mocker: MockerFixture, httpx_mock, conda_mapping):
     mocker.patch("pdm_conda.mapping.get_mapping_fixes", return_value={})
     return mocker.patch("pdm_conda.mapping.get_pypi_mapping", return_value=conda_mapping)
 

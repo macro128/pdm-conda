@@ -194,7 +194,7 @@ class TestProject:
             _conda_dependencies = project.get_conda_pyproject_dependencies(group_name, dev)
             for dep in conda_dependencies:
                 asserted = 0
-                dep, extras = strip_extras(
+                dep, _ = strip_extras(
                     dep.split(";")[0].split("=")[0].split(">")[0].split("~")[0].split("::")[-1].strip(),
                 )
                 python_dep = conda_to_pypi(dep)

@@ -129,7 +129,6 @@ class CondaResolution(Resolution):
         self._ensure_criteria(criteria)
         resolution = criteria[CONDA_RESOLUTION_KEY]
         excluded_identifiers = criteria[CONDA_EXCLUDED_IDENTIFIERS_KEY]
-
         if not self._p.compatible_with_resolution(new_requirements, resolution, excluded_identifiers):
             requirements = list(
                 chain.from_iterable(

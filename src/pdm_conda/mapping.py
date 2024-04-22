@@ -53,7 +53,7 @@ def download_mapping(download_dir: Path, update_interval: timedelta | None = Non
     dict_path = yaml_path.with_suffix(".json")
 
     if not yaml_path.exists() or datetime.fromtimestamp(yaml_path.stat().st_mtime) + update_interval < datetime.now():
-        response = httpx.get(os.getenv(MAPPING_URL_ENV_VAR, MAPPING_URL), timeout=timeout)
+        response = httpx.get(os.getenv(MAPPING_URL_ENV_VAR, MAPPING_URL), timeout=timeout, follow_redirects=True)
         with yaml_path.open("wb") as f:
             f.write(response.content)
         process_mapping(yaml_path, dict_path)

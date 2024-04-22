@@ -8,6 +8,20 @@ from pytest_mock import MockerFixture
 from tests.conftest import PREFERRED_VERSIONS, PYTHON_PACKAGE, PYTHON_REQUIREMENTS
 
 
+def test(pdm):
+    pdm(["update", "-G", ":all", "--no-sync", "--dry-run"])
+
+
+@pytest.fixture
+def add_conflict() -> bool:
+    return False
+
+
+@pytest.fixture
+def assert_all_responses_were_requested(add_conflict) -> bool:
+    return not add_conflict
+
+
 @pytest.mark.parametrize("runner", ["conda", "micromamba"])
 @pytest.mark.parametrize("solver", ["conda", "libmamba"])
 @pytest.mark.parametrize("group", ["default", "dev", "other"])
@@ -201,6 +215,7 @@ class TestLock:
         return project.lockfile
 
     @pytest.mark.parametrize("inherit_metadata", [True, False])
+    @pytest.mark.parametrize("add_conflict", [True])
     def test_lock_refresh(
         self,
         pdm,
@@ -214,6 +229,7 @@ class TestLock:
         conda_mapping,
         mock_conda_mapping,
         inherit_metadata,
+        add_conflict,
     ):
         old_lockfile = self.test_lock(
             pdm,
@@ -224,7 +240,7 @@ class TestLock:
             solver,
             pypi,
             group,
-            True,
+            add_conflict,
             conda_mapping,
             mock_conda_mapping,
             True,
@@ -244,7 +260,7 @@ class TestLock:
             solver,
             pypi,
             group,
-            True,
+            add_conflict,
             conda_mapping,
             mock_conda_mapping,
             True,

@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-import os
-import sysconfig
 import uuid
 from collections import ChainMap
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
-from pdm.exceptions import ProjectError
+from pdm.models.in_process import get_sys_config_paths
 from pdm.models.specifiers import PySpecSet
 
-from pdm_conda.conda import conda_create, conda_list, conda_search
+from pdm_conda.conda import conda_create, conda_info, conda_list, conda_search
 from pdm_conda.environments.python import PythonEnvironment
 from pdm_conda.models.config import CondaRunner, CondaSolver
 from pdm_conda.project import CondaProject
@@ -17,29 +15,57 @@ from pdm_conda.project import CondaProject
 if TYPE_CHECKING:
     from pdm.models.working_set import WorkingSet
 
-    from pdm_conda.models.requirements import Requirement
+    from pdm_conda.models.requirements import CondaRequirement, Requirement
     from pdm_conda.project import Project
 
 
-def ensure_conda_env():
-    if (packages_path := os.getenv("CONDA_PREFIX", None)) is None:
-        raise ProjectError("Conda environment not detected.")
-    return packages_path
-
-
 class CondaEnvironment(PythonEnvironment):
+    project: CondaProject
+
     def __init__(self, project: Project) -> None:
         super().__init__(project)
-        self.project = cast(CondaProject, project)
         self._env_dependencies: dict[str, Requirement] | None = None
         if self.project.conda_config.is_initialized:
             self.python_requires &= PySpecSet(f"=={self.interpreter.version}")
+            self.prefix = str(self.interpreter.path).replace("/bin/python", "")
+        self._virtual_packages: set[CondaRequirement] | None = None
+        self._platform: str | None = None
+        self._default_channels: list[str] | None = None
+
+    @property
+    def virtual_packages(self) -> set[CondaRequirement]:
+        self._check_update_info(self._virtual_packages)
+        return self._virtual_packages  # type: ignore
+
+    @property
+    def platform(self) -> str:
+        self._check_update_info(self._platform)
+        return self._platform  # type: ignore
+
+    @property
+    def default_channels(self) -> list[str]:
+        self._check_update_info(self._default_channels)
+        return self._default_channels  # type: ignore
+
+    def _check_update_info(self, prop):
+        if prop is None:
+            self._get_conda_info()
+
+    def _get_conda_info(self):
+        info = conda_info(self.project)
+        self._virtual_packages = info["virtual_packages"]
+        self._platform = info["platform"]
+        self._default_channels = info["channels"]
 
     def get_paths(self, dist_name: str | None = None) -> dict[str, str]:
         if self.project.conda_config.is_initialized:
-            prefix = ensure_conda_env()
-            paths = sysconfig.get_paths(vars={k: prefix for k in ("base", "platbase", "installed_base")}, expand=True)
-            paths.setdefault("prefix", prefix)
+            paths = get_sys_config_paths(
+                str(self.interpreter.executable),
+                {k: self.prefix for k in ("base", "platbase", "installed_base")},
+                kind="prefix",
+            )
+            paths.setdefault("prefix", self.prefix)
+            paths["headers"] = paths["include"]
             return paths
         return super().get_paths(dist_name)
 

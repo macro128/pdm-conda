@@ -335,7 +335,7 @@ def conda_create(
         channels,
         "No channels specified for creating environment, using defaults if exist.",
     )
-    command = config.command("create")
+    command = config.command("create", use_project_env=False)
     command.append("--json")
     if prefix is not None:
         command.extend(["--prefix", str(prefix)])
@@ -417,7 +417,7 @@ def conda_env_remove(project: CondaProject, prefix: Path | str | None = None, na
     config = project.conda_config
     if not config.is_initialized:
         raise VirtualenvCreateError("Error removing environment, no pdm-conda configs were found on pyproject.toml.")
-    command = config.command("env remove")
+    command = config.command("env remove", use_project_env=False)
     command.append("--json")
     if prefix is not None:
         command += ["--prefix", str(prefix)]
@@ -439,7 +439,7 @@ def conda_env_list(project: CondaProject) -> list[Path]:
     :return: list of conda environments
     """
     config = project.conda_config
-    command = config.command("env list")
+    command = config.command("env list", use_project_env=False)
     command.append("--json")
     environments = run_conda(command, exception_cls=CondaExecutionError, exception_msg="Error listing environments")
     return [Path(env) for env in environments.get("envs", [])]

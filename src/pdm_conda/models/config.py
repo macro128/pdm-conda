@@ -353,10 +353,11 @@ class PluginConfig:
             plugin_config.excludes = excludes
         return plugin_config
 
-    def command(self, cmd="install"):
+    def command(self, cmd="install", use_project_env: bool = True):
         """Get runner command args.
 
         :param cmd: command, install by default
+        :param use_project_env: use project env or not
         :return: args list
         """
         runner = self.runner
@@ -374,5 +375,7 @@ class PluginConfig:
         if cmd in ("install", "create") or (cmd == "search" and self.runner == CondaRunner.MICROMAMBA):
             _command.append("--strict-channel-priority")
         if self.runner == CondaRunner.CONDA and self.solver == CondaSolver.MAMBA and cmd in ("create", "install"):
-            _command.extend(["--solver", CondaSolver.MAMBA.value])
+            _command += ["--solver", CondaSolver.MAMBA.value]
+        if use_project_env and cmd not in ("search", "search"):
+            _command += ["--prefix", str(self._project.environment.interpreter.path).replace("/bin/python", "")]
         return _command

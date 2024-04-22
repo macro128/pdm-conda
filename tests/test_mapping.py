@@ -3,6 +3,7 @@ from tempfile import TemporaryDirectory
 
 import pytest
 from pdm_conda.mapping import MAPPING_DOWNLOAD_DIR_ENV_VAR
+from pytest_httpx import HTTPXMock
 
 
 @pytest.fixture
@@ -32,7 +33,7 @@ class TestMapping:
         conda_mapping,
         patch_conda_mapping_fixes,
         conda_mapping_fixes,
-        mocked_responses,
+        httpx_mock: HTTPXMock,
         mapping_url,
         monkeypatch,
     ):
@@ -57,14 +58,15 @@ class TestMapping:
                 mapping_source: other
                 pypi_name: {pypi_name}
             """
-        rsp = mocked_responses.get(mapping_url, body=response)
+        httpx_mock.add_response(method="GET", url=mapping_url, content=response.encode())
 
         corrected_mapping = dict(conda_mapping)
         corrected_mapping.update(conda_mapping_fixes)
         for _ in range(5):
             assert get_pypi_mapping() == corrected_mapping
             assert get_conda_mapping() == {k: v for v, k in corrected_mapping.items()}
-        assert rsp.call_count == 1
+        requests = httpx_mock.get_requests()
+        assert len(requests) == 1
         assert patch_conda_mapping_fixes.call_count == 1
         for ext in ["yaml", "json"]:
             assert (Path(patch_download_dir) / f"pypi_mapping.{ext}").exists()
@@ -80,7 +82,7 @@ class TestMapping:
         patch_conda_mapping_fixes,
         conda_mapping_fixes,
         package,
-        mocked_responses,
+        httpx_mock: HTTPXMock,
         monkeypatch,
     ):
         self.test_download_mapping(
@@ -89,7 +91,7 @@ class TestMapping:
             conda_mapping,
             patch_conda_mapping_fixes,
             conda_mapping_fixes,
-            mocked_responses,
+            httpx_mock,
             None,
             monkeypatch,
         )

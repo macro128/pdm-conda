@@ -23,7 +23,6 @@ class TestInstall:
         mock_conda_mapping,
         conda_batched,
         install_self,
-        build_backend,
     ):
         """Test `install` command work as expected."""
         conda_info = [r for r in conda_info if r not in PYTHON_REQUIREMENTS]
