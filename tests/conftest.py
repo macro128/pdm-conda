@@ -189,7 +189,7 @@ def mock_conda(
 
             return {"actions": {"LINK": deepcopy(install_response)}}
         if subcommand == "remove":
-            for name in (arg for arg in cmd[2:] if not arg.startswith("-")):
+            for name in (arg for arg in cmd[5:] if not arg.startswith("-")):
                 installed_packages.pop(installed_packages.index(PREFERRED_VERSIONS[name]))
             return {"message": "ok"}
         if subcommand == "env" and cmd[2] == "list":

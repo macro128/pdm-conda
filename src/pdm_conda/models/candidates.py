@@ -103,7 +103,7 @@ class CondaCandidate(Candidate):
         self.channel = channel
         self.track_feature = track_feature
 
-    def copy_with(self, requirement: Requirement, merge_requirements: bool = False) -> Candidate:
+    def copy_with(self, requirement: Requirement, merge_requirements: bool = True) -> Candidate:
         can = copy(self)
         if isinstance(requirement, CondaRequirement) and merge_requirements:
             requirement.is_python_package &= can.req.is_python_package

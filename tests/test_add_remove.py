@@ -157,7 +157,7 @@ class TestAddRemove:
             cmd_subcommand = cmd[1]
             assert cmd_subcommand == cmd_order.pop(0)
             if cmd_subcommand in ("remove", "search", "repoquery"):
-                name = next(filter(lambda x: not x.startswith("-") and x != "search", cmd[2:]))
+                name = next(filter(lambda x: not x.startswith("-") and x != "search" and "/" not in x, cmd[2:]))
                 if cmd_subcommand == "remove":
                     assert name in packages
                     assert "-f" not in cmd

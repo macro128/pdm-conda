@@ -244,6 +244,7 @@ class TestProject:
         assert original_hash == project.pyproject.content_hash()
 
 
+@pytest.mark.usefixtures("working_set")
 class TestProjectProviders:
     @pytest.mark.parametrize("strategy", ["all", "reuse", "eager", "reuse-installed"])
     def test_provider(self, project, strategy, conda):

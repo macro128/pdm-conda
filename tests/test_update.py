@@ -54,7 +54,7 @@ class TestUpdate:
             command.append(f"--save-{save_strategy}")
         assert conf.custom_behavior == custom_behavior
         pdm(command, obj=project, strict=True)
-        assert conda.call_count == 0
+        assert conda.call_count == (1 if packages else 0)
         project.pyproject.reload()
         updated_requirements = {}
         for group in project.iter_groups():

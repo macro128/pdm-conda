@@ -83,10 +83,10 @@ class CondaSynchronizer(Synchronizer):
                 self.environment.project.core.ui.echo("Deactivating parallel uninstall.")
             self.parallel = False
 
-        if self.environment.project.conda_config.batched_commands:
-            self.manager.prepare_batch_operations(
-                num_install=num_install,
-                num_remove=num_remove,
-            )
+        batched_commands = self.environment.project.conda_config.batched_commands
+        self.manager.prepare_batch_operations(
+            num_install=num_install if batched_commands else 0,
+            num_remove=num_remove if batched_commands else 0,
+        )
 
         return to_add, to_update, to_remove

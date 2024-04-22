@@ -12,7 +12,6 @@ from pdm.resolver.providers import (
     ReusePinProvider,
     register_provider,
 )
-from pdm.resolver.python import find_python_matches
 from pdm.utils import is_url
 from unearth.utils import LazySequence
 
@@ -109,21 +108,19 @@ class CondaBaseProvider(BaseProvider):
         requirements: Mapping[str, Iterator[Requirement]],
         incompatibilities: Mapping[str, Iterator[Candidate]],
     ) -> Callable[[], Iterator[Candidate]]:
+        super_find_matches = super().find_matches(identifier, requirements, incompatibilities)
         if not self.is_conda_initialized:
-            return super().find_matches(identifier, requirements, incompatibilities)
+            return super_find_matches
 
         def matches_gen() -> Iterator[Candidate]:
             incompat = list(incompatibilities[identifier])
-            if identifier == "python":
-                candidates = find_python_matches(identifier, requirements)
-                return (c for c in candidates if c not in incompat)
-            if identifier in self.overrides:
-                return iter(self.get_override_candidates(identifier))
+            bare_name, extras = strip_extras(identifier)
+            if identifier == "python" or any(name in self.overrides for name in (identifier, bare_name)):
+                return super_find_matches()
             reqs = sorted(requirements[identifier], key=self.requirement_preference)
             if not reqs:
                 return iter(())
             original_req = reqs[0]
-            bare_name, extras = strip_extras(identifier)
             if extras and bare_name in requirements:
                 # We should consider the requirements for both foo and foo[extra]
                 reqs.extend(requirements[bare_name])
@@ -211,6 +208,31 @@ class CondaBaseProvider(BaseProvider):
 
 @register_provider("reuse")
 class CondaReusePinProvider(ReusePinProvider, CondaBaseProvider):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        for name in self.tracked_names:
+            self.locked_candidates.pop(name, None)
+
+    def find_matches(
+        self,
+        identifier: str,
+        requirements: Mapping[str, Iterator[Requirement]],
+        incompatibilities: Mapping[str, Iterator[Candidate]],
+    ) -> Callable[[], Iterator[Candidate]]:
+        super_find = super(CondaBaseProvider, self).find_matches(identifier, requirements, incompatibilities)
+
+        def matches_gen() -> Iterator[Candidate]:
+            requested_req = next(filter(lambda r: r.is_named, requirements[identifier]), None)
+            pin = self.get_reuse_candidate(identifier, requested_req)
+            if pin is not None:
+                incompat = list(incompatibilities[identifier])
+                pin._preferred = True  # type: ignore[attr-defined]
+                if pin not in incompat and all(self.is_satisfied_by(r, pin) for r in requirements[identifier]):
+                    yield pin
+            yield from super_find()
+
+        return matches_gen
+
     def _merge_requirements(
         self,
         requirements: list[Requirement] | None,
