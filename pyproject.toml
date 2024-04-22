@@ -61,7 +61,7 @@ excludes = ["tests"]
 [tool.pdm.scripts]
 test = "pytest --cov=src/ tests/{args} --cov-report xml --cov-report term"
 fix-report = "python scripts/fix_report.py"
-test-cov = { composite = ["test {args}", "fix-report"] }
+test-cov = { composite = ["test {args}", "fix-report"], keep_going = true }
 
 [tool.pytest.ini_options]
 addopts = "--random-order -x -m \"not manual_only\""
