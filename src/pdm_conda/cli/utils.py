@@ -4,10 +4,11 @@ import functools
 from typing import TYPE_CHECKING
 
 from pdm.formats.base import array_of_inline_tables, make_array
+from pdm.models.specifiers import get_specifier
 
 from pdm_conda.models.candidates import CondaCandidate
 from pdm_conda.models.repositories import CondaRepository
-from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement
+from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement, comparable_version
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -49,12 +50,20 @@ def wrap_save_version_specifiers(func):
     ) -> None:
         func(requirements, resolved, save_strategy)
         for reqs in requirements.values():
-            for name in reqs:
-                if isinstance(can := resolved[name], CondaCandidate):
-                    req = as_conda_requirement(reqs[name])
-                    req.version_mapping.update(can.req.version_mapping)
-                    req.is_python_package = can.req.is_python_package
-                    reqs[name] = req
+            for name, r in reqs.items():
+                can = resolved[name]
+                if save_strategy == "compatible" and r.is_named and (version := comparable_version(can.version)).epoch:
+                    if version.is_prerelease or version.is_devrelease:
+                        r.specifier = get_specifier(
+                            f">={version.epoch}!{version},<{version.epoch}!{version.major + 1}",
+                        )
+                    else:
+                        r.specifier = get_specifier(f"~={version.epoch}!{version.major}.{version.minor}")
+                if isinstance(can, CondaCandidate):
+                    r = as_conda_requirement(r)
+                    r.version_mapping.update(can.req.version_mapping)
+                    r.is_python_package = can.req.is_python_package
+                    reqs[name] = r
 
     return wrapper
 

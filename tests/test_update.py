@@ -49,7 +49,7 @@ class TestUpdate:
         for group in project.iter_groups():
             requirements[group] = project.get_dependencies(group)
 
-        command = ["update", "--no-sync", "-G", ":all"]
+        command = ["update", "--no-sync", "-G", ":all", "-vv"]
         if save_strategy:
             command.append(f"--save-{save_strategy}")
         assert conf.custom_behavior == custom_behavior

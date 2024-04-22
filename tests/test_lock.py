@@ -8,10 +8,6 @@ from pytest_mock import MockerFixture
 from tests.conftest import PREFERRED_VERSIONS, PYTHON_PACKAGE, PYTHON_REQUIREMENTS
 
 
-def test(pdm):
-    pdm(["update", "-G", ":all", "--no-sync", "--dry-run"])
-
-
 @pytest.fixture
 def add_conflict() -> bool:
     return False

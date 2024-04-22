@@ -7,8 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.17.0] - 31/03/2024
-
+## [0.17.0] - 21/04/2024
 
 ### Added
 
@@ -23,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Fix locked packages dropping information when running `pdm lock --refresh`.
 * Fix calling `conda` commands unnecessarily on `pdm add/remove/update reuse` when lockfile exists.
+* Ensure all commands apply to the correct environment when using Conda.
 
 ## [0.16.5] - 18/03/2024
 
