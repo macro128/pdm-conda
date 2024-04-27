@@ -149,18 +149,17 @@ class CondaResolution(Resolution):
                 )
 
     def _add_to_criteria(self, criteria, requirement, parent):
-        _req = requirement
         if self._is_conda_initialized:
             # merge with constrain if exists
             self._ensure_criteria(criteria)
             constrains = criteria[CONSTRAINS_KEY]
             if (constrain := constrains.get(requirement.conda_name, None)) is not None:
-                _req = constrain.merge(requirement)
+                requirement = constrain.merge(requirement)
 
-            self._update_conda_resolution(criteria, [_req])
-            if criterion := criteria.get(self._p.identify(_req)):
+            self._update_conda_resolution(criteria, [requirement])
+            if criterion := criteria.get(self._p.identify(requirement)):
                 # if excluded then delete conda related information else if other conda requirement transform to conda
-                if not self._p.repository.is_conda_managed(_req, criteria[CONDA_EXCLUDED_IDENTIFIERS_KEY]):
+                if not self._p.repository.is_conda_managed(requirement, criteria[CONDA_EXCLUDED_IDENTIFIERS_KEY]):
                     criterion.information = [
                         (
                             RequirementInformation(i.requirement.as_named_requirement(), i.parent)
@@ -170,13 +169,13 @@ class CondaResolution(Resolution):
                         for i in criterion.information
                     ]
                 # if not excluded and conda requirement then transform related information to conda
-                elif isinstance(_req, CondaRequirement):
+                elif isinstance(requirement, CondaRequirement):
                     criterion.information = [
                         RequirementInformation(as_conda_requirement(i.requirement), i.parent)
                         for i in criterion.information
                     ]
 
-        super()._add_to_criteria(criteria, _req, parent)
+        super()._add_to_criteria(criteria, requirement, parent)
 
     def _get_updated_criteria(self, candidate):
         criteria = self.state.criteria.copy()

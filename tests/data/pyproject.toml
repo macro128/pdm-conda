@@ -1,0 +1,37 @@
+[tool.pdm.conda]
+runner = "micromamba"
+channels = ["conda-forge"]
+as-default-manager = true
+custom-behavior = true
+auto-excludes = true
+batched-commands = true
+excludes = ["python-ffmpeg"]
+
+[tool.pdm.conda.optional-dependencies]
+conda-group = [
+    "ffmpeg==6.1.1",
+]
+
+
+[tool.pdm.dev-dependencies]
+dev = [
+    "pytest==8.0.2",
+]
+[project]
+name = "test-project"
+version = "0.0.0"
+description = ""
+authors = []
+dependencies = []
+requires-python = ">=3.10.14"
+
+[project.license]
+text = "MIT"
+
+[project.optional-dependencies]
+python-group = [
+    "python-ffmpeg==2.0.12",
+]
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"

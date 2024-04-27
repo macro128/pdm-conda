@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.2] - 27/04/2024
+
+### Added
+
+* Now compatible with `pdm==v2.15.1`.
+
+
+### Fixed
+
+* Fix locked packages missing groups when conflict with Conda constraints.
+
 ## [0.17.1] - 22/04/2024
 
 ### Fixed

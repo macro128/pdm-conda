@@ -134,6 +134,9 @@ class CondaRequirement(NamedRequirement):
         """
         _req = copy(self)
         _req.specifier &= requirement.specifier
+        _req.groups = requirement.groups
+        _req.extras = requirement.extras
+        _req.marker = _req.marker
         if isinstance(requirement, CondaRequirement):
             _req.channel = requirement.channel
             _req.version_mapping.update(requirement.version_mapping)
