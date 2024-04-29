@@ -194,12 +194,14 @@ class TestIntegration:
         from pdm_conda.project.project_file import PyProject
 
         project.global_config["pypi.url"] = "https://pypi.org/simple"
+        project.global_config["pypi.json_api"] = False
         project.pyproject.set_data(
             PyProject(Path(__file__).parent / "data" / "pyproject_1.toml", ui=project.core.ui)._data,
         )
         project.pyproject.write()
 
-        pdm(["lock", "-G", ":all"], obj=project, strict=True, cleanup=True).print()
-        project.pyproject.reload()
-        self.assert_lockfile(project)
+        for _ in range(2):
+            pdm(["lock", "-G", ":all", "--update-reuse"], obj=project, strict=True, cleanup=True).print()
+            project.pyproject.reload()
+            self.assert_lockfile(project)
         print(json.dumps(project.lockfile._data, indent=2))

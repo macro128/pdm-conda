@@ -21,8 +21,11 @@ def wrapper_populate_groups(func):
         for k, can in reversed(result.mapping.items()):
             groups = set(can.req.groups)
             for _, parent in result.criteria[k].information:
-                if parent is not None:
-                    groups.update(result.mapping[_identify_parent(parent)].req.groups)
+                if (
+                    parent is not None
+                    and (parent_can := result.mapping.get(_identify_parent(parent), None)) is not None
+                ):
+                    groups.update(parent_can.req.groups)
             can.req.groups = sorted(groups)
 
     return wrapper
