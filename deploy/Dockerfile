@@ -11,7 +11,7 @@ ARG MAMBA_DOCKERFILE_ACTIVATE=1
 ARG tini_version="0.19.*"
 ENV TZ="Etc/UTC"
 RUN --mount=type=cache,target=/opt/conda/pkgs,id=mamba,mode=0775,uid=1000,gid=1000,sharing=locked \
-    micromamba install -y tini==${tini_version} -n base -c conda-forge --always-copy
+    micromamba install -y tini==${tini_version} python==3.10.* git -n base -c conda-forge --always-copy
 
 ADD --chown=${MAMBA_USER} https://github.com/apache/httpd/raw/trunk/docs/conf/mime.types /etc/mime.types
 
@@ -45,7 +45,7 @@ ARG python_version="3.10.*"
 ARG pdm_version="2.15.1"
 ENV BIN_PATH=/opt/conda/_bin
 RUN --mount=type=cache,target=/opt/conda/pkgs,id=mamba,mode=0775,uid=1000,gid=1000,sharing=locked \
-    micromamba install -y python==3.10.* pdm==${pdm_version} git -n base -c conda-forge --always-copy && \
+    micromamba install -y pdm==${pdm_version} -n base -c conda-forge --always-copy && \
     micromamba create -y -n ${app_env} python==${python_version} -c conda-forge --always-copy && \
     mkdir ${BIN_PATH} && \
     ln -s /opt/conda/bin/git ${BIN_PATH}/git && \
