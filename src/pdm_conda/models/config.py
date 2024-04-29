@@ -270,7 +270,7 @@ class PluginConfig:
     def excludes(self, value):
         excluded: set = getattr(self, "_excludes", set())
         if set(value) != excluded:
-            self._excludes = list(value)
+            self._excludes = sorted(value)
             self._excluded_identifiers = None
 
     @property
