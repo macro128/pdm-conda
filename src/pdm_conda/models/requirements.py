@@ -8,6 +8,8 @@ from copy import copy
 from typing import TYPE_CHECKING
 
 from packaging.version import Version
+from pdm.cli import actions, utils
+from pdm.models import requirements
 from pdm.models.requirements import NamedRequirement, Requirement, strip_extras
 from pdm.models.requirements import parse_requirement as _parse_requirement
 
@@ -27,8 +29,6 @@ _prev_spec = ",|<>!~="
 _specifier_re = re.compile(rf"(?<![{_prev_spec}])(=|==|~=|!=|<|>|<=|>=)([^{_prev_spec}\s]+)")
 _conda_specifier_star_re = re.compile(r"([\w.]+)\*")
 _conda_version_letter_re = re.compile(r"(\d|\.)([a-z]+)(\d?)")
-
-_patched = False
 
 
 @dataclasses.dataclass(eq=False)
@@ -341,14 +341,9 @@ def key(self) -> str | None:
     return normalize_name(self.conda_name) if self.conda_name else None
 
 
-if not _patched:
-    from pdm.cli import actions, utils
-    from pdm.models import requirements
+for m in [utils, actions, requirements]:
+    m.parse_requirement = parse_requirement
 
-    for m in [utils, actions, requirements]:
-        m.parse_requirement = parse_requirement
-
-    utils.filter_requirements_with_extras = wrap_filter_requirements_with_extras(utils.filter_requirements_with_extras)
-    Requirement.conda_name = property(conda_name)
-    Requirement.key = property(key)
-    _patched = True
+utils.filter_requirements_with_extras = wrap_filter_requirements_with_extras(utils.filter_requirements_with_extras)
+Requirement.conda_name = property(conda_name)
+Requirement.key = property(key)

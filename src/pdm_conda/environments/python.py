@@ -8,8 +8,6 @@ from pdm_conda.mapping import pypi_to_conda
 from pdm_conda.project import CondaProject
 from pdm_conda.utils import normalize_name
 
-_patched = False
-
 
 def wrap_get_working_set(func):
     @functools.wraps(func)
@@ -35,7 +33,5 @@ def wrap_init(func):
     return wrapper
 
 
-if not _patched:
-    PythonEnvironment.__init__ = wrap_init(PythonEnvironment.__init__)
-    PythonEnvironment.get_working_set = wrap_get_working_set(PythonEnvironment.get_working_set)
-    _patched = True
+PythonEnvironment.__init__ = wrap_init(PythonEnvironment.__init__)
+PythonEnvironment.get_working_set = wrap_get_working_set(PythonEnvironment.get_working_set)

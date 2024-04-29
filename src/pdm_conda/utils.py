@@ -1,6 +1,8 @@
 import re
 
-_patched = False
+from pdm.cli import utils
+from pdm.installers import synchronizers
+from pdm.models import candidates, repositories, requirements, working_set
 
 
 def normalize_name(name: str, lowercase: bool = True) -> str:
@@ -14,20 +16,5 @@ def normalize_name(name: str, lowercase: bool = True) -> str:
     return name.lower() if lowercase else name
 
 
-if not _patched:
-    from pdm.cli import utils
-    from pdm.installers import synchronizers
-    from pdm.models import candidates, repositories, requirements, working_set
-
-    modules = [
-        utils,
-        synchronizers,
-        candidates,
-        requirements,
-        repositories,
-        working_set,
-    ]
-    for m in modules:
-        m.normalize_name = normalize_name
-
-    _patched = True
+for m in [utils, synchronizers, candidates, requirements, repositories, working_set]:
+    m.normalize_name = normalize_name

@@ -3,6 +3,7 @@ from __future__ import annotations
 import functools
 from typing import TYPE_CHECKING
 
+from pdm.cli import actions, utils
 from pdm.formats.base import array_of_inline_tables, make_array
 from pdm.models.specifiers import get_specifier
 
@@ -17,8 +18,6 @@ if TYPE_CHECKING:
 
     from pdm_conda.models.candidates import Candidate
     from pdm_conda.models.requirements import Requirement
-
-_patched = False
 
 
 def remove_quotes(req: str) -> str:
@@ -110,14 +109,10 @@ def wrap_format_lockfile(func):
     return wrapper
 
 
-if not _patched:
-    from pdm.cli import actions, utils
-
-    save_version_specifiers = wrap_save_version_specifiers(utils.save_version_specifiers)
-    format_lockfile = wrap_format_lockfile(utils.format_lockfile)
-    wrap_fetch_hashes = wrap_fetch_hashes(actions.fetch_hashes)
-    for m in [utils, actions]:
-        m.save_version_specifiers = save_version_specifiers
-        m.format_lockfile = format_lockfile
-        m.fetch_hashes = wrap_fetch_hashes
-    _patched = True
+save_version_specifiers = wrap_save_version_specifiers(utils.save_version_specifiers)
+format_lockfile = wrap_format_lockfile(utils.format_lockfile)
+wrap_fetch_hashes = wrap_fetch_hashes(actions.fetch_hashes)
+for m in [utils, actions]:
+    m.save_version_specifiers = save_version_specifiers
+    m.format_lockfile = format_lockfile
+    m.fetch_hashes = wrap_fetch_hashes

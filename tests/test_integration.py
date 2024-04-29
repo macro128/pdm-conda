@@ -84,7 +84,7 @@ class TestIntegration:
             pkg_name = "ffmpeg"
             pkg_version = "6.1.1"
             dep = f"{pkg_name}=={pkg_version}"
-            pdm(["add", dep, "-G", group], obj=project, strict=True, cleanup=True).print()
+            pdm(["add", dep, "-G", group, "-vv"], obj=project, strict=True, cleanup=True).print()
             project.pyproject.reload()
             assert pkg_name not in project.conda_config.excludes
             assert project.conda_config.optional_dependencies == {group: [dep]}
@@ -189,3 +189,17 @@ class TestIntegration:
         pdm(["add", "typer", "--no-sync"], obj=project, strict=True, cleanup=True).print()
         project.pyproject.reload()
         self.assert_lockfile(project)
+
+    def test_case_04(self, pdm, project, build_env, env_name):
+        from pdm_conda.project.project_file import PyProject
+
+        project.global_config["pypi.url"] = "https://pypi.org/simple"
+        project.pyproject.set_data(
+            PyProject(Path(__file__).parent / "data" / "pyproject_1.toml", ui=project.core.ui)._data,
+        )
+        project.pyproject.write()
+
+        pdm(["lock", "-G", ":all"], obj=project, strict=True, cleanup=True).print()
+        project.pyproject.reload()
+        self.assert_lockfile(project)
+        print(json.dumps(project.lockfile._data, indent=2))

@@ -1,0 +1,94 @@
+[project]
+name = "test"
+requires-python = "~=3.10.0"
+authors = [
+    { name = "Marcos Pastorini" },
+]
+
+dependencies = [
+#    "asyncpg~=0.29.0",
+]
+
+[project.optional-dependencies]
+db = [
+#    "python-dotenv~=1.0.1",
+#    "pydantic~=1.10.8",
+#    "psycopg2-binary~=2.9.9",
+#    "alembic~=1.13.1",
+#    "sqlalchemy~=1.4.41",
+#    "fastapi~=0.106.0",
+#    "cryptography~=42.0.5",
+#    "python-slugify~=8.0.4",
+#    "flatdict~=4.0.1",
+#    "ormar~=0.12.2",
+#    "typing-extensions~=4.9.0",
+#    "aiobotocore~=2.11.2",
+#    "pycountry~=22.3.5",
+]
+services = [
+    "test[db]",
+#    "prefect-client~=2.18.0",
+#    "babel~=2.14.0",
+#    "python-telegram-bot~=21.1.1",
+#    "python-ffmpeg~=2.0.12",
+#    "streamlink~=6.7.3",
+]
+prefect-server = [
+    "prefect~=2.18.0",
+]
+api = [
+    "test[services]",
+#    "orjson~=3.10.1",
+#    "python-multipart~=0.0.9",
+#    "fastapi-crudrouter~=0.8.6",
+#    "pydantic-xml~=1.0.0",
+]
+prefect-worker = [
+    "test[services,prefect-server]",
+]
+
+[tool.pdm.dev-dependencies]
+s3-server = [
+#    "moto[server]~=4.2.14",
+]
+dev = [
+#    "moto[s3]~=4.2.14",
+#    "pytest~=8.1.1",
+#    "pytest-mock~=3.14.0",
+#    "pytest-cov~=5.0.0",
+#    "pytest-random-num~=1.0.13",
+#    "httpx~=0.27.0",
+#    "responses~=0.25.0",
+#    "mimesis~=13.1.0",
+#    "dateparser~=1.2.0",
+#    "pytest-order~=1.0.1",
+]
+
+[tool.pdm.conda]
+runner = "micromamba"
+channels = ["conda-forge"]
+as-default-manager = true
+batched-commands = true
+auto-excludes = true
+excludes = [
+    "moto",
+    "ormar",
+    "python-ffmpeg",
+    "prefect-client",
+    "pytest-random-num",
+    "databases",
+    "py-partiql-parser",
+    "streamlink",
+    "pydantic-xml",
+]
+
+[tool.pdm.conda.optional-dependencies]
+prefect-worker = [
+#    "ffmpeg~=6.1.1",
+]
+
+[tool.pdm]
+distribution = true
+
+[tool.pdm.resolution.overrides]
+trio = "<0.22"

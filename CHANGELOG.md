@@ -7,12 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.3] - 29/04/2024
+
+### Fixed
+
+* Fix locked packages missing groups when Conda resolution has cyclic dependencies.
+* Ensure `conda.excludes` is always sorted when saving to `pyproject.toml`
+
 ## [0.17.2] - 27/04/2024
 
 ### Added
 
 * Now compatible with `pdm==v2.15.1`.
-
 
 ### Fixed
 

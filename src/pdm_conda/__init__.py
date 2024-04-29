@@ -25,6 +25,7 @@ def main(core: Core):
     from pdm_conda.environments import python
     from pdm_conda.models.config import CONFIGS
     from pdm_conda.project import CondaProject
+    from pdm_conda.resolver import graph
 
     core.project_class = CondaProject
 
