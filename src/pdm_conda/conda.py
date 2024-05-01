@@ -527,16 +527,21 @@ def not_initialized_warning(project):
     )
 
 
-def conda_info(project: CondaProject) -> dict:
+def conda_info(project: CondaProject, env_name: str = "") -> dict:
     """Get conda info containing virtual packages, default channels and packages.
 
     :param project: PDM project
+    :param env_name: Target environment name
     :return: dict with conda info
     """
     config = project.conda_config
-    res: dict = {"virtual_packages": set(), "platform": "", "channels": []}
+    res: dict = {"virtual_packages": set(), "platform": "", "channels": [], "base_env": Path()}
     if config.is_initialized:
-        info = run_conda(config.command("info") + ["--json"])
+        cmd = config.command("info", use_project_env=not env_name)
+        if env_name:
+            cmd += ["-n", env_name]
+        cmd += ["--json"]
+        info = run_conda(cmd)
         if config.runner != CondaRunner.MICROMAMBA:
             virtual_packages = {"=".join(p) for p in info["virtual_pkgs"]}
         else:
@@ -545,6 +550,7 @@ def conda_info(project: CondaProject) -> dict:
         res["virtual_packages"] = {parse_requirement(f"conda:{p.replace('=', '==', 1)}") for p in virtual_packages}
         res["platform"] = info["platform"]
         res["channels"] = [parse_channel(channel) for channel in (info["channels"] or [])]
+        res["base_env"] = Path(info.get("base environment", info.get("default_prefix", "")))
     else:
         not_initialized_warning(project)
     return res

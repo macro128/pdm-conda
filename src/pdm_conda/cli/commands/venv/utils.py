@@ -7,7 +7,7 @@ from findpython.providers.base import BaseProvider
 from pdm.cli.commands.venv import list, utils
 from pdm.models.venv import VirtualEnv
 
-from pdm_conda.conda import conda_env_list
+from pdm_conda.conda import conda_env_list, conda_info
 
 if TYPE_CHECKING:
     from pdm_conda.project import CondaProject
@@ -19,10 +19,12 @@ get_venv_prefix = utils.get_venv_prefix
 
 
 def find_pythons(project) -> Iterable[PythonVersion]:
+    base_env = conda_info(project, env_name="base")["base_env"]
     for env in conda_env_list(project):
-        python_bin = env / "bin/python"
-        if python_bin.exists():
-            yield CondaProvider.version_maker(python_bin, _interpreter=python_bin, keep_symlink=False)
+        if env != base_env:
+            python_bin = env / "bin/python"
+            if python_bin.exists():
+                yield CondaProvider.version_maker(python_bin, _interpreter=python_bin, keep_symlink=False)
 
 
 class CondaProvider(BaseProvider):
@@ -43,10 +45,8 @@ class CondaProvider(BaseProvider):
 def wrap_iter_venvs(func):
     @functools.wraps(func)
     def wrapper(project):
-        envs = func(project)
-        for env in envs:
-            yield env
-        if project.conda_config.is_initialized and project.conda_config.custom_behavior:
+        yield from func(project)
+        if project.conda_config.is_initialized:
             for python in find_pythons(project):
                 if str(path := python.executable).endswith("/bin/python"):
                     path = path.parents[1]
