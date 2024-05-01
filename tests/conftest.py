@@ -221,8 +221,10 @@ def mock_conda(
 
             if runner != "micromamba":
                 info["virtual_pkgs"] = virtual_packages
+                info["base environment"] = CONDA_PREFIX
             else:
                 info["virtual packages"] = ["=".join(p) for p in virtual_packages]
+                info["default_prefix"] = CONDA_PREFIX
 
             return info
         if subcommand in ("repoquery", "search"):

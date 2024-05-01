@@ -205,3 +205,20 @@ class TestIntegration:
             project.pyproject.reload()
             self.assert_lockfile(project)
         print(json.dumps(project.lockfile._data, indent=2))
+
+    def test_case_05(self, pdm, project, build_env, env_name):
+        python_version = "3.11"
+        print(f"create environment {env_name} with python version {python_version}:")
+        pdm(
+            ["venv", "create", "-cn", env_name, "-vv", python_version, "-f"],
+            obj=project,
+            strict=True,
+            cleanup=True,
+        ).print()
+        print("use")
+        res = pdm(["use"], obj=project, strict=True, cleanup=True, input="0\n")
+        res.print()
+        interpreters = list(project.iter_interpreters())
+        assert len(interpreters) == 2
+        for i in interpreters:
+            assert res.stdout.count(f"({i.executable.parent}") == 1

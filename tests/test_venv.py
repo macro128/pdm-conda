@@ -2,6 +2,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import pytest
+from conftest import CONDA_PREFIX
 from pdm.project import Config
 
 
@@ -36,6 +37,11 @@ def interpreter_path(venv_path, active, initialized):
         path.mkdir(exist_ok=True, parents=True)
         (venv_path / "conda-meta").mkdir(exist_ok=True)
     return path if active else None
+
+
+@pytest.fixture
+def conda_info(venv_path):
+    return [CONDA_PREFIX, str(venv_path)]
 
 
 @pytest.mark.usefixtures("venv_path")
@@ -139,4 +145,7 @@ class TestVenv:
                 assert f"{project.root.name}-" in result.output
 
         assert "Virtualenv is created successfully" not in result.output
-        assert conda.call_count == 0
+        conda_calls = ["info", "env list"]
+        assert conda.call_count == len(conda_calls)
+        for ((cmd,), _), expected_cmd in zip(conda.call_args_list, conda_calls, strict=False):
+            assert " ".join(cmd).startswith(f"{runner} {expected_cmd}")
