@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import functools
 from typing import TYPE_CHECKING
 
@@ -7,6 +8,7 @@ from pdm.cli import actions, utils
 from pdm.formats.base import array_of_inline_tables, make_array
 from pdm.models.specifiers import get_specifier
 
+from pdm_conda import logger
 from pdm_conda.models.candidates import CondaCandidate
 from pdm_conda.models.repositories import CondaRepository
 from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement, comparable_version
@@ -18,6 +20,15 @@ if TYPE_CHECKING:
 
     from pdm_conda.models.candidates import Candidate
     from pdm_conda.models.requirements import Requirement
+
+
+@contextlib.contextmanager
+def ensure_logger(project, logger_name: str):
+    if len(logger.handlers) == 1:
+        with project.core.ui.logging(logger_name):
+            yield
+    else:
+        yield
 
 
 def remove_quotes(req: str) -> str:

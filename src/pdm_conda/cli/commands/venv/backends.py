@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from typing import cast, TYPE_CHECKING
 
 from pdm.cli.commands.venv.backends import BACKENDS, CondaBackend as BackendBase
 
+from pdm_conda.cli.utils import ensure_logger
 from pdm_conda.conda import conda_create, conda_env_remove
 from pdm_conda.models.config import CondaRunner
 from pdm_conda.models.requirements import parse_requirement
@@ -18,6 +19,18 @@ class CondaBackend(BackendBase):
     def __init__(self, project: Project, python: str | None) -> None:
         super().__init__(project, python)
         self.project = cast(CondaProject, project)
+
+    def create(
+        self,
+        name: str | None = None,
+        args: tuple[str, ...] = (),
+        force: bool = False,
+        in_project: bool = False,
+        prompt: str | None = None,
+        with_pip: bool = False,
+    ) -> Path:
+        with ensure_logger(self.project, "conda_create"):
+            return super().create(name, args, force, in_project, prompt, with_pip)
 
     def get_location(self, name: str | None) -> Path:
         with self.project.conda_config.with_conda_venv_location() as (venv_location, _):
