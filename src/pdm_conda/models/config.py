@@ -303,7 +303,7 @@ class PluginConfig:
             venv_location = Path(conda_prefix)  # type: ignore
             for parent in (venv_location, *venv_location.parents):
                 if (venv_path := (parent / "envs")).is_dir():
-                    logger.info(f"Using detected Conda path for environment: [success]{venv_path}[/]")
+                    logger.info(f"Detected Conda environment: {venv_path}")
                     self._project.global_config[conf_name] = str(venv_path)
                     del self._project.config
                     overridden = True
@@ -376,6 +376,6 @@ class PluginConfig:
             _command.append("--strict-channel-priority")
         if self.runner == CondaRunner.CONDA and self.solver == CondaSolver.MAMBA and cmd in ("create", "install"):
             _command += ["--solver", CondaSolver.MAMBA.value]
-        if use_project_env and cmd not in ("search", "search"):
+        if use_project_env and cmd.split(" ")[0] not in ("search", "env"):
             _command += ["--prefix", str(self._project.environment.interpreter.path).replace("/bin/python", "")]
         return _command

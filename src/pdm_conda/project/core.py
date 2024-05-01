@@ -243,3 +243,19 @@ class CondaProject(Project):
     @is_distribution.setter
     def is_distribution(self, value: bool | None):
         self._is_distribution = value
+
+    def find_interpreters(
+        self,
+        python_spec: str | None = None,
+        search_venv: bool | None = None,
+    ) -> Iterable[PythonInfo]:
+        if not self.conda_config.is_initialized:
+            return super().find_interpreters(python_spec, search_venv)
+        else:
+            executables = set()
+            for i in super().find_interpreters(python_spec, search_venv):
+                if not i.get_venv().is_conda:
+                    yield i
+                elif (executable := i.executable.resolve()) not in executables:
+                    executables.add(executable)
+                    yield i

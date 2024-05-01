@@ -3,7 +3,6 @@ from __future__ import annotations
 import uuid
 from typing import TYPE_CHECKING, cast
 
-from pdm import termui
 from pdm.exceptions import CandidateNotFound
 from pdm.models.repositories import BaseRepository, LockedRepository, PyPIRepository
 from pdm.models.specifiers import PySpecSet
@@ -126,7 +125,7 @@ class CondaRepository(BaseRepository):
 
     def get_hashes(self, candidate: Candidate) -> list[FileHash]:
         if isinstance(candidate, CondaCandidate) and not candidate.hashes:
-            termui.logger.info(f"Fetching hashes for {candidate}")
+            logger.info(f"Fetching hashes for {candidate}")
             _candidates = conda_search(self.environment.project, candidate.req)
             if not _candidates:
                 raise CondaSearchError(f"Cannot find hashes for {candidate}")
@@ -148,7 +147,7 @@ class CondaRepository(BaseRepository):
                 dry_run=True,
             )
             for candidate in mapping.values():
-                termui.logger.info(f"Fetching hashes for {candidate}")
+                logger.info(f"Fetching hashes for {candidate}")
                 if (cans := resolution.get(candidate.name, [])) and cans[0].req.is_compatible(candidate.req):
                     candidate.hashes = cans[0].hashes
                 else:
@@ -195,7 +194,7 @@ class PyPICondaRepository(PyPIRepository, CondaRepository):
                     self._conda_resolution[key] = candidates
 
             except CondaResolutionError as err:
-                logger.info(err)
+                logger.debug(err)
                 if err.packages:
                     if self.environment.project.conda_config.auto_excludes:
                         logger.info(f"Adding {_format_packages(err.packages)} to excludes list")
