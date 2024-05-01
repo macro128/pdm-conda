@@ -70,12 +70,14 @@ The following commands were tested and work:
 * `pdm update`
 * `pdm list`
 * `pdm info`
+* `pdm use`
 * `pdm venv`:
     * `create`:
         * To list/use Conda managed python you must specify the Conda runner with `-w` or `--with`.
         * You can completely override the Conda environment name with `-cn` or `--conda-name`, the resulting environment
           won't follow PDM environment naming conventions.
     * `list`
+    * `remove`
 
 ### How it works
 
