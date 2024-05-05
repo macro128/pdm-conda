@@ -380,6 +380,6 @@ class PluginConfig:
         if use_project_env and cmd.split(" ")[0] not in ("search", "env", "info"):
             _command += [
                 "--prefix",
-                str(self._project.environment.interpreter.path.expanduser()).replace("/bin/python", ""),
+                str(fix_path(self._project.environment.interpreter.path)).replace("/bin/python", ""),
             ]
         return _command
