@@ -28,6 +28,7 @@ prefect-worker = [
 
 [tool.pdm.conda]
 runner = "micromamba"
+solver = "libmamba"
 channels = ["conda-forge"]
 custom-behavior = true
 as-default-manager = true

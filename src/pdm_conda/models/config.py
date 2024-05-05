@@ -377,7 +377,7 @@ class PluginConfig:
             _command.append("--strict-channel-priority")
         if self.runner == CondaRunner.CONDA and self.solver == CondaSolver.MAMBA and cmd in ("create", "install"):
             _command += ["--solver", CondaSolver.MAMBA.value]
-        if use_project_env and cmd.split(" ")[0] not in ("search", "env"):
+        if use_project_env and cmd.split(" ")[0] not in ("search", "env", "info"):
             _command += [
                 "--prefix",
                 str(self._project.environment.interpreter.path.expanduser()).replace("/bin/python", ""),

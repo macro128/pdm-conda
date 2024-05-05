@@ -1,4 +1,5 @@
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -19,10 +20,27 @@ def env_name():
 
 
 @pytest.fixture
-def clean_envs(pdm, project, env_name):
-    project.conda_config.is_initialized = True
-    project.conda_config.runner = "micromamba"
+def prepare_env(project, runner):
+    project.conda_config.runner = runner
+    project.conda_config.solver = "libmamba"
+    project.conda_config.channels = ["conda-forge"]
+    project.conda_config.as_default_manager = True
     project.conda_config.custom_behavior = True
+    project.conda_config.is_initialized = True
+    project.global_config["pypi.url"] = "https://pypi.org/simple"
+    project.global_config["pypi.json_api"] = False
+    if runner in ("conda", "mamba"):
+        if runner == "conda":
+            pass
+        subprocess.run(
+            ["micromamba", "install", "-y", runner, "-c", "conda-forge"],
+            check=True,
+            capture_output=True,
+        )
+
+
+@pytest.fixture
+def clean_envs(pdm, project, env_name, prepare_env):
     while True:
         try:
             pdm(["venv", "remove", env_name, "-y"], obj=project, strict=True, cleanup=True).print()
@@ -33,6 +51,7 @@ def clean_envs(pdm, project, env_name):
 
 @pytest.mark.manual_only
 @pytest.mark.usefixtures("clean_envs")
+@pytest.mark.parametrize("runner", ["mamba", "micromamba"])
 class TestIntegration:
     def assert_lockfile(self, project, pdm=None):
         if pdm is not None:
@@ -44,14 +63,8 @@ class TestIntegration:
             if pdm is not None:
                 assert pkg["version"] == installed[pkg["name"]]["version"]
 
-    def test_case_01(self, pdm, project, build_env, env_name):
-        project.global_config["pypi.url"] = "https://pypi.org/simple"
-        project.global_config["pypi.json_api"] = False
+    def test_case_01(self, pdm, project, build_env, env_name, runner):
         config = project.conda_config
-        config.runner = "micromamba"
-        config.channels = ["conda-forge"]
-        config.as_default_manager = True
-        config.custom_behavior = True
         config.auto_excludes = True
         config.batched_commands = True
         from pdm_conda.project.core import PyProject
@@ -128,6 +141,7 @@ class TestIntegration:
             installed = next(filter(lambda r: r["name"] == pkg_name and r["version"] == pkg_version, res), None)  # type: ignore
             assert installed is not None
             expected_pyproject = PyProject(Path(__file__).parent / "data" / "pyproject.toml", ui=project.core.ui)
+            expected_pyproject.settings["conda"]["runner"] = runner
             assert project.pyproject._data == expected_pyproject._data
             self.assert_lockfile(project, pdm)
 
@@ -139,14 +153,14 @@ class TestIntegration:
         print("list environments:")
         pdm(["venv", "list"], obj=project, strict=True, cleanup=True).print()
 
-    def test_case_02(self, pdm, project, build_env, env_name):
-        project.global_config["pypi.url"] = "https://pypi.org/simple"
+    def test_case_02(self, pdm, project, build_env, env_name, runner):
         from pdm_conda.project.core import PyProject
 
         project.pyproject.set_data(
             PyProject(Path(__file__).parent / "data" / "pyproject.toml", ui=project.core.ui)._data,
         )
         project.pyproject.write()
+        project.conda_config.runner = runner
         assert project.conda_config.auto_excludes
 
         print("lock:")
@@ -155,13 +169,7 @@ class TestIntegration:
         self.assert_lockfile(project)
 
     def test_case_03(self, pdm, project, build_env, env_name):
-        project.global_config["pypi.url"] = "https://pypi.org/simple"
-        project.global_config["pypi.json_api"] = False
         config = project.conda_config
-        config.runner = "micromamba"
-        config.channels = ["conda-forge"]
-        config.as_default_manager = True
-        config.custom_behavior = True
         config.auto_excludes = True
         config.batched_commands = True
 
@@ -190,21 +198,19 @@ class TestIntegration:
         project.pyproject.reload()
         self.assert_lockfile(project)
 
-    def test_case_04(self, pdm, project, build_env, env_name):
+    def test_case_04(self, pdm, project, build_env, env_name, runner):
         from pdm_conda.project.project_file import PyProject
 
-        project.global_config["pypi.url"] = "https://pypi.org/simple"
-        project.global_config["pypi.json_api"] = False
         project.pyproject.set_data(
             PyProject(Path(__file__).parent / "data" / "pyproject_1.toml", ui=project.core.ui)._data,
         )
         project.pyproject.write()
+        project.conda_config.runner = runner
 
         for _ in range(2):
-            pdm(["lock", "-G", ":all", "--update-reuse"], obj=project, strict=True, cleanup=True).print()
+            pdm(["lock", "-G", ":all", "--update-reuse", "-vv"], obj=project, strict=True, cleanup=True).print()
             project.pyproject.reload()
             self.assert_lockfile(project)
-        print(json.dumps(project.lockfile._data, indent=2))
 
     def test_case_05(self, pdm, project, build_env, env_name):
         python_version = "3.11"

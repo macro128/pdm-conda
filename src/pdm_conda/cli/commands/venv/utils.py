@@ -7,7 +7,7 @@ from findpython.providers.base import BaseProvider
 from pdm.cli.commands.venv import list, utils
 from pdm.models.venv import VirtualEnv
 
-from pdm_conda.conda import conda_env_list, conda_info
+from pdm_conda.conda import conda_base_path, conda_env_list
 
 if TYPE_CHECKING:
     from pdm_conda.project import CondaProject
@@ -19,7 +19,7 @@ get_venv_prefix = utils.get_venv_prefix
 
 
 def find_pythons(project) -> Iterable[PythonVersion]:
-    base_env = conda_info(project, env_name="base")["base_env"]
+    base_env = conda_base_path(project)
     for env in conda_env_list(project):
         if env != base_env:
             python_bin = env / "bin/python"

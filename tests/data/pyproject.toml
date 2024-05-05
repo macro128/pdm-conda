@@ -1,5 +1,6 @@
 [tool.pdm.conda]
 runner = "micromamba"
+solver = "libmamba"
 channels = ["conda-forge"]
 as-default-manager = true
 custom-behavior = true

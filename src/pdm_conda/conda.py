@@ -527,20 +527,16 @@ def not_initialized_warning(project):
     )
 
 
-def conda_info(project: CondaProject, env_name: str = "") -> dict:
+def conda_info(project: CondaProject) -> dict:
     """Get conda info containing virtual packages, default channels and packages.
 
     :param project: PDM project
-    :param env_name: Target environment name
     :return: dict with conda info
     """
     config = project.conda_config
-    res: dict = {"virtual_packages": set(), "platform": "", "channels": [], "base_env": Path()}
+    res: dict = {"virtual_packages": set(), "platform": "", "channels": []}
     if config.is_initialized:
-        cmd = config.command("info", use_project_env=not env_name)
-        if env_name:
-            cmd += ["-n", env_name]
-        cmd += ["--json"]
+        cmd = config.command("info") + ["--json"]
         info = run_conda(cmd)
         if config.runner != CondaRunner.MICROMAMBA:
             virtual_packages = {"=".join(p) for p in info["virtual_pkgs"]}
@@ -550,7 +546,24 @@ def conda_info(project: CondaProject, env_name: str = "") -> dict:
         res["virtual_packages"] = {parse_requirement(f"conda:{p.replace('=', '==', 1)}") for p in virtual_packages}
         res["platform"] = info["platform"]
         res["channels"] = [parse_channel(channel) for channel in (info["channels"] or [])]
-        res["base_env"] = Path(info.get("base environment", info.get("default_prefix", "")))
+    else:
+        not_initialized_warning(project)
+    return res
+
+
+def conda_base_path(project: CondaProject) -> Path:
+    """Get conda base environment path :param project: PDM project :return: Conda base environment path."""
+    config = project.conda_config
+    res = Path()
+    if config.is_initialized:
+        cmd = config.command("info")
+        if config.runner == CondaRunner.MICROMAMBA:
+            cmd += ["-n", "base"]
+        else:
+            cmd.append("--base")
+        cmd += ["--json"]
+        info = run_conda(cmd)
+        res = fix_path(info.get("base environment", info.get("root_prefix", res)))
     else:
         not_initialized_warning(project)
     return res
