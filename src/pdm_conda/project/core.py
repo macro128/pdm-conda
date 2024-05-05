@@ -254,8 +254,9 @@ class CondaProject(Project):
         else:
             executables = set()
             for i in super().find_interpreters(python_spec, search_venv):
-                if not i.get_venv().is_conda:
-                    yield i
-                elif (executable := i.executable.resolve()) not in executables:
-                    executables.add(executable)
+                if (venv := i.get_venv()) is not None and venv.is_conda:
+                    if (executable := i.executable.resolve()) not in executables:
+                        executables.add(executable)
+                        yield i
+                else:
                     yield i
