@@ -11,7 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Don't show duplicated Conda interpreters on `pdm use`.
 * Don't show base Conda env on `pdm env list`.
-* Write plugin related changes on `pdm venv create --with`
+* Write plugin related changes on `pdm venv create --with`.
+* Fix paths when using on Windows.
 
 ## [0.17.4] - 29/04/2024
 

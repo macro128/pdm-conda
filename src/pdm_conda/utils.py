@@ -1,4 +1,8 @@
+from __future__ import annotations
+
+import os
 import re
+from pathlib import Path
 
 from pdm.cli import utils
 from pdm.installers import synchronizers
@@ -18,3 +22,8 @@ def normalize_name(name: str, lowercase: bool = True) -> str:
 
 for m in [utils, synchronizers, candidates, requirements, repositories, working_set]:
     m.normalize_name = normalize_name
+
+
+def fix_path(path: str | Path) -> Path:
+    """Fix path for windows."""
+    return Path(re.sub(r"<(?:env:)?([^>]+)>", r"\1", os.path.expandvars(path))).expanduser()

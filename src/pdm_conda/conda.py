@@ -22,7 +22,7 @@ from pdm_conda.models.conda import ChannelSorter
 from pdm_conda.models.config import CondaRunner
 from pdm_conda.models.requirements import CondaRequirement, parse_conda_version, parse_requirement
 from pdm_conda.models.setup import CondaSetupDistribution
-from pdm_conda.utils import normalize_name
+from pdm_conda.utils import fix_path, normalize_name
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -338,7 +338,7 @@ def conda_create(
     command = config.command("create", use_project_env=False)
     command.append("--json")
     if prefix is not None:
-        command.extend(["--prefix", str(prefix)])
+        command.extend(["--prefix", str(fix_path(prefix))])
     elif name:
         command.extend(["--name", name])
     else:
@@ -420,7 +420,7 @@ def conda_env_remove(project: CondaProject, prefix: Path | str | None = None, na
     command = config.command("env remove", use_project_env=False)
     command.append("--json")
     if prefix is not None:
-        command += ["--prefix", str(prefix)]
+        command += ["--prefix", str(fix_path(prefix))]
     elif name:
         command += ["--name", name]
     else:
@@ -442,7 +442,7 @@ def conda_env_list(project: CondaProject) -> list[Path]:
     command = config.command("env list", use_project_env=False)
     command.append("--json")
     environments = run_conda(command, exception_cls=CondaExecutionError, exception_msg="Error listing environments")
-    return [Path(env) for env in environments.get("envs", [])]
+    return [fix_path(env) for env in environments.get("envs", [])]
 
 
 def _conda_install(

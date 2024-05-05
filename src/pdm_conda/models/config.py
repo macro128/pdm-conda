@@ -16,6 +16,7 @@ from pdm.utils import normalize_name
 from pdm_conda import logger
 from pdm_conda.mapping import MAPPING_DOWNLOAD_DIR_ENV_VAR, MAPPING_URL, MAPPING_URL_ENV_VAR
 from pdm_conda.models.requirements import parse_requirement
+from pdm_conda.utils import fix_path
 
 if TYPE_CHECKING:
     from typing import Any
@@ -300,7 +301,7 @@ class PluginConfig:
         if (previous_value := self._project.config[conf_name]) == Config.get_defaults()[conf_name] and (
             conda_prefix := os.getenv("CONDA_PREFIX", None)
         ) is not None:
-            venv_location = Path(conda_prefix)  # type: ignore
+            venv_location = fix_path(conda_prefix)
             for parent in (venv_location, *venv_location.parents):
                 if (venv_path := (parent / "envs")).is_dir():
                     logger.info(f"Detected Conda environment: {venv_path}")
@@ -309,7 +310,7 @@ class PluginConfig:
                     overridden = True
                     break
         try:
-            yield Path(self._project.config[conf_name]), overridden
+            yield fix_path(self._project.config[conf_name]), overridden
         finally:
             self._project.global_config[conf_name] = previous_value
             if overridden:
@@ -377,5 +378,8 @@ class PluginConfig:
         if self.runner == CondaRunner.CONDA and self.solver == CondaSolver.MAMBA and cmd in ("create", "install"):
             _command += ["--solver", CondaSolver.MAMBA.value]
         if use_project_env and cmd.split(" ")[0] not in ("search", "env"):
-            _command += ["--prefix", str(self._project.environment.interpreter.path).replace("/bin/python", "")]
+            _command += [
+                "--prefix",
+                str(self._project.environment.interpreter.path.expanduser()).replace("/bin/python", ""),
+            ]
         return _command
