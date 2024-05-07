@@ -26,4 +26,9 @@ for m in [utils, synchronizers, candidates, requirements, repositories, working_
 
 def fix_path(path: str | Path) -> Path:
     """Fix path for windows."""
-    return Path(re.sub(r"<(?:env:)?([^>]+)>", r"\1", os.path.expandvars(path))).expanduser()
+    path = re.sub(r"<(?:\$?env:)?([^>]+)>", r"$\1", str(path))
+    path = re.sub(r"\${2,}", "$", path)
+    path = os.path.expandvars(path)
+    path = Path(path).expanduser()
+    assert "$" not in str(path), f"Could not expand all environment variables from {path}"
+    return path
