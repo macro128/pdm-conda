@@ -252,11 +252,15 @@ class CondaProject(Project):
         if not self.conda_config.is_initialized:
             return super().find_interpreters(python_spec, search_venv)
         else:
-            executables = set()
+            from pdm_conda.environments import CondaEnvironment
+
+            roots = set()
+            if isinstance(self.environment, CondaEnvironment):
+                roots.add(self.environment.base_env)
             for i in super().find_interpreters(python_spec, search_venv):
                 if (venv := i.get_venv()) is not None and venv.is_conda:
-                    if (executable := i.executable.resolve()) not in executables:
-                        executables.add(executable)
+                    if (root := venv.root) not in roots:
+                        roots.add(root)
                         yield i
                 else:
                     yield i

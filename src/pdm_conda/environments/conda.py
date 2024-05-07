@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import uuid
 from collections import ChainMap
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from pdm.models.in_process import get_sys_config_paths
 from pdm.models.specifiers import PySpecSet
 
-from pdm_conda.conda import conda_create, conda_info, conda_list, conda_search
+from pdm_conda.conda import conda_base_path, conda_create, conda_info, conda_list, conda_search
 from pdm_conda.environments.python import PythonEnvironment
 from pdm_conda.models.config import CondaRunner, CondaSolver
 from pdm_conda.project import CondaProject
@@ -32,6 +33,7 @@ class CondaEnvironment(PythonEnvironment):
         self._virtual_packages: set[CondaRequirement] | None = None
         self._platform: str | None = None
         self._default_channels: list[str] | None = None
+        self._base_env: Path | None = None
 
     @property
     def virtual_packages(self) -> set[CondaRequirement]:
@@ -47,6 +49,12 @@ class CondaEnvironment(PythonEnvironment):
     def default_channels(self) -> list[str]:
         self._check_update_info(self._default_channels)
         return self._default_channels  # type: ignore
+
+    @property
+    def base_env(self) -> Path:
+        if self._base_env is None:
+            self._base_env = conda_base_path(self.project)
+        return self._base_env
 
     def _check_update_info(self, prop):
         if prop is None:

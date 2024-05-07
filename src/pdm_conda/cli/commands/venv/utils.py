@@ -8,7 +8,8 @@ from findpython.providers.base import BaseProvider
 from pdm.cli.commands.venv import list, utils
 from pdm.models.venv import VirtualEnv
 
-from pdm_conda.conda import conda_base_path, conda_env_list
+from pdm_conda.conda import conda_env_list
+from pdm_conda.environments import CondaEnvironment
 from pdm_conda.utils import get_python_dir
 
 if TYPE_CHECKING:
@@ -21,15 +22,17 @@ get_venv_prefix = utils.get_venv_prefix
 
 
 def find_pythons(project) -> Iterable[PythonVersion]:
-    base_env = conda_base_path(project)
-    python_suffix = "bin/python" if sys.platform != "win32" else "python.exe"
-    for env in conda_env_list(project):
-        if env != base_env and env.parent != base_env.parent:
-            python_bin = env / python_suffix
-            if python_bin.exists():
-                yield CondaProvider.version_maker(
-                    python_bin, _interpreter=python_bin, keep_symlink=False,
-                )
+    if isinstance(project.environment, CondaEnvironment):
+        python_suffix = "bin/python" if sys.platform != "win32" else "python.exe"
+        for env in conda_env_list(project):
+            if env != project.environment.base_env and env.parent != project.environment.base_env:
+                python_bin = env / python_suffix
+                if python_bin.exists():
+                    yield CondaProvider.version_maker(
+                        python_bin,
+                        _interpreter=python_bin,
+                        keep_symlink=False,
+                    )
 
 
 class CondaProvider(BaseProvider):
