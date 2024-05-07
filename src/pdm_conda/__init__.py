@@ -20,6 +20,7 @@ def main(core: Core):
     from pdm_conda.cli.commands.lock import Command as LockCommand
     from pdm_conda.cli.commands.remove import Command as RemoveCommand
     from pdm_conda.cli.commands.update import Command as UpdateCommand
+    from pdm_conda.cli.commands.use import Command as UseCommand
     from pdm_conda.cli.commands.venv import Command as VenvCommand
     from pdm_conda.cli.commands.venv import backends
     from pdm_conda.cli.commands.venv import utils as venv_utils
@@ -30,7 +31,16 @@ def main(core: Core):
 
     core.project_class = CondaProject
 
-    for cmd in [InitCommand, AddCommand, RemoveCommand, UpdateCommand, LockCommand, InstallCommand, VenvCommand]:
+    for cmd in [
+        InitCommand,
+        AddCommand,
+        RemoveCommand,
+        UpdateCommand,
+        LockCommand,
+        InstallCommand,
+        VenvCommand,
+        UseCommand,
+    ]:
         core.register_command(cmd)
 
     for name, config in CONFIGS:
