@@ -256,7 +256,10 @@ class CondaProject(Project):
 
             roots = set()
             if isinstance(self.environment, CondaEnvironment):
-                roots.add(self.environment.base_env)
+                base_env = self.environment.base_env
+                if base_env:
+                    roots.add(base_env)
+                    roots.update({p for p in base_env.glob(".") if p.is_directory()})
             for i in super().find_interpreters(python_spec, search_venv):
                 if (venv := i.get_venv()) is not None and venv.is_conda:
                     if (root := venv.root) not in roots:
