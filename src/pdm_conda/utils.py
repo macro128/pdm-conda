@@ -32,3 +32,12 @@ def fix_path(path: str | Path) -> Path:
     path = Path(path).expanduser()
     assert "$" not in str(path), f"Could not expand all environment variables from {path}"
     return path
+
+
+def get_python_dir(path: Path) -> Path:
+    """Get the python directory for given interpreter path."""
+    if str(path).endswith("/bin/python"):
+        return path.parents[1]
+    if str(path).endswith("python.exe"):
+        return path.parent
+    return path

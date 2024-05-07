@@ -11,7 +11,7 @@ from pdm_conda.conda import conda_create, conda_info, conda_list, conda_search
 from pdm_conda.environments.python import PythonEnvironment
 from pdm_conda.models.config import CondaRunner, CondaSolver
 from pdm_conda.project import CondaProject
-from pdm_conda.utils import fix_path
+from pdm_conda.utils import fix_path, get_python_dir
 
 if TYPE_CHECKING:
     from pdm.models.working_set import WorkingSet
@@ -28,7 +28,7 @@ class CondaEnvironment(PythonEnvironment):
         self._env_dependencies: dict[str, Requirement] | None = None
         if self.project.conda_config.is_initialized:
             self.python_requires &= PySpecSet(f"=={self.interpreter.version}")
-            self.prefix = str(fix_path(self.interpreter.path)).replace("/bin/python", "")
+            self.prefix = str(get_python_dir(fix_path(self.interpreter.path)))
         self._virtual_packages: set[CondaRequirement] | None = None
         self._platform: str | None = None
         self._default_channels: list[str] | None = None
