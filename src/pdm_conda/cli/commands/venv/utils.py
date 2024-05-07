@@ -24,10 +24,12 @@ def find_pythons(project) -> Iterable[PythonVersion]:
     base_env = conda_base_path(project)
     python_suffix = "bin/python" if sys.platform != "win32" else "python.exe"
     for env in conda_env_list(project):
-        if env != base_env:
+        if env != base_env and env.parent != base_env.parent:
             python_bin = env / python_suffix
             if python_bin.exists():
-                yield CondaProvider.version_maker(python_bin, _interpreter=python_bin, keep_symlink=False)
+                yield CondaProvider.version_maker(
+                    python_bin, _interpreter=python_bin, keep_symlink=False,
+                )
 
 
 class CondaProvider(BaseProvider):
