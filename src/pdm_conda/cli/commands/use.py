@@ -30,7 +30,7 @@ class Command(BaseCommand):
         venv: str | None,
         first: bool,
     ) -> PythonInfo:
-        selected_python = super().select_python(
+        selected_python = BaseCommand.select_python(
             project,
             python,
             ignore_remembered=ignore_remembered,
