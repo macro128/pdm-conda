@@ -10,6 +10,7 @@ from pdm.project.lockfile import Lockfile
 from pdm.utils import get_venv_like_prefix
 from tomlkit.items import Array
 
+from pdm_conda import logger
 from pdm_conda.models.config import PluginConfig
 from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement, is_conda_managed, parse_requirement
 from pdm_conda.project.project_file import PyProject
@@ -50,6 +51,7 @@ class CondaProject(Project):
         self._pypi_mapping: dict[str, str] = {}
         self.conda_config = PluginConfig.load_config(self)
         self._is_distribution: bool | None = None
+        self._base_env: Path | None = None
 
     @property
     def virtual_packages(self) -> set[CondaRequirement]:
@@ -74,6 +76,14 @@ class CondaProject(Project):
         if isinstance(self.environment, CondaEnvironment):
             return self.environment.default_channels
         return []
+
+    @property
+    def base_env(self) -> Path:
+        if self._base_env is None:
+            from pdm_conda.conda import conda_base_path
+
+            self._base_env = conda_base_path(self)
+        return self._base_env
 
     @property
     def locked_repository(self) -> LockedRepository:
@@ -209,12 +219,11 @@ class CondaProject(Project):
     def get_environment(self) -> BaseEnvironment:
         if not self.conda_config.is_initialized:
             return super().get_environment()
-
+        if not get_venv_like_prefix(self.python.executable)[1]:
+            logger.debug("Conda environment not detected.")
+            return super().get_environment()
         if not self.config["python.use_venv"]:
             raise ProjectError("python.use_venv is required to use Conda.")
-        if not get_venv_like_prefix(self.python.executable)[1]:
-            raise ProjectError("Conda environment not detected.")
-
         return self.environment_class(self)
 
     def get_provider(
@@ -252,13 +261,9 @@ class CondaProject(Project):
         if not self.conda_config.is_initialized:
             return super().find_interpreters(python_spec, search_venv)
         else:
-            from pdm_conda.environments import CondaEnvironment
-
             roots = set()
-            if isinstance(self.environment, CondaEnvironment):
-                base_env = self.environment.base_env
-                if base_env:
-                    roots.add(base_env)
+            if self.base_env:
+                roots.add(self.base_env)
             for i in super().find_interpreters(python_spec, search_venv):
                 if (venv := i.get_venv()) is not None and venv.is_conda:
                     if (root := venv.root) not in roots:

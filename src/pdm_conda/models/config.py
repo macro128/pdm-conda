@@ -16,7 +16,7 @@ from pdm.utils import normalize_name
 from pdm_conda import logger
 from pdm_conda.mapping import MAPPING_DOWNLOAD_DIR_ENV_VAR, MAPPING_URL, MAPPING_URL_ENV_VAR
 from pdm_conda.models.requirements import parse_requirement
-from pdm_conda.utils import fix_path
+from pdm_conda.utils import fix_path, get_python_dir
 
 if TYPE_CHECKING:
     from typing import Any
@@ -375,11 +375,12 @@ class PluginConfig:
             _command.append("-y")
         if cmd in ("install", "create") or (cmd == "search" and self.runner == CondaRunner.MICROMAMBA):
             _command.append("--strict-channel-priority")
-        if self.runner == CondaRunner.CONDA and self.solver == CondaSolver.MAMBA and cmd in ("create", "install"):
+        if (
+            self.runner in (CondaRunner.CONDA, CondaRunner.MAMBA)
+            and self.solver == CondaSolver.MAMBA
+            and cmd in ("create", "install")
+        ):
             _command += ["--solver", CondaSolver.MAMBA.value]
         if use_project_env and cmd.split(" ")[0] not in ("search", "env", "info"):
-            _command += [
-                "--prefix",
-                str(fix_path(self._project.environment.interpreter.path)).replace("/bin/python", ""),
-            ]
+            _command += ["--prefix", str(get_python_dir(fix_path(self._project.environment.interpreter.path)))]
         return _command

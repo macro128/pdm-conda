@@ -80,7 +80,7 @@ class TestVenv:
 
         pdm(cmd, obj=project, strict=True)
 
-        cmd_order = ["create"]
+        cmd_order = ["info", "create"]
         if conda_name and not venv_location:
             cmd_order = ["env"] + cmd_order
         venv_name = conda_name if conda_name else f"{project.root.name}-"
@@ -98,7 +98,7 @@ class TestVenv:
                 else:
                     assert env_prefix.parent == conda_envs_path
                     assert conda_envs_path != project.config["venv.location"]
-            else:
+            elif conda_venv_command != "info":
                 assert (prefix_index := cmd.index("--prefix")) != -1
                 assert venv_name in cmd[prefix_index + 1]
 
@@ -145,7 +145,7 @@ class TestVenv:
                 assert f"{project.root.name}-" in result.output
 
         assert "Virtualenv is created successfully" not in result.output
-        conda_calls = ["info", "env list"]
+        conda_calls = ["env list", "info"]
         assert conda.call_count == len(conda_calls)
         for ((cmd,), _), expected_cmd in zip(conda.call_args_list, conda_calls, strict=False):
             assert " ".join(cmd).startswith(f"{runner} {expected_cmd}")

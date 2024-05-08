@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import contextlib
 import json
+import os
 import re
 import subprocess
 from functools import cache
 from pathlib import Path
 from shutil import which
-from tempfile import NamedTemporaryFile
+from tempfile import TemporaryDirectory, gettempdir
 from typing import TYPE_CHECKING
 
 from pdm.cli.commands.venv.backends import VirtualenvCreateError
@@ -64,7 +65,10 @@ def _optional_temporary_file(environment: dict | list):
     :return: Temporary file or None
     """
     if environment:
-        with NamedTemporaryFile(mode="w+", suffix=".yml" if isinstance(environment, dict) else ".lock") as f:
+        with (
+            TemporaryDirectory() as temp_dir,
+            Path(temp_dir).joinpath("lock" + ".yml" if isinstance(environment, dict) else ".lock").open("w+") as f,
+        ):
             yield f
     else:
         yield
@@ -74,6 +78,7 @@ def run_conda(
     cmd,
     exception_cls: type[PdmException] = CondaExecutionError,
     exception_msg: str = "Error locking dependencies",
+    env: dict | None = None,
     **environment,
 ) -> dict:
     """Optionally creates temporary environment file and run conda command.
@@ -81,6 +86,7 @@ def run_conda(
     :param cmd: conda command
     :param exception_cls: exception to raise on error
     :param exception_msg: base message to show on error
+    :param env: environment variables to use for conda
     :param environment: environment or lockfile data
     :return: conda command response
     """
@@ -109,7 +115,7 @@ def run_conda(
         logger.debug(f"cmd: {' '.join(cmd)}")
         if environment:
             logger.debug(f"env: {environment}")
-        process = subprocess.run(cmd, capture_output=True, encoding="utf-8")
+        process = subprocess.run(cmd, capture_output=True, encoding="utf-8", env=env)
     if "--json" in cmd:
         try:
             out = process.stdout.strip()
@@ -238,16 +244,13 @@ def _ensure_channels(
 
 
 @cache
-def _conda_search(
-    project: CondaProject,
-    requirement: str,
-    channels: tuple[str],
-) -> list[dict]:
+def _conda_search(project: CondaProject, requirement: str, channels: tuple[str], use_cache: bool = False) -> list[dict]:
     """Search conda candidates for a requirement.
 
     :param project: PDM project
     :param requirement: requirement
     :param channels: requirement channels
+    :param use_cache: whether to use cache flag
     :return: list of conda candidates
     """
     config = project.conda_config
@@ -259,6 +262,9 @@ def _conda_search(
     if channels:
         command.append("--override-channels")
     command.append("--json")
+    if use_cache:
+        command.append("-C")
+        command.append("--offline")
     try:
         result = run_conda(command)
     except RequirementError as e:
@@ -278,12 +284,14 @@ def conda_search(
     project: CondaProject,
     requirement: CondaRequirement | str,
     channel: str | None = None,
+    use_cache: bool = False,
 ) -> list[CondaCandidate]:
     """Search conda candidates for a requirement.
 
     :param project: PDM project
     :param requirement: requirement
     :param channel: requirement channel
+    :param use_cache: whether to use cache flag
     :return: list of conda candidates
     """
     _requirement = requirement
@@ -299,7 +307,7 @@ def conda_search(
         [channel] if channel else [],
         f"No channel specified for searching [req]{requirement}[/] using defaults if exist.",
     )
-    packages = _conda_search(project, _requirement, tuple(channels))
+    packages = _conda_search(project, _requirement, tuple(channels), use_cache=use_cache)
     return _parse_candidates(project, packages, requirement)
 
 
@@ -344,7 +352,10 @@ def conda_create(
     else:
         raise VirtualenvCreateError("Error creating environment, name or prefix must be specified.")
 
+    env = {**os.environ}
     if dry_run:
+        # momentarily change download dir to always get fetch info
+        env["CONDA_PKGS_DIRS"] = str(Path(gettempdir()) / "conda_cache")
         command.append("--dry-run")
 
     command += list(
@@ -366,7 +377,36 @@ def conda_create(
             exception_msg=(
                 f"Error resolving requirements with {config.runner}" if dry_run else "Error creating environment"
             ),
+            env=env,
         )
+        if fetch_candidates:
+            actions = result.get("actions", {})
+            fetch_packages = {pkg["name"]: pkg for pkg in actions.get("FETCH", [])}
+            packages = actions.get("LINK", [])
+            for i, pkg in enumerate(packages):
+                pkg = fetch_packages.get(pkg["name"], pkg)
+                if any(True for n in ("constrains", "depends") if n not in pkg):
+                    pkg = conda_search(
+                        project,
+                        f'{pkg["name"]}={pkg["version"]}={pkg["build_string"]}',
+                        parse_channel(pkg["channel"]),
+                    )
+                packages[i] = pkg
+
+            _requirements = {req.conda_name: req for req in requirements}
+            for pkg in packages:
+                # if is list of candidates then it comes from search
+                if isinstance(pkg, list):
+                    if pkg:
+                        candidates[pkg[0].name] = pkg
+                else:
+                    name = pkg["name"]
+                    candidates[name] = _parse_candidates(
+                        project,
+                        packages=[pkg],
+                        requirement=_requirements.get(name),
+                    )
+        return candidates
     except CondaResolutionError as err:
         if not err.packages:
             failed_packages = set()
@@ -376,34 +416,6 @@ def conda_create(
                         failed_packages.add(match.group("package"))
             err.packages = list(failed_packages)
         raise
-    if fetch_candidates:
-        actions = result.get("actions", {})
-        fetch_packages = {pkg["name"]: pkg for pkg in actions.get("FETCH", [])}
-        packages = actions.get("LINK", [])
-        for i, pkg in enumerate(packages):
-            pkg = fetch_packages.get(pkg["name"], pkg)
-            if any(True for n in ("constrains", "depends") if n not in pkg):
-                pkg = conda_search(
-                    project,
-                    f'{pkg["name"]}={pkg["version"]}={pkg["build_string"]}',
-                    parse_channel(pkg["channel"]),
-                )
-            packages[i] = pkg
-
-        _requirements = {req.conda_name: req for req in requirements}
-        for pkg in packages:
-            # if is list of candidates then it comes from search
-            if isinstance(pkg, list):
-                if pkg:
-                    candidates[pkg[0].name] = pkg
-            else:
-                name = pkg["name"]
-                candidates[name] = _parse_candidates(
-                    project,
-                    packages=[pkg],
-                    requirement=_requirements.get(name),
-                )
-    return candidates
 
 
 def conda_env_remove(project: CondaProject, prefix: Path | str | None = None, name: str = "", dry_run: bool = False):
@@ -578,7 +590,7 @@ def conda_list(project: CondaProject) -> dict[str, CondaSetupDistribution]:
     config = project.conda_config
     distributions = {}
     if config.is_initialized:
-        packages = run_conda(config.command("list") + ["--json"])
+        packages = run_conda(config.command("list") + ["--json"], exception_msg="Error listing installed packages")
         for package in packages:
             if config.runner != CondaRunner.MICROMAMBA and package.get("platform", "") == "pypi":
                 continue
