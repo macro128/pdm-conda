@@ -8,9 +8,8 @@ from typing import TYPE_CHECKING
 from pdm.models.in_process import get_sys_config_paths
 from pdm.models.specifiers import PySpecSet
 
-from pdm_conda.conda import conda_create, conda_info, conda_list, conda_search
+from pdm_conda.conda import conda_create, conda_info, conda_list
 from pdm_conda.environments.python import PythonEnvironment
-from pdm_conda.models.config import CondaRunner, CondaSolver
 from pdm_conda.project import CondaProject
 from pdm_conda.utils import fix_path, get_python_dir
 
@@ -87,30 +86,15 @@ class CondaEnvironment(PythonEnvironment):
         if self._env_dependencies is None:
             self._env_dependencies = {}
 
-            def load_dependencies(name: str, packages: dict, dependencies: dict):
-                if name not in packages and name not in dependencies:
-                    return
-                candidate = conda_search(self.project, packages[name].req)[0]
-                dependencies[name] = candidate.req
-                for d in candidate.dependencies:
-                    load_dependencies(d.name, packages, dependencies)
-
             working_set = conda_list(self.project)
             dependencies = ["python"]
             if (runner := self.project.conda_config.runner) in working_set:
                 dependencies.append(runner)
-            if (
-                runner in (CondaRunner.MAMBA, CondaRunner.MICROMAMBA)
-                or self.project.conda_config.solver == CondaSolver.MAMBA
-            ):
-                self._env_dependencies = conda_create(
-                    self.project,
-                    [working_set[d].req for d in dependencies],
-                    prefix=f"/tmp/{uuid.uuid4()}",
-                    dry_run=True,
-                )
-            else:
-                for dep in dependencies:
-                    load_dependencies(dep, working_set, self._env_dependencies)
+            self._env_dependencies = conda_create(
+                self.project,
+                [working_set[d].req for d in dependencies],
+                prefix=f"/tmp/{uuid.uuid4()}",
+                dry_run=True,
+            )
 
         return self._env_dependencies

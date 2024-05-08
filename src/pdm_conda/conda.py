@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import contextlib
 import json
+import os
 import re
 import subprocess
 from functools import cache
 from pathlib import Path
 from shutil import which
-from tempfile import TemporaryDirectory
+from tempfile import TemporaryDirectory, gettempdir
 from typing import TYPE_CHECKING
 
 from pdm.cli.commands.venv.backends import VirtualenvCreateError
@@ -349,7 +350,11 @@ def conda_create(
     else:
         raise VirtualenvCreateError("Error creating environment, name or prefix must be specified.")
 
+    conda_pkg_dir = None
     if dry_run:
+        # momentarily change download dir to always get fetch info
+        conda_pkg_dir = os.getenv("CONDA_PKG_DIR")
+        os.environ["CONDA_PKG_DIR"] = str(Path(gettempdir()) / "conda_cache")
         command.append("--dry-run")
 
     command += list(
@@ -381,6 +386,10 @@ def conda_create(
                         failed_packages.add(match.group("package"))
             err.packages = list(failed_packages)
         raise
+    finally:
+        if dry_run and conda_pkg_dir:
+            os.environ["CONDA_DRY_RUN"] = conda_pkg_dir
+
     if fetch_candidates:
         actions = result.get("actions", {})
         fetch_packages = {pkg["name"]: pkg for pkg in actions.get("FETCH", [])}
