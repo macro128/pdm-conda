@@ -33,7 +33,7 @@ def prepare_env(project, runner):
         if runner == "conda":
             pass
         subprocess.run(
-            ["micromamba", "install", "-y", runner, "-c", "conda-forge"],
+            ["micromamba", "install", "-y", runner, "-c", "conda-forge", "-n", "base"],
             check=True,
             capture_output=True,
         )

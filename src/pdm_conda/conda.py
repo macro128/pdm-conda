@@ -238,16 +238,13 @@ def _ensure_channels(
 
 
 @cache
-def _conda_search(
-    project: CondaProject,
-    requirement: str,
-    channels: tuple[str],
-) -> list[dict]:
+def _conda_search(project: CondaProject, requirement: str, channels: tuple[str], use_cache: bool = False) -> list[dict]:
     """Search conda candidates for a requirement.
 
     :param project: PDM project
     :param requirement: requirement
     :param channels: requirement channels
+    :param use_cache: whether to use cache flag
     :return: list of conda candidates
     """
     config = project.conda_config
@@ -259,6 +256,9 @@ def _conda_search(
     if channels:
         command.append("--override-channels")
     command.append("--json")
+    if use_cache:
+        command.append("-C")
+        command.append("--offline")
     try:
         result = run_conda(command)
     except RequirementError as e:
@@ -278,12 +278,14 @@ def conda_search(
     project: CondaProject,
     requirement: CondaRequirement | str,
     channel: str | None = None,
+    use_cache: bool = False,
 ) -> list[CondaCandidate]:
     """Search conda candidates for a requirement.
 
     :param project: PDM project
     :param requirement: requirement
     :param channel: requirement channel
+    :param use_cache: whether to use cache flag
     :return: list of conda candidates
     """
     _requirement = requirement
@@ -299,7 +301,7 @@ def conda_search(
         [channel] if channel else [],
         f"No channel specified for searching [req]{requirement}[/] using defaults if exist.",
     )
-    packages = _conda_search(project, _requirement, tuple(channels))
+    packages = _conda_search(project, _requirement, tuple(channels), use_cache=use_cache)
     return _parse_candidates(project, packages, requirement)
 
 
@@ -387,6 +389,7 @@ def conda_create(
                     project,
                     f'{pkg["name"]}={pkg["version"]}={pkg["build_string"]}',
                     parse_channel(pkg["channel"]),
+                    use_cache=True,
                 )
             packages[i] = pkg
 
@@ -578,7 +581,7 @@ def conda_list(project: CondaProject) -> dict[str, CondaSetupDistribution]:
     config = project.conda_config
     distributions = {}
     if config.is_initialized:
-        packages = run_conda(config.command("list") + ["--json"])
+        packages = run_conda(config.command("list") + ["--json"], exception_msg="Error listing installed packages")
         for package in packages:
             if config.runner != CondaRunner.MICROMAMBA and package.get("platform", "") == "pypi":
                 continue

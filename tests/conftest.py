@@ -218,13 +218,13 @@ def mock_conda(
                     channel_url(f"{DEFAULT_CHANNEL}/noarch"),
                 ],
             }
-
+            base_env = "/opt/conda/base"
             if runner != "micromamba":
                 info["virtual_pkgs"] = virtual_packages
-                info["base environment"] = CONDA_PREFIX
+                info["base environment"] = base_env
             else:
                 info["virtual packages"] = ["=".join(p) for p in virtual_packages]
-                info["root_prefix"] = CONDA_PREFIX
+                info["root_prefix"] = base_env
 
             return info
         if subcommand in ("repoquery", "search"):
