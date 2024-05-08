@@ -7,9 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.5] - 08/05/2024
+
 ### Changed
 
 * Allow selecting a Conda environment on `pdm use` even if base environment is active.
+* Force Conda to always fetch all packages info con `conda create --dry-run`.
 
 ### Fixed
 
