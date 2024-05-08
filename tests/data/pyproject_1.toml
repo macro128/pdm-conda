@@ -27,8 +27,7 @@ prefect-worker = [
 ]
 
 [tool.pdm.conda]
-runner = "mamba"
-solver = "libmamba"
+runner = "micromamba"
 channels = ["conda-forge"]
 custom-behavior = true
 as-default-manager = true
@@ -40,9 +39,6 @@ excludes = [
 
 [tool.pdm]
 distribution = false
-plugins = [
-    "-e pdm_conda @ file:///C:/Users/Student/pdm-conda"
-]
 
 [tool.pdm.resolution.overrides]
 trio = "<0.22"

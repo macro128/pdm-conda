@@ -7,7 +7,7 @@ import subprocess
 from functools import cache
 from pathlib import Path
 from shutil import which
-from tempfile import NamedTemporaryFile
+from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING
 
 from pdm.cli.commands.venv.backends import VirtualenvCreateError
@@ -64,7 +64,10 @@ def _optional_temporary_file(environment: dict | list):
     :return: Temporary file or None
     """
     if environment:
-        with NamedTemporaryFile(mode="w+", suffix=".yml" if isinstance(environment, dict) else ".lock") as f:
+        with (
+            TemporaryDirectory() as temp_dir,
+            Path(temp_dir).joinpath("lock" + ".yml" if isinstance(environment, dict) else ".lock").open("w+") as f,
+        ):
             yield f
     else:
         yield
