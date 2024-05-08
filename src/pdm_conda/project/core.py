@@ -51,6 +51,7 @@ class CondaProject(Project):
         self._pypi_mapping: dict[str, str] = {}
         self.conda_config = PluginConfig.load_config(self)
         self._is_distribution: bool | None = None
+        self._base_env: Path | None = None
 
     @property
     def virtual_packages(self) -> set[CondaRequirement]:
@@ -75,6 +76,14 @@ class CondaProject(Project):
         if isinstance(self.environment, CondaEnvironment):
             return self.environment.default_channels
         return []
+
+    @property
+    def base_env(self) -> Path:
+        if self._base_env is None:
+            from pdm_conda.conda import conda_base_path
+
+            self._base_env = conda_base_path(self)
+        return self._base_env
 
     @property
     def locked_repository(self) -> LockedRepository:
@@ -252,13 +261,9 @@ class CondaProject(Project):
         if not self.conda_config.is_initialized:
             return super().find_interpreters(python_spec, search_venv)
         else:
-            from pdm_conda.environments import CondaEnvironment
-
             roots = set()
-            if isinstance(self.environment, CondaEnvironment):
-                base_env = self.environment.base_env
-                if base_env:
-                    roots.add(base_env)
+            if self.base_env:
+                roots.add(self.base_env)
             for i in super().find_interpreters(python_spec, search_venv):
                 if (venv := i.get_venv()) is not None and venv.is_conda:
                     if (root := venv.root) not in roots:
