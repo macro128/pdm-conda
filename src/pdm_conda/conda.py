@@ -78,6 +78,7 @@ def run_conda(
     cmd,
     exception_cls: type[PdmException] = CondaExecutionError,
     exception_msg: str = "Error locking dependencies",
+    env: dict | None = None,
     **environment,
 ) -> dict:
     """Optionally creates temporary environment file and run conda command.
@@ -85,6 +86,7 @@ def run_conda(
     :param cmd: conda command
     :param exception_cls: exception to raise on error
     :param exception_msg: base message to show on error
+    :param env: environment variables to use for conda
     :param environment: environment or lockfile data
     :return: conda command response
     """
@@ -113,7 +115,7 @@ def run_conda(
         logger.debug(f"cmd: {' '.join(cmd)}")
         if environment:
             logger.debug(f"env: {environment}")
-        process = subprocess.run(cmd, capture_output=True, encoding="utf-8")
+        process = subprocess.run(cmd, capture_output=True, encoding="utf-8", env=env)
     if "--json" in cmd:
         try:
             out = process.stdout.strip()
@@ -350,11 +352,10 @@ def conda_create(
     else:
         raise VirtualenvCreateError("Error creating environment, name or prefix must be specified.")
 
-    conda_pkg_dir = None
+    env = {**os.environ}
     if dry_run:
         # momentarily change download dir to always get fetch info
-        conda_pkg_dir = os.getenv("CONDA_PKG_DIR")
-        os.environ["CONDA_PKG_DIR"] = str(Path(gettempdir()) / "conda_cache")
+        env["CONDA_PKGS_DIRS"] = str(Path(gettempdir()) / "conda_cache")
         command.append("--dry-run")
 
     command += list(
@@ -376,7 +377,36 @@ def conda_create(
             exception_msg=(
                 f"Error resolving requirements with {config.runner}" if dry_run else "Error creating environment"
             ),
+            env=env,
         )
+        if fetch_candidates:
+            actions = result.get("actions", {})
+            fetch_packages = {pkg["name"]: pkg for pkg in actions.get("FETCH", [])}
+            packages = actions.get("LINK", [])
+            for i, pkg in enumerate(packages):
+                pkg = fetch_packages.get(pkg["name"], pkg)
+                if any(True for n in ("constrains", "depends") if n not in pkg):
+                    pkg = conda_search(
+                        project,
+                        f'{pkg["name"]}={pkg["version"]}={pkg["build_string"]}',
+                        parse_channel(pkg["channel"]),
+                    )
+                packages[i] = pkg
+
+            _requirements = {req.conda_name: req for req in requirements}
+            for pkg in packages:
+                # if is list of candidates then it comes from search
+                if isinstance(pkg, list):
+                    if pkg:
+                        candidates[pkg[0].name] = pkg
+                else:
+                    name = pkg["name"]
+                    candidates[name] = _parse_candidates(
+                        project,
+                        packages=[pkg],
+                        requirement=_requirements.get(name),
+                    )
+        return candidates
     except CondaResolutionError as err:
         if not err.packages:
             failed_packages = set()
@@ -386,39 +416,6 @@ def conda_create(
                         failed_packages.add(match.group("package"))
             err.packages = list(failed_packages)
         raise
-    finally:
-        if dry_run and conda_pkg_dir:
-            os.environ["CONDA_DRY_RUN"] = conda_pkg_dir
-
-    if fetch_candidates:
-        actions = result.get("actions", {})
-        fetch_packages = {pkg["name"]: pkg for pkg in actions.get("FETCH", [])}
-        packages = actions.get("LINK", [])
-        for i, pkg in enumerate(packages):
-            pkg = fetch_packages.get(pkg["name"], pkg)
-            if any(True for n in ("constrains", "depends") if n not in pkg):
-                pkg = conda_search(
-                    project,
-                    f'{pkg["name"]}={pkg["version"]}={pkg["build_string"]}',
-                    parse_channel(pkg["channel"]),
-                    use_cache=True,
-                )
-            packages[i] = pkg
-
-        _requirements = {req.conda_name: req for req in requirements}
-        for pkg in packages:
-            # if is list of candidates then it comes from search
-            if isinstance(pkg, list):
-                if pkg:
-                    candidates[pkg[0].name] = pkg
-            else:
-                name = pkg["name"]
-                candidates[name] = _parse_candidates(
-                    project,
-                    packages=[pkg],
-                    requirement=_requirements.get(name),
-                )
-    return candidates
 
 
 def conda_env_remove(project: CondaProject, prefix: Path | str | None = None, name: str = "", dry_run: bool = False):
