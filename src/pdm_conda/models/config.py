@@ -375,7 +375,11 @@ class PluginConfig:
             _command.append("-y")
         if cmd in ("install", "create") or (cmd == "search" and self.runner == CondaRunner.MICROMAMBA):
             _command.append("--strict-channel-priority")
-        if self.runner == CondaRunner.CONDA and self.solver == CondaSolver.MAMBA and cmd in ("create", "install"):
+        if (
+            self.runner in (CondaRunner.CONDA, CondaRunner.MAMBA)
+            and self.solver == CondaSolver.MAMBA
+            and cmd in ("create", "install")
+        ):
             _command += ["--solver", CondaSolver.MAMBA.value]
         if use_project_env and cmd.split(" ")[0] not in ("search", "env", "info"):
             _command += [
