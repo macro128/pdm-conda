@@ -132,13 +132,7 @@ class TestAddRemove:
         cmd_order = []
         if packages_to_remove:
             # get working set + get python packages
-            cmd_order = ["list", "list"]
-            if project.conda_config.runner in ("mamba", "micromamba") or project.conda_config.solver == "libmamba":
-                cmd_order.append("create")
-            else:
-                num_searches = len(python_packages)
-                cmd_order += ["search" if runner == "conda" else "repoquery"] * num_searches
-            cmd_order += ["remove"] * (1 if batch_commands else len(packages_to_remove))
+            cmd_order = ["list", "list", "create"] + ["remove"] * (1 if batch_commands else len(packages_to_remove))
         assert conda.call_count == len(cmd_order)
 
         dependencies = project.get_dependencies(group)
