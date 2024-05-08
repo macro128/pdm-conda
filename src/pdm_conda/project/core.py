@@ -10,6 +10,7 @@ from pdm.project.lockfile import Lockfile
 from pdm.utils import get_venv_like_prefix
 from tomlkit.items import Array
 
+from pdm_conda import logger
 from pdm_conda.models.config import PluginConfig
 from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement, is_conda_managed, parse_requirement
 from pdm_conda.project.project_file import PyProject
@@ -209,12 +210,11 @@ class CondaProject(Project):
     def get_environment(self) -> BaseEnvironment:
         if not self.conda_config.is_initialized:
             return super().get_environment()
-
+        if not get_venv_like_prefix(self.python.executable)[1]:
+            logger.debug("Conda environment not detected.")
+            return super().get_environment()
         if not self.config["python.use_venv"]:
             raise ProjectError("python.use_venv is required to use Conda.")
-        if not get_venv_like_prefix(self.python.executable)[1]:
-            raise ProjectError("Conda environment not detected.")
-
         return self.environment_class(self)
 
     def get_provider(
