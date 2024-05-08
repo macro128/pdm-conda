@@ -17,5 +17,5 @@ class Command(BaseCommand):
     name = "list"
 
     def handle(self, project: Project, options: argparse.Namespace) -> None:
-        with ensure_logger(project, "use"):
+        with ensure_logger(project, "list"):
             super().handle(project, options)
