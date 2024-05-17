@@ -215,7 +215,7 @@ class CondaProject(Project):
                     deps.append(req)
                 else:
                     deps[matched_index] = req
-                if not name not in requirements:
+                if name not in requirements:
                     matched_index = next((i for i, r in enumerate(python_deps) if dep.matches(r)), None)
                     if matched_index is not None:
                         python_deps.pop(matched_index)

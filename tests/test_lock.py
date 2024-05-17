@@ -289,6 +289,7 @@ class TestGroupsLock:
             to_group="dev",
             dev=True,
             show_message=False,
+            write=False,
         )
         project.conda_config.as_default_manager = True
         project.conda_config.runner = "micromamba"
@@ -321,6 +322,7 @@ class TestGroupsLock:
                     to_group=group,
                     dev=is_dev,
                     show_message=False,
+                    write=False,
                 )
         resolutions = [
             ({"default"} if use_default else set()) | (set(dev_groups) if use_dev else set()) | set(optional_groups),

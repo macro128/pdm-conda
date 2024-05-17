@@ -83,6 +83,15 @@ BUILD_BACKEND = generate_package_info("pdm-backend", "2.0")
 CONDA_PREFIX = os.getenv("CONDA_PREFIX")
 
 
+@pytest.fixture(scope="session", autouse=True)
+def tmp_cwd():
+    with TemporaryDirectory() as tmp:
+        _cwd = Path.cwd()
+        os.chdir(tmp)
+        yield Path(tmp)
+        os.chdir(_cwd)
+
+
 @pytest.fixture(autouse=True)
 def test_name():
     return os.getenv("PYTEST_CURRENT_TEST", "").split(":")[-1]
