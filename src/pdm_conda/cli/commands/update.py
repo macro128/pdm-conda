@@ -62,5 +62,6 @@ class Command(BaseCommand):
                     group_requirements,
                     to_group=group,
                     dev=is_dev,
-                    show_message=i == num_groups - 1,
+                    write=(write := i == num_groups - 1),
+                    show_message=write,
                 )

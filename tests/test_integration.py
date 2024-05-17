@@ -69,8 +69,8 @@ class TestIntegration:
         config.batched_commands = True
         from pdm_conda.project.core import PyProject
 
-        python_version = "3.11"
-        # python_version = PYTHON_VERSION
+        # python_version = "3.11"
+        python_version = PYTHON_VERSION
 
         print("list environments:")
         pdm(["venv", "list"], obj=project, strict=True, cleanup=True).print()
