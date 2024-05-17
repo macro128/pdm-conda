@@ -194,6 +194,7 @@ class CondaProject(Project):
         to_group: str = "default",
         dev: bool = False,
         show_message: bool = True,
+        write: bool = True,
     ) -> None:
         conda_requirements = {n: r for n, r in requirements.items() if isinstance(r, CondaRequirement)}
         requirements = {n: r for n, r in requirements.items() if n not in conda_requirements} | {
@@ -205,16 +206,20 @@ class CondaProject(Project):
             }
         if conda_requirements:
             deps = self.get_conda_pyproject_dependencies(to_group, dev, set_defaults=True)
+            python_deps, _ = self.use_pyproject_dependencies(to_group, dev)
             cast(Array, deps).multiline(True)
-            for _, dep in conda_requirements.items():
+            for name, dep in conda_requirements.items():
                 matched_index = next((i for i, r in enumerate(deps) if dep.matches(f"conda:{r}")), None)
                 req = dep.as_line(with_channel=True)
                 if matched_index is None:
                     deps.append(req)
                 else:
                     deps[matched_index] = req
-
-        super().add_dependencies(requirements, to_group, dev, show_message)
+                if not name not in requirements:
+                    matched_index = next((i for i, r in enumerate(python_deps) if dep.matches(r)), None)
+                    if matched_index is not None:
+                        python_deps.pop(matched_index)
+        super().add_dependencies(requirements, to_group, dev, show_message, write=write)
 
     def get_environment(self) -> BaseEnvironment:
         if not self.conda_config.is_initialized:
