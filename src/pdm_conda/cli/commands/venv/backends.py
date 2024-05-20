@@ -6,7 +6,7 @@ from pdm.cli.commands.venv.backends import BACKENDS, CondaBackend as BackendBase
 
 from pdm_conda.cli.utils import ensure_logger
 from pdm_conda.conda import conda_create, conda_env_remove
-from pdm_conda.models.config import CondaRunner
+from pdm_conda.models.config import CondaRunner, PluginConfig
 from pdm_conda.models.requirements import parse_requirement
 from pdm_conda.project import CondaProject
 
@@ -20,6 +20,7 @@ class CondaBackend(BackendBase):
         super().__init__(project, python)
         self.project = cast(CondaProject, project)
 
+    @PluginConfig.check_active
     def create(
         self,
         name: str | None = None,
@@ -32,6 +33,7 @@ class CondaBackend(BackendBase):
         with ensure_logger(self.project, "conda_create"):
             return super().create(name, args, force, in_project, prompt, with_pip)
 
+    @PluginConfig.check_active
     def get_location(self, name: str | None) -> Path:
         with self.project.conda_config.with_conda_venv_location() as (venv_location, _):
             if conda_name := (name is not None and name.startswith("conda:")):
@@ -42,12 +44,16 @@ class CondaBackend(BackendBase):
                 location = super().get_location(name)
             return location
 
+    @PluginConfig.check_active
     def _ensure_clean(self, location: Path, force: bool = False) -> None:
-        if location.is_dir() and force:
+        if self.project.conda_config.is_initialized and location.is_dir() and force:
             conda_env_remove(self.project, prefix=location)
         super()._ensure_clean(location, force)
 
+    @PluginConfig.check_active
     def perform_create(self, location: Path, args: tuple[str, ...], prompt: str | None = None) -> None:
+        if not self.project.conda_config.is_initialized:
+            return super().perform_create(location, args, prompt)
         if self.python:
             python_ver = self.python
         else:

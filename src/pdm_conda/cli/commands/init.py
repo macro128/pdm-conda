@@ -54,7 +54,7 @@ class Command(BaseCommand):
                     config.channels.append(channel)
             overridden_configs["channels"] = config.channels
 
-        super().handle(project, options)
+        config.check_active(super().handle)(project, options)
         with config.write_project_config():
             for key, value in overridden_configs.items():
                 setattr(config, key, value)

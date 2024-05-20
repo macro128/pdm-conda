@@ -7,6 +7,7 @@ from pdm.cli.commands.use import Command as BaseCommand
 from pdm.utils import is_conda_base
 
 from pdm_conda.cli.utils import ensure_logger
+from pdm_conda.models.config import PluginConfig
 from pdm_conda.project import CondaProject
 
 if TYPE_CHECKING:
@@ -19,6 +20,7 @@ class Command(BaseCommand):
     description = BaseCommand.__doc__
     name = "use"
 
+    @PluginConfig.check_active
     def handle(self, project: Project, options: argparse.Namespace) -> None:
         project = cast(CondaProject, project)
         conda_base = is_conda_base()

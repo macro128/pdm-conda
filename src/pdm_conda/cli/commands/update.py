@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, cast
 from pdm.cli.commands.update import Command as BaseCommand
 from pdm.models.specifiers import get_specifier
 
+from pdm_conda.models.config import PluginConfig
 from pdm_conda.models.requirements import CondaRequirement
 from pdm_conda.project import CondaProject
 
@@ -18,6 +19,7 @@ class Command(BaseCommand):
     description = BaseCommand.__doc__
     name = "update"
 
+    @PluginConfig.check_active
     def handle(self, project: Project, options: argparse.Namespace) -> None:
         super().handle(project=project, options=options)
         project = cast(CondaProject, project)

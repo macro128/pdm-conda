@@ -55,7 +55,10 @@ class CondaRepository(BaseRepository):
         :param requirement: requirement to evaluate
         :param excluded_identifiers: identifiers to exclude
         """
-        if not isinstance(self.environment, CondaEnvironment):
+        if (
+            not isinstance(self.environment, CondaEnvironment)
+            or not self.environment.project.conda_config.is_initialized
+        ):
             return False
         from pdm_conda.models.requirements import is_conda_managed as _is_conda_managed
 
@@ -248,6 +251,14 @@ class LockedCondaRepository(LockedRepository, CondaRepository):
             else:
                 pypi_packages.append(package)
         super()._read_lockfile({"package": pypi_packages, **{k: v for k, v in lockfile.items() if k != "package"}})
+
+        if conda_packages and (
+            isinstance(self.environment, CondaEnvironment) and not self.environment.project.conda_config.is_initialized
+        ):
+            raise CondaResolutionError(
+                "Conda packages found in lock file but Conda is not initialized, "
+                "you should delete the lock file or initialize pdm-conda.",
+            )
 
         for package in conda_packages:
             can = CondaCandidate.from_lock_package(package)

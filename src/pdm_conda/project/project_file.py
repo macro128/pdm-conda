@@ -34,6 +34,7 @@ class PyProject(PyProjectBase):
             "dependencies",
             "dev-dependencies",
             "optional-dependencies",
+            "active",
         ):
             if hash_config in pdm_conda_data:
                 pdm_conda_dump_data[hash_config] = pdm_conda_data[hash_config]

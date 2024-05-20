@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from functools import cached_property
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from pdm.installers import Synchronizer
 
@@ -45,7 +45,6 @@ class CondaSynchronizer(Synchronizer):
             fail_fast,
             use_install_cache,
         )
-        self.environment = cast(CondaEnvironment, environment)
         self.parallel = bool(self.parallel)  # type: ignore
 
     @cached_property

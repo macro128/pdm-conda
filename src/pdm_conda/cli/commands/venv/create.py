@@ -58,7 +58,7 @@ class CreateCommand(BaseCommand):
                     conda_config.channels.append(channel)
             overridden_configs["channels"] = conda_config.channels
 
-        super().handle(project, options)
+        conda_config.check_active(super().handle)(project, options)
 
         # if inside a project ensure saving conda runner
         if conda_project and project.pyproject.exists():

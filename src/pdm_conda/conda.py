@@ -20,7 +20,7 @@ from pdm.termui import Verbosity
 from pdm_conda import logger
 from pdm_conda.models.candidates import CondaCandidate, parse_channel
 from pdm_conda.models.conda import ChannelSorter
-from pdm_conda.models.config import CondaRunner
+from pdm_conda.models.config import CondaRunner, PluginConfig
 from pdm_conda.models.requirements import CondaRequirement, parse_conda_version, parse_requirement
 from pdm_conda.models.setup import CondaSetupDistribution
 from pdm_conda.utils import fix_path, normalize_name
@@ -280,6 +280,7 @@ def _conda_search(project: CondaProject, requirement: str, channels: tuple[str],
     return packages
 
 
+@PluginConfig.check_active
 def conda_search(
     project: CondaProject,
     requirement: CondaRequirement | str,
@@ -311,6 +312,7 @@ def conda_search(
     return _parse_candidates(project, packages, requirement)
 
 
+@PluginConfig.check_active
 def conda_create(
     project: CondaProject,
     requirements: Iterable[CondaRequirement],
@@ -418,6 +420,7 @@ def conda_create(
         raise
 
 
+@PluginConfig.check_active
 def conda_env_remove(project: CondaProject, prefix: Path | str | None = None, name: str = "", dry_run: bool = False):
     """Removes environment using conda.
 
@@ -444,6 +447,7 @@ def conda_env_remove(project: CondaProject, prefix: Path | str | None = None, na
     run_conda(command, exception_cls=VirtualenvCreateError, exception_msg="Error removing environment")
 
 
+@PluginConfig.check_active
 def conda_env_list(project: CondaProject) -> list[Path]:
     """List Conda environments.
 
@@ -480,6 +484,7 @@ def _conda_install(
     run_conda(command + ["--json"], exception_cls=exception_cls, exception_msg="", **kwargs)
 
 
+@PluginConfig.check_active
 def conda_install(
     project: CondaProject,
     packages: str | list[str],
@@ -509,6 +514,7 @@ def conda_install(
     _conda_install(command, packages, dry_run=dry_run, explicit=True)
 
 
+@PluginConfig.check_active
 def conda_uninstall(
     project: CondaProject,
     packages: str | list[str],
@@ -539,6 +545,7 @@ def not_initialized_warning(project):
     )
 
 
+@PluginConfig.check_active
 def conda_info(project: CondaProject) -> dict:
     """Get conda info containing virtual packages, default channels and packages.
 
@@ -563,6 +570,7 @@ def conda_info(project: CondaProject) -> dict:
     return res
 
 
+@PluginConfig.check_active
 def conda_base_path(project: CondaProject) -> Path:
     """Get conda base environment path :param project: PDM project :return: Conda base environment path."""
     config = project.conda_config
@@ -581,6 +589,7 @@ def conda_base_path(project: CondaProject) -> Path:
     return res
 
 
+@PluginConfig.check_active
 def conda_list(project: CondaProject) -> dict[str, CondaSetupDistribution]:
     """List conda installed packages.
 

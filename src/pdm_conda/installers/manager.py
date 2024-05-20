@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from pdm.installers import InstallManager
 
 from pdm_conda.conda import conda_install, conda_uninstall
-from pdm_conda.environments import CondaEnvironment
 from pdm_conda.models.candidates import CondaCandidate
 from pdm_conda.models.setup import CondaSetupDistribution
 
@@ -25,7 +24,6 @@ class CondaInstallManager(InstallManager):
         rename_pth: bool = False,
     ) -> None:
         super().__init__(environment, use_install_cache=use_install_cache, rename_pth=rename_pth)
-        self.environment = cast(CondaEnvironment, environment)
         self._num_install = 0
         self._num_remove = 0
         self._batch_install: list[str] = []

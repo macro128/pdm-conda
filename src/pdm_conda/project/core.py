@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import cached_property
 from typing import TYPE_CHECKING, cast
 
-from pdm.exceptions import ProjectError
+from pdm.exceptions import PdmUsageError, ProjectError
 from pdm.models.python import PythonInfo
 from pdm.project import Project
 from pdm.project.lockfile import Lockfile
@@ -34,7 +34,6 @@ class CondaProject(Project):
         is_global: bool = False,
         global_config: str | Path | None = None,
     ) -> None:
-        from pdm_conda.environments import CondaEnvironment
         from pdm_conda.installers.manager import CondaInstallManager
         from pdm_conda.installers.synchronizers import CondaSynchronizer
         from pdm_conda.models.repositories import LockedCondaRepository, PyPICondaRepository
@@ -46,7 +45,6 @@ class CondaProject(Project):
         self.core.synchronizer_class = CondaSynchronizer
         self.core.resolver_class = CondaResolver
         self.locked_repository_class = LockedCondaRepository
-        self.environment_class = CondaEnvironment
         self._conda_mapping: dict[str, str] = {}
         self._pypi_mapping: dict[str, str] = {}
         self.conda_config = PluginConfig.load_config(self)
@@ -95,7 +93,12 @@ class CondaProject(Project):
         return self.locked_repository_class(lockfile=lockfile, sources=self.sources, environment=self.environment)  # type: ignore
 
     @Project.python.setter
+    @PluginConfig.check_active
     def python(self, value: PythonInfo) -> None:
+        if not self.conda_config.is_initialized:
+            Project.python.fset(self, value)
+            return
+
         self._python = value
         self._saved_python = value.path.as_posix()
         self.environment = None
@@ -150,12 +153,17 @@ class CondaProject(Project):
         return groups
 
     def get_dependencies(self, group: str | None = None) -> dict[str, Requirement]:
-        result = super().get_dependencies(group) if group in super().iter_groups() else {}
-
         config = self.conda_config
-        group = group or "default"
+        if not config.is_initialized:
+            return super().get_dependencies(group)
 
+        group = group or "default"
         dev = group not in config.optional_dependencies
+        try:
+            result = super().get_dependencies(group)
+        except PdmUsageError:
+            result = {}
+
         if group in config.optional_dependencies and group in config.dev_dependencies:
             self.core.ui.echo(
                 f"The {group} group exists in both [optional-dependencies] "
@@ -200,36 +208,46 @@ class CondaProject(Project):
         requirements = {n: r for n, r in requirements.items() if n not in conda_requirements} | {
             n: r.as_named_requirement() for n, r in conda_requirements.items() if r.is_python_package
         }
-        if self.conda_config.as_default_manager:
-            conda_requirements = {
-                n: r for n, r in conda_requirements.items() if not r.is_python_package or r.channel or r.build_string
-            }
-        if conda_requirements:
-            deps = self.get_conda_pyproject_dependencies(to_group, dev, set_defaults=True)
-            python_deps, _ = self.use_pyproject_dependencies(to_group, dev)
-            cast(Array, deps).multiline(True)
-            for name, dep in conda_requirements.items():
-                matched_index = next((i for i, r in enumerate(deps) if dep.matches(f"conda:{r}")), None)
-                req = dep.as_line(with_channel=True)
-                if matched_index is None:
-                    deps.append(req)
-                else:
-                    deps[matched_index] = req
-                if name not in requirements:
-                    matched_index = next((i for i, r in enumerate(python_deps) if dep.matches(r)), None)
-                    if matched_index is not None:
-                        python_deps.pop(matched_index)
+        if self.conda_config.is_initialized:
+            if self.conda_config.as_default_manager:
+                conda_requirements = {
+                    n: r
+                    for n, r in conda_requirements.items()
+                    if not r.is_python_package or r.channel or r.build_string
+                }
+            if conda_requirements:
+                deps = self.get_conda_pyproject_dependencies(to_group, dev, set_defaults=True)
+                python_deps, _ = self.use_pyproject_dependencies(to_group, dev)
+                cast(Array, deps).multiline(True)
+                for name, dep in conda_requirements.items():
+                    matched_index = next((i for i, r in enumerate(deps) if dep.matches(f"conda:{r}")), None)
+                    req = dep.as_line(with_channel=True)
+                    if matched_index is None:
+                        deps.append(req)
+                    else:
+                        deps[matched_index] = req
+                    if name not in requirements:
+                        matched_index = next((i for i, r in enumerate(python_deps) if dep.matches(r)), None)
+                        if matched_index is not None:
+                            python_deps.pop(matched_index)
+        else:
+            assert not conda_requirements, "Conda is not initialized but conda requirements are present."
+
         super().add_dependencies(requirements, to_group, dev, show_message, write=write)
 
+    @PluginConfig.check_active
     def get_environment(self) -> BaseEnvironment:
         if not self.conda_config.is_initialized:
             return super().get_environment()
+
         if not get_venv_like_prefix(self.python.executable)[1]:
             logger.debug("Conda environment not detected.")
             return super().get_environment()
         if not self.config["python.use_venv"]:
             raise ProjectError("python.use_venv is required to use Conda.")
-        return self.environment_class(self)
+        from pdm_conda.environments import CondaEnvironment
+
+        return CondaEnvironment(self)
 
     def get_provider(
         self,
@@ -239,6 +257,9 @@ class CondaProject(Project):
         ignore_compatibility: bool = True,
         direct_minimal_versions: bool = False,
     ) -> BaseProvider:
+        if not self.conda_config.is_initialized:
+            return super().get_provider(strategy, tracked_names, for_install, ignore_compatibility)
+
         from pdm_conda.resolver.providers import BaseProvider, CondaBaseProvider
 
         kwargs = {"direct_minimal_versions": direct_minimal_versions}
@@ -258,6 +279,7 @@ class CondaProject(Project):
     def is_distribution(self, value: bool | None):
         self._is_distribution = value
 
+    @PluginConfig.check_active
     def find_interpreters(
         self,
         python_spec: str | None = None,
