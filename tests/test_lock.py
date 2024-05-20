@@ -270,6 +270,60 @@ class TestLock:
         )
         assert old_lockfile == lockfile
 
+    def test_lock_inactive(
+        self,
+        pdm,
+        project,
+        conda,
+        conda_info,
+        runner,
+        solver,
+        pypi,
+        group,
+        conda_mapping,
+        mock_conda_mapping,
+    ):
+        """Test lock command work as expected."""
+
+        python_dependencies = {c["name"] for c in PYTHON_REQUIREMENTS}
+        conda_packages = [c for c in conda_info if c["name"] not in python_dependencies]
+        config = project.conda_config
+        config.runner = runner
+        config.solver = solver
+        assert config.is_initialized
+        config.active = False
+        assert not config.is_initialized
+
+        from pdm_conda.mapping import conda_to_pypi
+
+        name = conda_packages[-1]["name"]
+        packages = {group: [name]}
+        if group != "default":
+            if group != "dev":
+                config.optional_dependencies = packages
+            else:
+                config.dev_dependencies = packages
+        else:
+            config.dependencies = packages[group]
+
+        pkg = copy(conda_packages[1])
+        name = conda_to_pypi(pkg["name"])
+        project.pyproject._data.update(
+            {
+                "project": {
+                    "dependencies": [name],
+                    "requires-python": project.pyproject.metadata["requires-python"],
+                },
+            },
+        )
+        config.excludes = [name]
+        # this will assert that this package is searched on pypi
+        pypi([pkg], with_dependencies=True)
+
+        cmd = ["lock", "-vv", "-G", ":all"]
+        pdm(cmd, obj=project, strict=True)
+        conda.assert_not_called()
+
 
 class TestGroupsLock:
     def test_lock_prod_dev(

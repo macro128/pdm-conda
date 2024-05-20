@@ -36,6 +36,7 @@ class CondaSolver(str, Enum):
 
 
 CONFIGS = [
+    ("active", ConfigItem("Use pdm-conda plugin", True, env_var="PDM_CONDA_ACTIVE")),
     ("runner", ConfigItem("Conda runner executable", CondaRunner.CONDA.value, env_var="PDM_CONDA_RUNNER")),
     ("solver", ConfigItem("Solver to use for Conda resolution", CondaSolver.CONDA.value, env_var="PDM_CONDA_SOLVER")),
     ("channels", ConfigItem("Conda channels to use", [])),
@@ -120,6 +121,7 @@ class PluginConfig:
     channels: list[str] = field(default_factory=list)
     runner: str = CondaRunner.CONDA
     solver: str = CondaSolver.CONDA
+    active: bool = True
     as_default_manager: bool = False
     custom_behavior: bool = False
     auto_excludes: bool = False
@@ -276,7 +278,7 @@ class PluginConfig:
 
     @property
     def is_initialized(self):
-        return self._initialized
+        return self._initialized and self.active
 
     @is_initialized.setter
     def is_initialized(self, value):
@@ -381,7 +383,13 @@ class PluginConfig:
                 value = project.config[n]
                 if prop_name == "mapping_download_dir":
                     value = Path(value)
-                elif prop_name in ("as_default_manager", "batched_commands", "custom_behavior", "auto_excludes"):
+                elif prop_name in (
+                    "as_default_manager",
+                    "batched_commands",
+                    "custom_behavior",
+                    "auto_excludes",
+                    "active",
+                ):
                     value = str(value).lower() in ("true", "1")
                 config[prop_name] = value
         config |= kwargs

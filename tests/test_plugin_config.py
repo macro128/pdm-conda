@@ -14,6 +14,8 @@ class TestPluginConfig:
             ["channels", ["other"]],
             ["excludes", ["another-dep-pip"]],
             ["batched-commands", True],
+            ["active", False],
+            ["active", True],
             ["custom-behavior", True],
             ["batched-commands", False],
             ["dependencies", ["package"]],
@@ -69,6 +71,8 @@ class TestPluginConfig:
                     _config = _config[k]
 
                 assert config_value == _config
+        if config_name == "active" and not config_value:
+            assert not config.is_initialized
 
     @pytest.mark.parametrize(
         "config_name,config_value",
@@ -78,19 +82,26 @@ class TestPluginConfig:
             ["excludes", ["another-dep-pip"]],
             ["batched-commands", True],
             ["batched-commands", False],
+            ["active", False],
             ["dependencies", ["package"]],
         ],
     )
-    def test_with_config(self, project, mocker, config_name, config_value):
+    @pytest.mark.parametrize("is_initialized", [True, False])
+    def test_with_config(self, project, mocker, config_name, config_value, is_initialized):
         config = project.conda_config
         subscribed = mocker.spy(project.pyproject._data, "update")
         conda_config_name = config_name.replace("-", "_")
         old_value = getattr(config, conda_config_name)
         project.pyproject.write(False)
+        config.is_initialized = is_initialized
         assert not config._dry_run
         with config.with_config(**{conda_config_name: config_value}):
             assert config._dry_run
             assert getattr(config, conda_config_name) == config_value
+            if config_name == "active" and not config_value:
+                assert not config.is_initialized
+            elif old_value != config_value:
+                assert config.is_initialized == is_initialized
         assert getattr(config, conda_config_name) == old_value
         assert subscribed.call_count == 0
 

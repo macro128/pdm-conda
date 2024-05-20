@@ -144,6 +144,8 @@ class CondaProject(Project):
     def iter_groups(self, dev: bool = True) -> Iterable[str]:
         groups = set(super().iter_groups())
         config = self.conda_config
+        if not config.is_initialized:
+            return groups
         for is_dev, deps in ((False, config.optional_dependencies), (True, config.dev_dependencies)):
             if deps and (dev or not is_dev):
                 groups.update(deps.keys())
