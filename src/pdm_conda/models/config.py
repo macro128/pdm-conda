@@ -280,14 +280,51 @@ class PluginConfig:
 
     @is_initialized.setter
     def is_initialized(self, value):
-        if value:
-            config = self._project.project_config
-            config["python.use_venv"] = True
-            config["python.use_pyenv"] = False
-            config["venv.backend"] = self.runner
-            config.setdefault("venv.in_project", False)
-            os.environ.pop("PDM_IGNORE_ACTIVE_VENV", None)
         self._initialized = value
+
+    @staticmethod
+    def check_active(func):
+        """Decorator that checks if the plugin is active and temporarily updates the project config."""
+
+        @wraps(func)
+        def decorator(*args, **kwargs):
+            from pdm_conda.project import CondaProject
+
+            project = None
+            for arg in args:
+                if isinstance(arg, CondaProject):
+                    project = arg
+                    break
+
+            if project is None:
+                return func(*args, **kwargs)
+
+            config = project.conda_config
+            if not config.is_initialized:
+                return func(*args, **kwargs)
+
+            project_config = project.project_config
+            old_configs = {
+                name: getattr(project_config, name, None)
+                for name in ("python.use_venv", "python.use_pyenv", "venv.backend", "venv.in_project")
+            }
+            active_venv = os.environ.pop("CONDA_DEFAULT_ENV", None)
+            try:
+                for name, value in zip(old_configs, (True, False, config.runner, False), strict=False):
+                    if old_configs[name] != value:
+                        setattr(project_config, name, value)
+                return func(*args, **kwargs)
+            finally:
+                for name, value in old_configs.items():
+                    if value is not None:
+                        if project_config[name] != value:
+                            project_config[name] = value
+                    elif name in project_config:
+                        del project_config[name]
+                if active_venv is not None:
+                    os.environ["CONDA_DEFAULT_ENV"] = active_venv
+
+        return decorator
 
     @contextmanager
     def with_conda_venv_location(self):
