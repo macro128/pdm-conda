@@ -311,8 +311,8 @@ class PluginConfig:
             active_venv = os.environ.pop("CONDA_DEFAULT_ENV", None)
             try:
                 for name, value in zip(old_configs, (True, False, config.runner, False), strict=False):
-                    if old_configs[name] != value:
-                        setattr(project_config, name, value)
+                    if getattr(old_configs, name, None) != value:
+                        project_config[name] = value
                 return func(*args, **kwargs)
             finally:
                 for name, value in old_configs.items():
