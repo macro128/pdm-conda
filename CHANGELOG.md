@@ -7,12 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] - 21/05/2024
+
+### Added
+
+* Now compatible with `pdm==v2.15.3`.
+* Add `conda.active` config to activate/deactivate pdm-conda plugin.
+
+### Changed
+
+* Only modify PDM config while the plugin is active.
+
 ## [0.17.6] - 16/05/2024
 
 ### Added
 
 * Now compatible with `pdm==v2.15.2`.
-
 
 ## [0.17.5] - 08/05/2024
 
