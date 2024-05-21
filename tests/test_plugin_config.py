@@ -1,3 +1,4 @@
+import os
 from typing import Any
 
 import pytest
@@ -61,7 +62,7 @@ class TestPluginConfig:
         if config_value is not None:
             setattr(config, conda_config_name, assert_value)
             project.pyproject.write(False)
-            if not set_before and config_value == config_default:
+            if not set_before and (config_value == config_default or config_name == "active"):
                 assert (
                     "conda" not in project.pyproject.settings or config_name not in project.pyproject.settings["conda"]
                 )
@@ -161,3 +162,21 @@ class TestPluginConfig:
                     },
                 },
             )
+
+    @pytest.mark.parametrize("runner", ["micromamba", "mamba", "conda"])
+    def test_temporary_config(self, project, runner):
+        """Test config changes are temporary."""
+        project.conda_config.runner = runner
+
+        @project.conda_config.check_active
+        def _test_temporary_config(project):
+            assert project.conda_config.active
+            assert project.conda_config.is_initialized
+            assert project.config["venv.backend"] == runner
+            assert "CONDA_DEFAULT_ENV" not in os.environ
+
+        assert project.config["venv.backend"] != runner
+        assert "CONDA_DEFAULT_ENV" in os.environ
+        _test_temporary_config(project)
+        assert project.config["venv.backend"] != runner
+        assert "CONDA_DEFAULT_ENV" in os.environ

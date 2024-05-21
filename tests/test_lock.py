@@ -291,7 +291,8 @@ class TestLock:
         config.runner = runner
         config.solver = solver
         assert config.is_initialized
-        config.active = False
+        project.pyproject._data.update({"tool": {"pdm": {"conda": {"active": False}}}})
+        assert not config.active
         assert not config.is_initialized
 
         from pdm_conda.mapping import conda_to_pypi

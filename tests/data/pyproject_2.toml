@@ -1,0 +1,24 @@
+[tool.pdm.conda]
+runner = "micromamba"
+solver = "libmamba"
+channels = ["conda-forge"]
+as-default-manager = true
+custom-behavior = true
+auto-excludes = true
+batched-commands = true
+active = false
+
+[project]
+name = "test-project"
+version = "0.0.0"
+description = ""
+authors = []
+dependencies = [ "r" ]
+requires-python = ">=3.10.14"
+
+[project.license]
+text = "MIT"
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
