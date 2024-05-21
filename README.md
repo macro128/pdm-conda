@@ -6,6 +6,7 @@ A PDM plugin to resolve/install/uninstall project dependencies with Conda.
 
 | Config item                       | Description                                                                                          | Default value                                                                                       | Possible values                | Environment variable            |
 |-----------------------------------|------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------|--------------------------------|---------------------------------|
+| `conda.active`                    | Force plugin usage or not                                                                            | `True`                                                                                              |                                | `PDM_CONDA_ACTIVE`              |
 | `conda.runner`                    | Conda runner executable                                                                              | `conda`                                                                                             | `conda`, `mamba`, `micromamba` | `PDM_CONDA_RUNNER`              |
 | `conda.solver`                    | Solver to use for Conda resolution                                                                   | `conda`                                                                                             | `conda`, `libmamba`            | `PDM_CONDA_SOLVER`              |
 | `conda.channels`                  | Conda channels to use, order will be enforced                                                        | `[]`                                                                                                |                                |                                 |
@@ -33,6 +34,7 @@ solver = "libmamba"
 excludes = ["pytest-cov"] # don't install with conda even if it's a dependency from other packages
 installation-method = "copy"
 batched-commands = true
+active = false
 
 [tool.pdm.conda.pypi-mapping]
 download-dir = "/tmp"
@@ -107,6 +109,9 @@ Some environment variables were overridden too:
 
 * `PDM_IGNORE_ACTIVE_VENV` if conda settings detected in `pyproject.toml` and `VIRTUAL_ENV` or `CONDA_PREFIX`
   environment variables are set then this variable is set to `False`.
+
+All this changes will be maintained only during the execution of the command, after that the settings will be restored
+to the previous values.
 
 #### Lock strategy
 
