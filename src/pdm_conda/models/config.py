@@ -159,6 +159,7 @@ class PluginConfig:
         # if plugin config is set then maybe update pyproject settings
         if (
             ((not name.startswith("_")) or name == "_excludes")
+            and name != "active"
             and not isinstance(getattr(type(self), name, None), property)
             and not callable(getattr(self, name))
         ):
