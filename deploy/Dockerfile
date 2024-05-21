@@ -42,7 +42,7 @@ FROM ${base} AS src-app
 # install PDM and create app environment
 ARG app_env
 ARG python_version="3.10.*"
-ARG pdm_version="2.15.2"
+ARG pdm_version="2.15.3"
 ENV BIN_PATH=/opt/conda/_bin
 RUN --mount=type=cache,target=/opt/conda/pkgs,id=mamba,mode=0775,uid=1000,gid=1000,sharing=locked \
     micromamba install -y pdm==${pdm_version} -n base -c conda-forge --always-copy && \
