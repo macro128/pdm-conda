@@ -36,8 +36,8 @@ def fix_path(path: str | Path) -> Path:
 
 def get_python_dir(path: Path) -> Path:
     """Get the python directory for given interpreter path."""
-    if str(path).endswith("/bin/python"):
+    if path.parent.name == "bin" and path.name.startswith("python"):
         return path.parents[1]
-    if str(path).endswith("python.exe"):
+    if path.name == "python.exe":
         return path.parent
     return path
