@@ -9,7 +9,7 @@ services:
         dependencies: ":all"
         local_path: $PWD
     image: pdm-conda:latest-dev
-    platform: linux/arm64
+    platform: linux/x86_64
     volumes:
       - ../tests:/app/tests
       - ../src/pdm_conda:/app/src/pdm_conda
