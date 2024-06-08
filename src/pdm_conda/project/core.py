@@ -288,7 +288,7 @@ class CondaProject(Project):
         search_venv: bool | None = None,
     ) -> Iterable[PythonInfo]:
         if not self.conda_config.is_initialized:
-            return super().find_interpreters(python_spec, search_venv)
+            yield from super().find_interpreters(python_spec, search_venv)
         else:
             roots = set()
             if self.base_env:

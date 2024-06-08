@@ -200,6 +200,7 @@ class TestIntegration:
         self.assert_lockfile(project)
 
     def test_case_04(self, pdm, project, build_env, env_name, runner):
+        """Assert that the lock file is updated correctly using `--update-reuse`"""
         from pdm_conda.project.project_file import PyProject
 
         project.pyproject.set_data(
@@ -214,6 +215,7 @@ class TestIntegration:
             self.assert_lockfile(project)
 
     def test_case_05(self, pdm, project, build_env, env_name):
+        """Assert created environment appears in `pdm use`"""
         python_version = "3.11"
         print(f"create environment {env_name} with python version {python_version}:")
         pdm(
@@ -231,6 +233,7 @@ class TestIntegration:
             assert res.stdout.count(f"({i.executable.parent}") == 1
 
     def test_case_06(self, pdm, project, build_env, env_name, runner):
+        """Assert lock with Conda packages fails when `active` is `False`"""
         from pdm_conda.project.core import PyProject
 
         project.pyproject.set_data(
@@ -245,3 +248,9 @@ class TestIntegration:
         print("lock:")
         with pytest.raises(PdmException):
             pdm(["lock", "-G", ":all", "-vv"], obj=project, strict=True, cleanup=True).print()
+
+    def test_case_07(self, pdm, project, build_env, env_name, runner, tmp_cwd):
+        """Assert `pdm init` works."""
+        if runner != "micromamba":
+            return
+        pdm(["init", "-vv", "-n"], strict=True, cleanup=True).print()

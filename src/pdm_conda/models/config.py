@@ -299,11 +299,7 @@ class PluginConfig:
                     project = arg
                     break
 
-            if project is None:
-                return func(*args, **kwargs)
-
-            config = project.conda_config
-            if not config.is_initialized:
+            if project is None or not (config := project.conda_config).is_initialized:
                 return func(*args, **kwargs)
 
             project_config = project.project_config
