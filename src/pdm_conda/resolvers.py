@@ -225,7 +225,9 @@ class CondaResolver(Resolver):
             if conda_config.custom_behavior:
                 project.is_distribution = True
         else:
-            assert not any(isinstance(r, CondaRequirement) for r in requirements)
+            for r in requirements:
+                if isinstance(r, CondaRequirement):
+                    raise CondaResolutionError(f"Conda requirement {r} detected but pdm-plugin is not initialized.")
 
         try:
             state = resolution.resolve(requirements, max_rounds=max_rounds)

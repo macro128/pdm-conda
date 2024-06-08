@@ -3,6 +3,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from pdm.exceptions import PdmException
 
 from tests.conftest import PYTHON_VERSION
 
@@ -69,8 +70,8 @@ class TestIntegration:
         config.batched_commands = True
         from pdm_conda.project.core import PyProject
 
-        # python_version = "3.11"
-        python_version = PYTHON_VERSION
+        python_version = "3.11"
+        # python_version = PYTHON_VERSION
 
         print("list environments:")
         pdm(["venv", "list"], obj=project, strict=True, cleanup=True).print()
@@ -228,3 +229,19 @@ class TestIntegration:
         assert len(interpreters) == 2
         for i in interpreters:
             assert res.stdout.count(f"({i.executable.parent}") == 1
+
+    def test_case_06(self, pdm, project, build_env, env_name, runner):
+        from pdm_conda.project.core import PyProject
+
+        project.pyproject.set_data(
+            PyProject(Path(__file__).parent / "data" / "pyproject_2.toml", ui=project.core.ui)._data,
+        )
+        project.pyproject.write()
+        project.conda_config.runner = runner
+        assert not project.conda_config.active
+        assert not project.conda_config.is_initialized
+        assert project.config["venv.backend"] != runner
+
+        print("lock:")
+        with pytest.raises(PdmException):
+            pdm(["lock", "-G", ":all", "-vv"], obj=project, strict=True, cleanup=True).print()

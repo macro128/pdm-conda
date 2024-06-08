@@ -1,3 +1,4 @@
+import os
 from typing import Any
 
 import pytest
@@ -14,6 +15,8 @@ class TestPluginConfig:
             ["channels", ["other"]],
             ["excludes", ["another-dep-pip"]],
             ["batched-commands", True],
+            ["active", False],
+            ["active", True],
             ["custom-behavior", True],
             ["batched-commands", False],
             ["dependencies", ["package"]],
@@ -59,7 +62,7 @@ class TestPluginConfig:
         if config_value is not None:
             setattr(config, conda_config_name, assert_value)
             project.pyproject.write(False)
-            if not set_before and config_value == config_default:
+            if not set_before and (config_value == config_default or config_name == "active"):
                 assert (
                     "conda" not in project.pyproject.settings or config_name not in project.pyproject.settings["conda"]
                 )
@@ -69,6 +72,8 @@ class TestPluginConfig:
                     _config = _config[k]
 
                 assert config_value == _config
+        if config_name == "active" and not config_value:
+            assert not config.is_initialized
 
     @pytest.mark.parametrize(
         "config_name,config_value",
@@ -78,19 +83,26 @@ class TestPluginConfig:
             ["excludes", ["another-dep-pip"]],
             ["batched-commands", True],
             ["batched-commands", False],
+            ["active", False],
             ["dependencies", ["package"]],
         ],
     )
-    def test_with_config(self, project, mocker, config_name, config_value):
+    @pytest.mark.parametrize("is_initialized", [True, False])
+    def test_with_config(self, project, mocker, config_name, config_value, is_initialized):
         config = project.conda_config
         subscribed = mocker.spy(project.pyproject._data, "update")
         conda_config_name = config_name.replace("-", "_")
         old_value = getattr(config, conda_config_name)
         project.pyproject.write(False)
+        config.is_initialized = is_initialized
         assert not config._dry_run
         with config.with_config(**{conda_config_name: config_value}):
             assert config._dry_run
             assert getattr(config, conda_config_name) == config_value
+            if config_name == "active" and not config_value:
+                assert not config.is_initialized
+            elif old_value != config_value:
+                assert config.is_initialized == is_initialized
         assert getattr(config, conda_config_name) == old_value
         assert subscribed.call_count == 0
 
@@ -150,3 +162,21 @@ class TestPluginConfig:
                     },
                 },
             )
+
+    @pytest.mark.parametrize("runner", ["micromamba", "mamba", "conda"])
+    def test_temporary_config(self, project, runner):
+        """Test config changes are temporary."""
+        project.conda_config.runner = runner
+
+        @project.conda_config.check_active
+        def _test_temporary_config(project):
+            assert project.conda_config.active
+            assert project.conda_config.is_initialized
+            assert project.config["venv.backend"] == runner
+            assert "CONDA_DEFAULT_ENV" not in os.environ
+
+        assert project.config["venv.backend"] != runner
+        assert "CONDA_DEFAULT_ENV" in os.environ
+        _test_temporary_config(project)
+        assert project.config["venv.backend"] != runner
+        assert "CONDA_DEFAULT_ENV" in os.environ

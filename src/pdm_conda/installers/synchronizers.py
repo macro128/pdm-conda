@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from functools import cached_property
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from pdm.installers import Synchronizer
 
 from pdm_conda.environments import CondaEnvironment
+from pdm_conda.installers.manager import CondaInstallManager
 from pdm_conda.models.candidates import CondaCandidate
 from pdm_conda.models.requirements import strip_extras
 from pdm_conda.models.setup import CondaSetupDistribution
@@ -45,7 +46,6 @@ class CondaSynchronizer(Synchronizer):
             fail_fast,
             use_install_cache,
         )
-        self.environment = cast(CondaEnvironment, environment)
         self.parallel = bool(self.parallel)  # type: ignore
 
     @cached_property
@@ -64,29 +64,31 @@ class CondaSynchronizer(Synchronizer):
         to_add, to_update, to_remove = super().compare_with_working_set()
         if not isinstance(self.environment, CondaEnvironment):
             return to_add, to_update, to_remove
-
-        # deactivate parallel execution if uninstall
-        self.parallel = self.environment.project.config["install.parallel"]
         if to_remove:
             to_remove = [p for p in to_remove if p not in self.environment.env_dependencies]
 
-        num_install = 0
+        if (
+            not isinstance(self.manager, CondaInstallManager)
+            or not self.environment.project.conda_config.batched_commands
+        ):
+            return to_add, to_update, to_remove
+
+        to_batch_install = set()
+        to_batch_remove = set()
+
+        def extract_conda(pkgs, candidates, cls):
+            conda_pkgs = []
+            for pkg in pkgs:
+                if isinstance(candidates[pkg], cls):
+                    conda_pkgs.append(pkg)
+            return conda_pkgs
+
         for pkgs in (to_add, to_update):
-            num_install += len([p for p in pkgs if isinstance(self.candidates[p], CondaCandidate)])
+            to_batch_install.update(extract_conda(pkgs, self.candidates, CondaCandidate))
 
-        num_remove = 0
         for pkgs in (to_remove, to_update):
-            num_remove += len([p for p in pkgs if isinstance(self.working_set[p], CondaSetupDistribution)])
+            to_batch_remove.update(extract_conda(pkgs, self.working_set, CondaSetupDistribution))
 
-        if self.parallel and num_remove > 0:
-            if not self.dry_run:
-                self.environment.project.core.ui.echo("Deactivating parallel uninstall.")
-            self.parallel = False
-
-        batched_commands = self.environment.project.conda_config.batched_commands
-        self.manager.prepare_batch_operations(
-            num_install=num_install if batched_commands else 0,
-            num_remove=num_remove if batched_commands else 0,
-        )
+        self.manager.prepare_batch_operations(to_batch_install, to_batch_remove)
 
         return to_add, to_update, to_remove

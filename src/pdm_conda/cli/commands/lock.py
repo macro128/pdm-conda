@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, cast
 from pdm.cli.commands.lock import Command as BaseCommand
 from pdm.project.lockfile import FLAG_CROSS_PLATFORM
 
+from pdm_conda.models.config import PluginConfig
 from pdm_conda.project import CondaProject
 
 if TYPE_CHECKING:
@@ -17,6 +18,7 @@ class Command(BaseCommand):
     description = BaseCommand.__doc__
     name = "lock"
 
+    @PluginConfig.check_active
     def handle(self, project: Project, options: argparse.Namespace) -> None:
         project = cast(CondaProject, project)
         if project.conda_config.is_initialized:

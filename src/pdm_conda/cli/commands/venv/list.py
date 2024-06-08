@@ -5,6 +5,7 @@ from typing import cast, TYPE_CHECKING
 from pdm.cli.commands.venv.list import ListCommand as BaseCommand
 
 from pdm_conda.cli.utils import ensure_logger
+from pdm_conda.models.config import PluginConfig
 
 if TYPE_CHECKING:
     import argparse
@@ -14,6 +15,7 @@ if TYPE_CHECKING:
 class ListCommand(BaseCommand):
     description = BaseCommand.__doc__
 
+    @PluginConfig.check_active
     def handle(self, project: Project, options: argparse.Namespace) -> None:
         from pdm_conda.project import CondaProject
 

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import functools
 import sys
 from typing import TYPE_CHECKING
 
@@ -9,6 +8,7 @@ from pdm.cli.commands.venv import list, utils
 from pdm.models.venv import VirtualEnv
 
 from pdm_conda.conda import conda_env_list
+from pdm_conda.models.config import PluginConfig
 from pdm_conda.utils import get_python_dir
 
 if TYPE_CHECKING:
@@ -49,7 +49,7 @@ class CondaProvider(BaseProvider):
 
 
 def wrap_iter_venvs(func):
-    @functools.wraps(func)
+    @PluginConfig.check_active
     def wrapper(project):
         yield from func(project)
         if project.conda_config.is_initialized:

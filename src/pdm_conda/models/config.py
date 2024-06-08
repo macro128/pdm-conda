@@ -36,6 +36,7 @@ class CondaSolver(str, Enum):
 
 
 CONFIGS = [
+    ("active", ConfigItem("Use pdm-conda plugin", True, env_var="PDM_CONDA_ACTIVE")),
     ("runner", ConfigItem("Conda runner executable", CondaRunner.CONDA.value, env_var="PDM_CONDA_RUNNER")),
     ("solver", ConfigItem("Solver to use for Conda resolution", CondaSolver.CONDA.value, env_var="PDM_CONDA_SOLVER")),
     ("channels", ConfigItem("Conda channels to use", [])),
@@ -120,6 +121,7 @@ class PluginConfig:
     channels: list[str] = field(default_factory=list)
     runner: str = CondaRunner.CONDA
     solver: str = CondaSolver.CONDA
+    active: bool = True
     as_default_manager: bool = False
     custom_behavior: bool = False
     auto_excludes: bool = False
@@ -157,6 +159,7 @@ class PluginConfig:
         # if plugin config is set then maybe update pyproject settings
         if (
             ((not name.startswith("_")) or name == "_excludes")
+            and name != "active"
             and not isinstance(getattr(type(self), name, None), property)
             and not callable(getattr(self, name))
         ):
@@ -276,18 +279,55 @@ class PluginConfig:
 
     @property
     def is_initialized(self):
-        return self._initialized
+        return self._initialized and self.active
 
     @is_initialized.setter
     def is_initialized(self, value):
-        if value:
-            config = self._project.project_config
-            config["python.use_venv"] = True
-            config["python.use_pyenv"] = False
-            config["venv.backend"] = self.runner
-            config.setdefault("venv.in_project", False)
-            os.environ.pop("PDM_IGNORE_ACTIVE_VENV", None)
         self._initialized = value
+
+    @staticmethod
+    def check_active(func):
+        """Decorator that checks if the plugin is active and temporarily updates the project config."""
+
+        @wraps(func)
+        def decorator(*args, **kwargs):
+            from pdm_conda.project import CondaProject
+
+            project = None
+            for arg in args:
+                if isinstance(arg, CondaProject):
+                    project = arg
+                    break
+
+            if project is None:
+                return func(*args, **kwargs)
+
+            config = project.conda_config
+            if not config.is_initialized:
+                return func(*args, **kwargs)
+
+            project_config = project.project_config
+            old_configs = {
+                name: getattr(project_config, name, None)
+                for name in ("python.use_venv", "python.use_pyenv", "venv.backend", "venv.in_project")
+            }
+            active_venv = os.environ.pop("CONDA_DEFAULT_ENV", None)
+            try:
+                for name, value in zip(old_configs, (True, False, config.runner, False), strict=False):
+                    if getattr(old_configs, name, None) != value:
+                        project_config[name] = value
+                return func(*args, **kwargs)
+            finally:
+                for name, value in old_configs.items():
+                    if value is not None:
+                        if project_config[name] != value:
+                            project_config[name] = value
+                    elif name in project_config:
+                        del project_config[name]
+                if active_venv is not None:
+                    os.environ["CONDA_DEFAULT_ENV"] = active_venv
+
+        return decorator
 
     @contextmanager
     def with_conda_venv_location(self):
@@ -344,7 +384,13 @@ class PluginConfig:
                 value = project.config[n]
                 if prop_name == "mapping_download_dir":
                     value = Path(value)
-                elif prop_name in ("as_default_manager", "batched_commands", "custom_behavior", "auto_excludes"):
+                elif prop_name in (
+                    "as_default_manager",
+                    "batched_commands",
+                    "custom_behavior",
+                    "auto_excludes",
+                    "active",
+                ):
                     value = str(value).lower() in ("true", "1")
                 config[prop_name] = value
         config |= kwargs

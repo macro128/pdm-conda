@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, cast
 from pdm.cli.commands.remove import Command as BaseCommand
 
 from pdm_conda.cli.utils import remove_quotes
+from pdm_conda.models.config import PluginConfig
 from pdm_conda.models.requirements import parse_requirement
 from pdm_conda.project import CondaProject
 
@@ -18,6 +19,7 @@ class Command(BaseCommand):
     description = BaseCommand.__doc__
     name = "remove"
 
+    @PluginConfig.check_active
     def handle(self, project: Project, options: argparse.Namespace) -> None:
         if options.group is None:
             options.group = "dev" if options.dev else "default"

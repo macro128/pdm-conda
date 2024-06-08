@@ -7,6 +7,7 @@ from pdm.cli.options import ArgumentGroup, split_lists
 from pdm.exceptions import RequirementError
 
 from pdm_conda.cli.utils import remove_quotes
+from pdm_conda.models.config import PluginConfig
 from pdm_conda.models.requirements import CondaRequirement, is_conda_managed, parse_requirement
 from pdm_conda.project import CondaProject
 
@@ -64,6 +65,7 @@ class Command(BaseCommand):
         )
         conda_group.add_to_parser(parser)
 
+    @PluginConfig.check_active
     def handle(self, project: Project, options: argparse.Namespace) -> None:
         project = cast(CondaProject, project)
         config = project.conda_config

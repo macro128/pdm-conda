@@ -25,7 +25,6 @@ class CondaEnvironment(PythonEnvironment):
 
     def __init__(self, project: Project) -> None:
         super().__init__(project)
-        self._env_dependencies: dict[str, Requirement] | None = None
         if self.project.conda_config.is_initialized:
             self.python_requires &= PySpecSet(f"=={self.interpreter.version}")
             self.prefix = str(get_python_dir(fix_path(self.interpreter.path)))
@@ -33,6 +32,7 @@ class CondaEnvironment(PythonEnvironment):
         self._platform: str | None = None
         self._default_channels: list[str] | None = None
         self._base_env: Path | None = None
+        self._env_dependencies: dict[str, Requirement] | None = None
 
     @property
     def virtual_packages(self) -> set[CondaRequirement]:
@@ -97,4 +97,4 @@ class CondaEnvironment(PythonEnvironment):
                 dry_run=True,
             )
 
-        return self._env_dependencies
+        return self._env_dependencies  # type: ignore
