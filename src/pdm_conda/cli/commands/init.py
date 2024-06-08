@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, cast
 from pdm.cli.commands.init import Command as BaseCommand
 from pdm.cli.options import ArgumentGroup, split_lists
 
+from pdm_conda.cli.utils import ensure_logger
 from pdm_conda.project import CondaProject
 
 if TYPE_CHECKING:
@@ -54,7 +55,8 @@ class Command(BaseCommand):
                     config.channels.append(channel)
             overridden_configs["channels"] = config.channels
 
-        config.check_active(super().handle)(project, options)
+        with ensure_logger(project, "init"):
+            config.check_active(super().handle)(project, options)
         with config.write_project_config():
             for key, value in overridden_configs.items():
                 setattr(config, key, value)
