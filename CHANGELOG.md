@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.1] - 08/06/2024
+
+### Fixed
+
+* Fix `pdm init` not working after installing this plugin.
+
 ## [0.18.0] - 08/06/2024
 
 ### Added
