@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from threading import Lock
 from typing import TYPE_CHECKING
 
 from pdm.installers import InstallManager
@@ -28,6 +29,7 @@ class CondaInstallManager(InstallManager):
         self._batch_install_expected: set[str] = set()
         self._batch_uninstall_queue: dict[str, str] = {}
         self._batch_uninstall_expected: set[str] = set()
+        self.lock = Lock()
 
     def prepare_batch_operations(self, to_install: set[str], to_uninstall: set[str]):
         self._batch_install_expected = to_install
@@ -48,7 +50,8 @@ class CondaInstallManager(InstallManager):
             should_run = set(queue) == expected
 
         if should_run:
-            conda_func(self.environment.project, list(queue.values()), no_deps=True)
+            with self.lock:
+                conda_func(self.environment.project, list(queue.values()), no_deps=True)
 
     def install(self, candidate: Candidate) -> Distribution:
         """Install candidate, use conda if conda package else default installer.
