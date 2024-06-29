@@ -10,6 +10,7 @@ services:
         local_path: $PWD
     image: pdm-conda:latest-dev
     platform: linux/x86_64
+    restart: no
     volumes:
       - ../tests:/app/tests
       - ../src/pdm_conda:/app/src/pdm_conda

@@ -67,3 +67,5 @@ class Command(BaseCommand):
                     write=(write := i == num_groups - 1),
                     show_message=write,
                 )
+
+            project.lockfile.write(show_message=False)
