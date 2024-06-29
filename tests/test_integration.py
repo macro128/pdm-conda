@@ -155,6 +155,7 @@ class TestIntegration:
         pdm(["venv", "list"], obj=project, strict=True, cleanup=True).print()
 
     def test_case_02(self, pdm, project, build_env, env_name, runner):
+        """Assert lock with Conda does not fail when `auto_excludes` is `True`"""
         from pdm_conda.project.core import PyProject
 
         project.pyproject.set_data(
@@ -170,6 +171,7 @@ class TestIntegration:
         self.assert_lockfile(project)
 
     def test_case_03(self, pdm, project, build_env, env_name):
+        """Assert created environment appears in `pdm use`"""
         config = project.conda_config
         config.auto_excludes = True
         config.batched_commands = True
@@ -254,3 +256,25 @@ class TestIntegration:
         if runner != "micromamba":
             return
         pdm(["init", "-vv", "-n"], strict=True, cleanup=True).print()
+
+    def test_case_08(self, pdm, project, build_env, env_name, runner):
+        """Assert not batched commands work.`"""
+        from pdm_conda.project.core import PyProject
+
+        project.pyproject.set_data(
+            PyProject(Path(__file__).parent / "data" / "pyproject.toml", ui=project.core.ui)._data,
+        )
+        project.pyproject.write()
+        project.conda_config.runner = runner
+        project.conda_config.batched_commands = False
+
+        pdm(
+            ["venv", "create", "-cn", env_name, "-f"],
+            obj=project,
+            strict=True,
+            cleanup=True,
+        ).print()
+        print("use")
+        pdm(["use"], obj=project, strict=True, cleanup=True, input="0\n")
+
+        pdm(["install", "-G", ":all", "-x", "-vv"], obj=project, strict=True, cleanup=True).print()
