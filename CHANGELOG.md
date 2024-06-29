@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+* Avoid making Conda concurrent executions when using `pdm add/remove/update/install/sync` commands.
+
+
 ## [0.18.1] - 08/06/2024
 
 ### Fixed
