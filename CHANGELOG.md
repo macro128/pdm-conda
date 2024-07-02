@@ -7,10 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.2] - 01/07/2024
+
+### Added
+
+* Now compatible with `pdm==v2.16.1`.
+
 ### Changed
 
 * Avoid making Conda concurrent executions when using `pdm add/remove/update/install/sync` commands.
-
 
 ## [0.18.1] - 08/06/2024
 
