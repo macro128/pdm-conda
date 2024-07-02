@@ -1,7 +1,7 @@
 name: "pdm-conda"
 
 services:
-  pdm-conda:
+  app:
     build:
       context: ../
       dockerfile: ./deploy/Dockerfile
