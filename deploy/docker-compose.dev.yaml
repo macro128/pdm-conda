@@ -1,7 +1,7 @@
 name: "pdm-conda-dev"
 
 services:
-  pdm-conda:
+  app:
     user: root
     build:
       args:
