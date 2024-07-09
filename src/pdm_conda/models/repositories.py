@@ -4,8 +4,12 @@ import uuid
 from typing import TYPE_CHECKING, cast
 
 from pdm.exceptions import CandidateNotFound
+from pdm.formats.base import make_array, make_inline_table
+from pdm.models.markers import EnvSpec
 from pdm.models.repositories import BaseRepository, LockedRepository, PyPIRepository
+from pdm.models.repositories.lock import PackageEntry
 from pdm.models.specifiers import PySpecSet
+from tomlkit import TOMLDocument
 
 from pdm_conda import logger
 from pdm_conda.conda import CondaResolutionError, CondaSearchError, conda_create, conda_search, sort_candidates
@@ -232,14 +236,22 @@ class PyPICondaRepository(PyPIRepository, CondaRepository):
 
 
 class LockedCondaRepository(LockedRepository, CondaRepository):
-    def _matching_keys(self, requirement: Requirement) -> Iterable[CandidateKey]:
-        yield from super()._matching_keys(requirement)
+    def __init__(
+        self,
+        lockfile: Mapping[str, Any],
+        sources: list[RepositoryConfig],
+        environment: BaseEnvironment,
+        env_spec: EnvSpec | None = None,
+    ) -> None:
+        self.conda_entries: dict[str, tuple] = {}
+        super().__init__(lockfile, sources, environment, env_spec)  # type: ignore[call-arg,arg-type]
+
+    def _matching_entries(self, requirement: Requirement) -> Iterable[CandidateKey]:
+        yield from super()._matching_entries(requirement)
         if self.is_conda_managed(requirement):
             req_id = as_conda_requirement(requirement).identify()
-
-            for key, can in self.packages.items():
-                if isinstance(can, CondaCandidate) and req_id == key[0]:
-                    yield key
+            if (key := self.conda_entries.get(req_id, None)) is not None:
+                yield key
 
     def _read_lockfile(self, lockfile: Mapping[str, Any]) -> None:
         packages = lockfile.get("package", [])
@@ -263,14 +275,46 @@ class LockedCondaRepository(LockedRepository, CondaRepository):
         for package in conda_packages:
             can = CondaCandidate.from_lock_package(package)
             can_id = self._identify_candidate(can)
-            self.packages[can_id] = can
-            self.candidate_info[can_id] = (
-                can.dependencies_lines,
-                package.get("requires_python", ""),
-                package.get("summary", ""),
-            )
+            self.conda_entries[can_id[0]] = can_id
+            self.packages[can_id] = PackageEntry(can, package.get("dependencies", []), package.get("summary", []))
 
     def _identify_candidate(self, candidate: Candidate) -> tuple:
         if isinstance(candidate, CondaCandidate):
             return candidate.identify(), candidate.version, None, False
         return super()._identify_candidate(candidate)
+
+    def format_lockfile(self, groups: Iterable[str] | None, strategy: set[str]) -> TOMLDocument:
+        res = super().format_lockfile(groups, strategy)
+        # ensure no duplicated groups in metadata
+        if groups := res.get("metadata", {}).get("groups"):
+            res["metadata"]["groups"] = list({group: None for group in groups}.keys())
+
+        # fix conda packages
+        for package, entry in zip(
+            res["package"],
+            sorted(self.packages.values(), key=lambda x: x.candidate.identify()),
+            strict=False,
+        ):
+            can = entry.candidate
+            # only static-url allowed for conda packages
+            if isinstance(can, CondaCandidate):
+                package["files"] = make_array(
+                    [make_inline_table({"url": item["url"], "hash": item["hash"]}) for item in can.hashes],
+                    multiline=True,
+                )
+
+                # fix conda dependencies to include build string
+                dependencies = []
+                include_dependencies = False
+                for dep in can.dependencies:
+                    kwargs = {}
+                    if dep.identify() in self.conda_entries:
+                        kwargs["with_build_string"] = True
+                        kwargs["conda_compatible"] = True
+                        include_dependencies = True
+                    dependencies.append(dep.as_line(**kwargs))
+                if include_dependencies:
+                    package["dependencies"] = make_array(sorted(set(dependencies)), True)
+
+        res["package"] = sorted(res["package"], key=lambda x: x["name"])
+        return res
