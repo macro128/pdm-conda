@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from pdm.core import Core
     from pdm.environments import BaseEnvironment
     from pdm.models.repositories import LockedRepository
-    from pdm.models.requirements import Requirement
+    from pdm.models.requirements import Requirement, parse_line
     from pdm.resolver.providers import BaseProvider
 
 
@@ -200,42 +200,71 @@ class CondaProject(Project):
 
     def add_dependencies(
         self,
-        requirements: dict[str, Requirement],
+        requirements: Iterable[str | Requirement],
         to_group: str = "default",
         dev: bool = False,
         show_message: bool = True,
         write: bool = True,
-    ) -> None:
-        conda_requirements = {n: r for n, r in requirements.items() if isinstance(r, CondaRequirement)}
-        requirements = {n: r for n, r in requirements.items() if n not in conda_requirements} | {
-            n: r.as_named_requirement() for n, r in conda_requirements.items() if r.is_python_package
-        }
+    ) -> list[Requirement]:
+        conda_requirements = []
+        python_requirements = []
+
+        for r in requirements:
+            if isinstance(r, str):
+                r = parse_line(r)
+            if isinstance(r, CondaRequirement):
+                conda_requirements.append(r)
+                if r.is_python_package:
+                    python_requirements.append(r.as_named_requirement())
+            else:
+                python_requirements.append(r)
+
+        conda_parsed_deps: list[CondaRequirement] = []
+
         if self.conda_config.is_initialized:
             if self.conda_config.as_default_manager:
-                conda_requirements = {
-                    n: r
-                    for n, r in conda_requirements.items()
-                    if not r.is_python_package or r.channel or r.build_string
-                }
+                conda_requirements = [
+                    r for r in conda_requirements if not r.is_python_package or r.channel or r.build_string
+                ]
             if conda_requirements:
+                updated_indices: set[int] = set()
+
                 deps = self.get_conda_pyproject_dependencies(to_group, dev, set_defaults=True)
+                conda_parsed_deps = [parse_requirement(f"conda:{dep}") for dep in deps]
                 python_deps, _ = self.use_pyproject_dependencies(to_group, dev)
+                python_names = {r.conda_name for r in python_requirements}
                 cast(Array, deps).multiline(True)
-                for name, dep in conda_requirements.items():
-                    matched_index = next((i for i, r in enumerate(deps) if dep.matches(f"conda:{r}")), None)
-                    req = dep.as_line(with_channel=True)
+                for req in conda_requirements:
+                    matched_index = next(
+                        (i for i, r in enumerate(deps) if req.matches(f"conda:{r}") and i not in updated_indices),
+                        None,
+                    )
+                    dep = req.as_line(with_channel=True)
                     if matched_index is None:
-                        deps.append(req)
+                        updated_indices.add(len(deps))
+                        deps.append(dep)
+                        conda_parsed_deps.append(req)
                     else:
-                        deps[matched_index] = req
-                    if name not in requirements:
-                        matched_index = next((i for i, r in enumerate(python_deps) if dep.matches(r)), None)
+                        deps[matched_index] = dep
+                        updated_indices.add(matched_index)
+                        conda_parsed_deps[matched_index] = req
+
+                    # remove from python deps in there
+                    if req.conda_name not in python_names:
+                        matched_index = next((i for i, r in enumerate(python_deps) if req.matches(r)), None)
                         if matched_index is not None:
                             python_deps.pop(matched_index)
         else:
             assert not conda_requirements, "Conda is not initialized but conda requirements are present."
 
-        super().add_dependencies(requirements, to_group, dev, show_message, write=write)
+        group_deps = super().add_dependencies(python_requirements, to_group, dev, show_message, write=write)
+        for dep in conda_parsed_deps:
+            matched_index = next((i for i, r in enumerate(group_deps) if dep.conda_name == r.conda_name), None)
+            if matched_index is not None:
+                group_deps[matched_index] = dep
+            else:
+                group_deps.append(dep)
+        return group_deps
 
     @PluginConfig.check_active
     def get_environment(self) -> BaseEnvironment:
