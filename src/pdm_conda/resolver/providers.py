@@ -38,9 +38,16 @@ class CondaBaseProvider(BaseProvider):
         allow_prereleases: bool | None = None,
         overrides: dict[str, str] | None = None,
         direct_minimal_versions: bool = False,
-        locked_candidates: dict[str, Candidate] | None = None,
+        *,
+        locked_candidates: dict[str, list[Candidate]],
     ) -> None:
-        super().__init__(repository, allow_prereleases, overrides, direct_minimal_versions, locked_candidates)
+        super().__init__(
+            repository,
+            allow_prereleases,
+            overrides,
+            direct_minimal_versions,
+            locked_candidates=locked_candidates,
+        )
         self._overrides_requirements: dict | None = None
         environment = repository.environment
         self.is_conda_initialized = (
