@@ -4,8 +4,10 @@ from collections.abc import Sequence
 from functools import cached_property
 from typing import TYPE_CHECKING, cast
 
+from pdm._types import NotSet, NotSetType
 from pdm.compat import CompatibleSequence
 from pdm.exceptions import PdmUsageError, ProjectError
+from pdm.models.markers import EnvSpec
 from pdm.models.python import PythonInfo
 from pdm.project import Project
 from pdm.project.lockfile import Lockfile
@@ -290,16 +292,33 @@ class CondaProject(Project):
         strategy: str = "all",
         tracked_names: Iterable[str] | None = None,
         for_install: bool = False,
-        ignore_compatibility: bool = True,
+        ignore_compatibility: bool | NotSetType = NotSet,
         direct_minimal_versions: bool = False,
+        env_spec: EnvSpec | None = None,
+        locked_repository: LockedRepository | None = None,
     ) -> BaseProvider:
         if not self.conda_config.is_initialized:
-            return super().get_provider(strategy, tracked_names, for_install, ignore_compatibility)
+            return super().get_provider(
+                strategy,
+                tracked_names,
+                for_install,
+                ignore_compatibility,
+                direct_minimal_versions,
+                env_spec,
+                locked_repository,
+            )
 
         from pdm_conda.resolver.providers import BaseProvider, CondaBaseProvider
 
-        kwargs = {"direct_minimal_versions": direct_minimal_versions}
-        provider = super().get_provider(strategy, tracked_names, for_install, ignore_compatibility, **kwargs)
+        kwargs = {"direct_minimal_versions": direct_minimal_versions, "locked_repository": locked_repository}
+        provider = super().get_provider(
+            strategy,
+            tracked_names,
+            for_install,
+            ignore_compatibility,
+            env_spec=env_spec,
+            **kwargs,
+        )
         if isinstance(provider, BaseProvider) and not isinstance(provider, CondaBaseProvider):
             kwargs["locked_candidates"] = provider.locked_candidates
             return CondaBaseProvider(provider.repository, **kwargs)  # type: ignore[arg-type]
