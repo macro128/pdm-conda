@@ -140,12 +140,12 @@ class CondaRepository(BaseRepository):
             candidate.hashes = _candidates[0].hashes
         return super().get_hashes(candidate)
 
-    def update_hashes(self, mapping: dict[str, Candidate]):
+    def update_hashes(self, candidates: list[Candidate]):
         """Update hashes for candidates in mapping using conda create.
 
-        :param mapping: mapping of candidates
+        :param candidates: list of candidates
         """
-        conda_requirements = [can.req for can in mapping.values() if isinstance(can, CondaCandidate) and not can.hashes]
+        conda_requirements = [can.req for can in candidates if isinstance(can, CondaCandidate) and not can.hashes]
         if conda_requirements:
             resolution = conda_create(
                 self.environment.project,
@@ -153,7 +153,7 @@ class CondaRepository(BaseRepository):
                 prefix=f"/tmp/{uuid.uuid4()}",
                 dry_run=True,
             )
-            for candidate in mapping.values():
+            for candidate in candidates:
                 logger.info(f"Fetching hashes for {candidate}")
                 if (cans := resolution.get(candidate.name, [])) and cans[0].req.is_compatible(candidate.req):
                     candidate.hashes = cans[0].hashes

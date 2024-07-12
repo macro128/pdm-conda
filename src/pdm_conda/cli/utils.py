@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import functools
+from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
 from pdm.cli import actions, utils
@@ -13,8 +14,6 @@ from pdm_conda.models.repositories import CondaRepository
 from pdm_conda.models.requirements import as_conda_requirement, comparable_version
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
-
     from pdm_conda.models.candidates import Candidate
     from pdm_conda.models.requirements import Requirement
 
@@ -37,13 +36,18 @@ def remove_quotes(req: str) -> str:
 
 def wrap_fetch_hashes(func):
     @functools.wraps(func)
-    def wrapper(repository, mapping: Mapping[str, Candidate]) -> None:
-        conda_candidates = {}
+    def wrapper(repository, candidates: Iterable[Candidate]) -> None:
+        conda_candidates = []
+        python_candidates = []
+        for can in candidates:
+            if isinstance(can, CondaCandidate):
+                conda_candidates.append(can)
+            else:
+                python_candidates.append(can)
         if isinstance(repository, CondaRepository):
-            conda_candidates = {name: can for name, can in mapping.items() if isinstance(can, CondaCandidate)}
             repository.update_hashes(conda_candidates)
 
-        return func(repository, {name: can for name, can in mapping.items() if name not in conda_candidates})
+        return func(repository, python_candidates)
 
     return wrapper
 
