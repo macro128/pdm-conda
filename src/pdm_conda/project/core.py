@@ -87,14 +87,18 @@ class CondaProject(Project):
             self._base_env = conda_base_path(self)
         return self._base_env
 
-    @property
-    def locked_repository(self) -> LockedRepository:
+    def get_locked_repository(self, env_spec: EnvSpec | None = None) -> LockedRepository:
         try:
             lockfile = self.lockfile._data.unwrap()
         except ProjectError:
             lockfile = {}
 
-        return self.locked_repository_class(lockfile=lockfile, sources=self.sources, environment=self.environment)  # type: ignore
+        return self.locked_repository_class(
+            lockfile=lockfile,
+            sources=self.sources,
+            environment=self.environment,
+            env_spec=env_spec,
+        )  # type: ignore
 
     @Project.python.setter
     @PluginConfig.check_active
@@ -310,13 +314,14 @@ class CondaProject(Project):
 
         from pdm_conda.resolver.providers import BaseProvider, CondaBaseProvider
 
-        kwargs = {"direct_minimal_versions": direct_minimal_versions, "locked_repository": locked_repository}
+        kwargs = {"direct_minimal_versions": direct_minimal_versions}
         provider = super().get_provider(
             strategy,
             tracked_names,
             for_install,
             ignore_compatibility,
             env_spec=env_spec,
+            locked_repository=locked_repository,
             **kwargs,
         )
         if isinstance(provider, BaseProvider) and not isinstance(provider, CondaBaseProvider):

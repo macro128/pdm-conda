@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 from typing import TYPE_CHECKING, cast
 
+from pdm._types import NotSet, NotSetType
 from pdm.exceptions import CandidateNotFound
 from pdm.formats.base import make_array, make_inline_table
 from pdm.models.markers import EnvSpec
@@ -45,9 +46,10 @@ class CondaRepository(BaseRepository):
         self,
         sources: list[RepositoryConfig],
         environment: BaseEnvironment,
-        ignore_compatibility: bool = True,
+        ignore_compatibility: bool | NotSetType = NotSet,
+        env_spec: EnvSpec | None = None,
     ) -> None:
-        super().__init__(sources, environment, ignore_compatibility)
+        super().__init__(sources, environment, ignore_compatibility, env_spec)
         self.environment = cast(CondaEnvironment, environment)
         self._conda_resolution: dict[str, list[CondaCandidate]] = {}
         self._excluded_identifiers: set[str] = set()
