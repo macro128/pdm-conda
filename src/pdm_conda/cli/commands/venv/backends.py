@@ -29,19 +29,20 @@ class CondaBackend(BackendBase):
         in_project: bool = False,
         prompt: str | None = None,
         with_pip: bool = False,
+        venv_name: str | None = None,
     ) -> Path:
         with ensure_logger(self.project, "conda_create"):
-            return super().create(name, args, force, in_project, prompt, with_pip)
+            return super().create(venv_name or name, args, force, in_project, prompt, with_pip)
 
     @PluginConfig.check_active
-    def get_location(self, name: str | None) -> Path:
+    def get_location(self, name: str | None = None, venv_name: str | None = None) -> Path:
         with self.project.conda_config.with_conda_venv_location() as (venv_location, _):
             if conda_name := (name is not None and name.startswith("conda:")):
                 name = name[6:]
             if conda_name:
                 location = venv_location / name
             else:
-                location = super().get_location(name)
+                location = super().get_location(name, venv_name)
             return location
 
     @PluginConfig.check_active
