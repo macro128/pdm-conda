@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from functools import cached_property
 from typing import TYPE_CHECKING, cast
 
+from pdm.compat import CompatibleSequence
 from pdm.exceptions import PdmUsageError, ProjectError
 from pdm.models.python import PythonInfo
 from pdm.project import Project
@@ -154,7 +156,7 @@ class CondaProject(Project):
                 groups.remove(group)
         return groups
 
-    def get_dependencies(self, group: str | None = None) -> dict[str, Requirement]:
+    def get_dependencies(self, group: str | None = None) -> Sequence[Requirement]:
         config = self.conda_config
         if not config.is_initialized:
             return super().get_dependencies(group)
@@ -162,14 +164,14 @@ class CondaProject(Project):
         group = group or "default"
         dev = group not in config.optional_dependencies
         try:
-            result = super().get_dependencies(group)
+            result = super().get_dependencies(group)._data
         except PdmUsageError:
-            result = {}
+            result = []
 
         if group in config.optional_dependencies and group in config.dev_dependencies:
             self.core.ui.echo(
-                f"The {group} group exists in both [optional-dependencies] "
-                "and [dev-dependencies], the former is taken.",
+                f"The {group} group exists in both \\[optional-dependencies] "
+                "and \\[dev-dependencies], the former is taken.",
                 err=True,
                 style="warning",
             )
@@ -179,9 +181,9 @@ class CondaProject(Project):
             req = parse_requirement(f"conda:{line}")
             req.groups = [group]
             # search for package with extras to remove it
-            pypi_req = next((v for v in result.values() if v.conda_name == req.conda_name), None)
-            if pypi_req is not None:
-                result.pop(pypi_req.identify())
+            pypi_req_idx = next((i for i, v in enumerate(result) if v.conda_name == req.conda_name), None)
+            if pypi_req_idx is not None:
+                pypi_req = result[pypi_req_idx]
                 if not req.specifier:
                     req.specifier = pypi_req.specifier
                 if pypi_req.marker:
@@ -189,14 +191,16 @@ class CondaProject(Project):
                 if pypi_req.extras:
                     req.extras = pypi_req.extras
                 req.groups = pypi_req.groups
-            result[req.identify()] = req
+                result[pypi_req_idx] = req
+            else:
+                result.append(req)
 
         if self.conda_config.as_default_manager:
-            for k in list(result):
-                if is_conda_managed(req := result[k], config):
-                    result[k] = as_conda_requirement(req)
+            for i, req in enumerate(result):
+                if is_conda_managed(req, config):
+                    result[i] = as_conda_requirement(req)
 
-        return result
+        return CompatibleSequence(result)
 
     def add_dependencies(
         self,
@@ -259,6 +263,7 @@ class CondaProject(Project):
 
         group_deps = super().add_dependencies(python_requirements, to_group, dev, show_message, write=write)
         for dep in conda_parsed_deps:
+            dep.groups = [to_group]
             matched_index = next((i for i, r in enumerate(group_deps) if dep.conda_name == r.conda_name), None)
             if matched_index is not None:
                 group_deps[matched_index] = dep
