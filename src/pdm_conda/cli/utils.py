@@ -55,26 +55,29 @@ def wrap_fetch_hashes(func):
 def wrap_save_version_specifiers(func):
     @functools.wraps(func)
     def wrapper(
-        requirements: dict[str, dict[str, Requirement]],
-        resolved: dict[str, Candidate],
+        requirements: list[Requirement],
+        resolved: dict[str, list[Candidate]],
         save_strategy: str,
     ) -> None:
         func(requirements, resolved, save_strategy)
-        for reqs in requirements.values():
-            for name, r in reqs.items():
-                can = resolved[name]
-                if save_strategy == "compatible" and r.is_named and (version := comparable_version(can.version)).epoch:
-                    if version.is_prerelease or version.is_devrelease:
-                        r.specifier = get_specifier(
-                            f">={version.epoch}!{version},<{version.epoch}!{version.major + 1}",
-                        )
-                    else:
-                        r.specifier = get_specifier(f"~={version.epoch}!{version.major}.{version.minor}")
-                if isinstance(can, CondaCandidate):
-                    r = as_conda_requirement(r)
-                    r.version_mapping.update(can.req.version_mapping)
-                    r.is_python_package = can.req.is_python_package
-                    reqs[name] = r
+        for i, r in enumerate(requirements):
+            name = r.identify()
+            candidates = resolved[name]
+            if len(candidates) > 1:
+                continue
+            can = candidates[0]
+            if save_strategy == "compatible" and r.is_named and (version := comparable_version(can.version)).epoch:
+                if version.is_prerelease or version.is_devrelease:
+                    r.specifier = get_specifier(
+                        f">={version.epoch}!{version},<{version.epoch}!{version.major + 1}",
+                    )
+                else:
+                    r.specifier = get_specifier(f"~={version.epoch}!{version.major}.{version.minor}")
+            if isinstance(can, CondaCandidate):
+                r = as_conda_requirement(r)
+                r.version_mapping.update(can.req.version_mapping)
+                r.is_python_package = can.req.is_python_package
+                requirements[i] = r
 
     return wrapper
 
