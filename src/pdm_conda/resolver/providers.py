@@ -230,8 +230,7 @@ class CondaReusePinProvider(ReusePinProvider, CondaBaseProvider):
 
         def matches_gen() -> Iterator[Candidate]:
             requested_req = next(filter(lambda r: r.is_named, requirements[identifier]), None)
-            pin = self.get_reuse_candidate(identifier, requested_req)
-            if pin is not None:
+            for pin in self.iter_reuse_candidates(identifier, requested_req):
                 incompat = list(incompatibilities[identifier])
                 pin._preferred = True  # type: ignore[attr-defined]
                 if pin not in incompat and all(self.is_satisfied_by(r, pin) for r in requirements[identifier]):
