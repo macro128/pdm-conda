@@ -275,10 +275,10 @@ class LockedCondaRepository(LockedRepository, CondaRepository):
             )
 
         for package in conda_packages:
-            can = CondaCandidate.from_lock_package(package)
-            can_id = self._identify_candidate(can)
-            self.conda_entries[can_id[0]] = can_id
-            self.packages[can_id] = PackageEntry(can, package.get("dependencies", []), package.get("summary", []))
+            for can in CondaCandidate.from_lock_package(package):
+                can_id = self._identify_candidate(can)
+                self.conda_entries[can_id[0]] = can_id
+                self.packages[can_id] = PackageEntry(can, package.get("dependencies", []), package.get("summary", []))
 
     def _identify_candidate(self, candidate: Candidate) -> tuple:
         if isinstance(candidate, CondaCandidate):
@@ -291,32 +291,63 @@ class LockedCondaRepository(LockedRepository, CondaRepository):
         if groups := res.get("metadata", {}).get("groups"):
             res["metadata"]["groups"] = list({group: None for group in groups}.keys())
 
+        conda_packages: dict[tuple[str, str], dict] = {}
+        packages_to_remove = []
+
         # fix conda packages
-        for package, entry in zip(
-            res["package"],
-            sorted(self.packages.values(), key=lambda x: x.candidate.identify()),
-            strict=False,
+        for i, (package, entry) in enumerate(
+            zip(
+                res["package"],
+                sorted(self.packages.values(), key=lambda x: x.candidate.identify()),
+                strict=False,
+            ),
         ):
             can = entry.candidate
             # only static-url allowed for conda packages
             if isinstance(can, CondaCandidate):
-                package["files"] = make_array(
-                    [make_inline_table({"url": item["url"], "hash": item["hash"]}) for item in can.hashes],
-                    multiline=True,
-                )
+                key = (str(can.name), str(can.conda_version))
+                # merge all packages with the same name and version
+                if first_candidate := (key in conda_packages):
+                    packages_to_remove.append(i)
+                package = conda_packages.setdefault(key, package)
+                if first_candidate:
+                    package["files"] = []
+                files = package.setdefault("files", [])
+
+                files += [
+                    make_inline_table(
+                        {
+                            "url": item["url"],
+                            "hash": item["hash"],
+                            "build_string": can.build_string,
+                            "build_number": can.build_number,
+                            "timestamp": can.timestamp,
+                            "channel": can.channel,
+                            "track_feature": can.track_feature,
+                        },
+                    )
+                    for item in can.hashes
+                ]
 
                 # fix conda dependencies to include build string
-                dependencies = []
-                include_dependencies = False
+                if first_candidate:
+                    package["dependencies"] = []
+                dependencies = package.setdefault("dependencies", [])
                 for dep in can.dependencies:
                     kwargs = {}
                     if dep.identify() in self.conda_entries:
                         kwargs["with_build_string"] = True
-                        kwargs["conda_compatible"] = True
-                        include_dependencies = True
                     dependencies.append(dep.as_line(**kwargs))
-                if include_dependencies:
-                    package["dependencies"] = make_array(sorted(set(dependencies)), True)
 
+        # remove duplicated packages
+        for i in reversed(packages_to_remove):
+            res["package"].pop(i)
+
+        # format
+        for package in conda_packages.values():
+            package["files"] = make_array(package["files"], multiline=True)
+            package["dependencies"] = make_array(package["dependencies"], multiline=True)
+
+        # sort packages
         res["package"] = sorted(res["package"], key=lambda x: x["name"])
         return res
