@@ -142,14 +142,6 @@ class CondaCandidate(Candidate):
         result["conda_managed"] = True
         if self.link is None:
             raise ValueError("Uninitialized conda requirement")
-        result["channel"] = self.channel
-        if self.build_string is not None:
-            result["build_string"] = self.build_string
-        result["build_number"] = self.build_number
-        if self.track_feature:
-            result["track_feature"] = self.track_feature
-        if self.constrains:
-            result["constrains"] = [c.as_line(with_build_string=True) for c in self.constrains.values()]
         result["version"] = self.conda_version
         return result
 
@@ -160,24 +152,39 @@ class CondaCandidate(Candidate):
         return self._prepared
 
     @classmethod
-    def from_lock_package(cls, package: dict) -> CondaCandidate:
-        """Create conda candidate from lockfile package.
+    def from_lock_package(cls, package: dict) -> list[CondaCandidate]:
+        """Create list of conda candidates from lockfile package, each candidate with different build info.
 
         :param package: lockfile package
-        :return: conda candidate
+        :return: conda candidates
         """
-        requires_python = package.get("requires_python", "")
-        dependencies = package.get("dependencies", [])
-        if requires_python:
-            dependencies.append(f"python {requires_python}")
-        corrections = {"depends": dependencies}
+        candidates = []
+        _files: dict[dict, list] = {}
         for file in package.get("files", []):
-            if file.get("hash"):
-                hash_name, _hash = file["hash"].split(":")
-                corrections[hash_name] = _hash
-                corrections["url"] = file["url"]
-                break
-        return CondaCandidate.from_conda_package(package | corrections)
+            build_info = {
+                "build_string": file.get("build_string"),
+                "build_number": file.get("build_number"),
+                "timestamp": file.get("timestamp"),
+                "channel": file.get("channel"),
+                "track_feature": file.get("track_feature"),
+            }
+            _files.setdefault(build_info, []).append(file)
+
+        for build_info, files in _files.items():
+            requires_python = package.get("requires_python", "")
+            dependencies = package.get("dependencies", [])
+            if requires_python:
+                dependencies.append(f"python {requires_python}")
+            corrections = build_info | {"depends": dependencies}
+            for file in files:
+                if file.get("hash"):
+                    hash_name, _hash = file["hash"].split(":")
+                    corrections[hash_name] = _hash
+                    corrections["url"] = file["url"]
+                    break
+            candidates.append(CondaCandidate.from_conda_package(package | corrections))
+
+        return candidates
 
     @classmethod
     def from_conda_package(cls, package: dict, requirement: CondaRequirement | None = None) -> CondaCandidate:
