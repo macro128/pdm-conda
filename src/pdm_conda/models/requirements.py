@@ -31,6 +31,29 @@ _conda_specifier_star_re = re.compile(r"([\w.]+)\*")
 _conda_version_letter_re = re.compile(r"(\d|\.)([a-z]+)(\d?)")
 
 
+def extract_platform_marker(conda_channel: str) -> str:
+    """Extract platform marker from conda channel subdir.
+
+    :param conda_channel: conda channel
+    :return: platform marker
+    """
+    subdir = conda_channel.split("/")[-1].lower()
+    marker = ""
+    for platform, _marker in [("linux", "Linux"), ("osx", "Darwin"), ("win", "Windows")]:
+        if subdir.startswith(platform):
+            marker = f"platform_system=='{_marker}'"
+            break
+
+    for machine, _marker in [("64", "x86_64"), ("32", "x86"), ("arm64", "arm64"), ("aarch64", "aarch64")]:
+        if subdir.endswith(f"-{machine}"):
+            if marker:
+                marker += " and "
+            marker = f"platform_system=='{_marker}'"
+            break
+
+    return marker
+
+
 @dataclasses.dataclass(eq=False)
 class CondaRequirement(NamedRequirement):
     channel: str | None = None
@@ -49,15 +72,19 @@ class CondaRequirement(NamedRequirement):
             kwargs["build_string"] = build_string.strip()
         if "is_python_package" not in kwargs and kwargs.get("name", "").startswith("_"):
             kwargs["is_python_package"] = False
+        if (platform_marker := extract_platform_marker(kwargs.get("channel", ""))) not in (
+            marker := kwargs.get("marker", "")
+        ):
+            kwargs["marker"] = f"{marker} and {platform_marker}" if marker else platform_marker
 
         return super().create(**kwargs)
 
     def as_line(
         self,
         as_conda: bool = False,
-        with_channel=False,
-        with_build_string=False,
-        conda_compatible=False,
+        with_channel: bool = False,
+        with_build_string: bool = False,
+        conda_compatible: bool = False,
     ) -> str:
         channel = f"{self.channel}::" if with_channel and self.channel else ""
         if as_conda:
