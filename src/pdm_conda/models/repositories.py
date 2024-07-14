@@ -338,6 +338,10 @@ class LockedCondaRepository(LockedRepository, CondaRepository):
                     if dep.identify() in self.conda_entries:
                         kwargs["with_build_string"] = True
                     dependencies.append(dep.as_line(**kwargs))
+                if can.constrains:
+                    constrains = package.setdefault("constrains", [])
+                    for c in can.constrains.values():
+                        constrains.append(c.as_line(with_build_string=True))
 
         # remove duplicated packages
         for i in reversed(packages_to_remove):
@@ -345,8 +349,9 @@ class LockedCondaRepository(LockedRepository, CondaRepository):
 
         # format
         for package in conda_packages.values():
-            package["files"] = make_array(package["files"], multiline=True)
-            package["dependencies"] = make_array(package["dependencies"], multiline=True)
+            for k in ["files", "dependencies", "constrains"]:
+                if k in package:
+                    package[k] = make_array(package[k], multiline=True)
 
         # sort packages
         res["package"] = sorted(res["package"], key=lambda x: x["name"])

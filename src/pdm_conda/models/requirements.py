@@ -31,12 +31,14 @@ _conda_specifier_star_re = re.compile(r"([\w.]+)\*")
 _conda_version_letter_re = re.compile(r"(\d|\.)([a-z]+)(\d?)")
 
 
-def extract_platform_marker(conda_channel: str) -> str:
+def extract_platform_marker(conda_channel: str | None) -> str:
     """Extract platform marker from conda channel subdir.
 
     :param conda_channel: conda channel
     :return: platform marker
     """
+    if conda_channel is None:
+        return ""
     subdir = conda_channel.split("/")[-1].lower()
     marker = ""
     for platform, _marker in [("linux", "Linux"), ("osx", "Darwin"), ("win", "Windows")]:

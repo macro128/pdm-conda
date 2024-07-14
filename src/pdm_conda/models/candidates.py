@@ -12,7 +12,13 @@ from pdm.models.candidates import Candidate, PreparedCandidate
 from pdm.models.setup import Setup
 from unearth import Link
 
-from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement, parse_conda_version, parse_requirement
+from pdm_conda.models.requirements import (
+    CondaRequirement,
+    as_conda_requirement,
+    extract_platform_marker,
+    parse_conda_version,
+    parse_requirement,
+)
 from pdm_conda.models.setup import CondaSetupDistribution
 
 if TYPE_CHECKING:
@@ -94,8 +100,12 @@ class CondaCandidate(Candidate):
             if self.link is not None
             else []
         )
+        platform = extract_platform_marker(channel)
         for r in constrains or []:
-            c = cast(CondaRequirement, parse_requirement(f"conda:{r}"))
+            r = f"conda:{r}"
+            if platform:
+                r = f"{r};{platform}" if ";" not in r else f"{r} and {platform}"
+            c = cast(CondaRequirement, parse_requirement(r))
             self.constrains[str(c.conda_name)] = c
         self.build_string = build_string
         self.build_number = build_number
