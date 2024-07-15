@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.3] - 15/07/2024
+
+### Fixed
+
+* Fix `pdm venv create` not working when no using Conda.
+
 ## [0.18.2] - 01/07/2024
 
 ### Added
