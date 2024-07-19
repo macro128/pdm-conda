@@ -16,6 +16,7 @@ from pdm_conda import logger
 from pdm_conda.conda import CondaResolutionError, CondaSearchError, conda_create, conda_search, sort_candidates
 from pdm_conda.environments import CondaEnvironment
 from pdm_conda.models.candidates import CondaCandidate
+from pdm_conda.models.conda import CondaPlatform
 from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement
 
 if TYPE_CHECKING:
@@ -53,6 +54,10 @@ class CondaRepository(BaseRepository):
         self.environment = cast(CondaEnvironment, environment)
         self._conda_resolution: dict[str, list[CondaCandidate]] = {}
         self._excluded_identifiers: set[str] = set()
+        self.conda_platform = CondaPlatform.create(
+            self.env_spec.platform,
+            virtual_packages=self.environment.virtual_packages if env_spec is None else None,
+        )
 
     def is_conda_managed(self, requirement: Requirement, excluded_identifiers: set[str] | None = None) -> bool:
         """True if requirement is conda requirement or (not excluded and named requirement and conda as default manager
