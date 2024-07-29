@@ -239,8 +239,8 @@ def correct_specifier_star(match):
     return res
 
 
-def parse_conda_version(version, inverse=False):
-    def correct_conda_version(match):
+def parse_conda_version(version, inverse=False) -> str:
+    def correct_conda_version(match) -> str:
         digit, letter_specifier, follow_digit = match.groups()
         allowed_specifiers = ("a", "b", "rc", "dev", "post", "rev", "alpha", "beta", "preview", "pre")
         if letter_specifier in allowed_specifiers and follow_digit:
