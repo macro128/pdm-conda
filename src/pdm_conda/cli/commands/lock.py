@@ -30,10 +30,6 @@ class Command(BaseCommand):
             help="The platform system version to lock for using conda. E.g. `0`, `5.10`. If not specified, will use system platform if available or some default",
         )
         target_group.add_argument(
-            "--unix",
-            help="The unix version to lock for using conda. E.g. `0`, `1`. If not specified, will use system platform if available or some default",
-        )
-        target_group.add_argument(
             "--glibc",
             help="The glibc version to lock for using conda. E.g. `2.28`. If not specified, will use system platform if available or some default",
         )
@@ -48,11 +44,9 @@ class Command(BaseCommand):
             if options.cuda:
                 spec_overrides["cuda"] = options.cuda
             if options.system:
-                spec_overrides["platform"] = options.system
+                spec_overrides["system"] = options.system
             if options.glibc:
                 spec_overrides["glibc"] = options.glibc
-            if options.unix:
-                spec_overrides["unix"] = options.unix
 
             if isinstance(project.environment, CondaEnvironment):
                 # this will make sure lock is made with the right specs

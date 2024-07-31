@@ -11,6 +11,7 @@ from shutil import which
 from tempfile import TemporaryDirectory, gettempdir
 from typing import TYPE_CHECKING
 
+from dep_logic import tags
 from pdm.cli.commands.venv.backends import VirtualenvCreateError
 from pdm.exceptions import InstallationError, PdmException, RequirementError, UninstallError
 from pdm.models.finder import ReverseVersion
@@ -21,6 +22,7 @@ from pdm_conda import logger
 from pdm_conda.models.candidates import CondaCandidate, parse_channel
 from pdm_conda.models.conda import ChannelSorter
 from pdm_conda.models.config import CondaRunner, PluginConfig
+from pdm_conda.models.markers import CondaEnvSpec
 from pdm_conda.models.requirements import CondaRequirement, parse_conda_version, parse_requirement
 from pdm_conda.models.setup import CondaSetupDistribution
 from pdm_conda.utils import fix_path, normalize_name
@@ -79,6 +81,7 @@ def run_conda(
     exception_cls: type[PdmException] = CondaExecutionError,
     exception_msg: str = "Error locking dependencies",
     env: dict | None = None,
+    env_spec: CondaEnvSpec | None = None,
     **environment,
 ) -> dict:
     """Optionally creates temporary environment file and run conda command.
@@ -87,12 +90,30 @@ def run_conda(
     :param exception_cls: exception to raise on error
     :param exception_msg: base message to show on error
     :param env: environment variables to use for conda
+    :param env_spec: environment spec
     :param environment: environment or lockfile data
     :return: conda command response
     """
     executable = which(cmd[0])
     if executable is None:
         raise CondaRunnerNotFoundError(f"Conda runner {cmd[0]} not found.")
+    if env_spec is not None:
+        env = env or {}
+        if env_spec.cuda is not None:
+            env["CONDA_OVERRIDE_CUDA"] = env_spec.cuda
+        if env_spec.glibc is not None:
+            env["CONDA_OVERRIDE_GLIBC"] = env_spec.glibc
+        if env_spec.system is not None:
+            _os = ""
+            if isinstance(env_spec.platform.os, tags.os.Macos):
+                _os = "osx"
+            elif isinstance(env_spec.platform.os, tags.os.Windows):
+                _os = "win"
+            elif isinstance(env_spec.platform.os, tags.os.Manylinux):
+                _os = "linux"
+            env[f"CONDA_OVERRIDE_{_os.upper()}"] = env_spec.system
+        if env_spec.conda_platform is not None:
+            env["CONDA_SUBDIR"] = env_spec.conda_platform
 
     lockfile = environment.get("lockfile", [])
     with _optional_temporary_file(lockfile or environment) as f:
@@ -244,13 +265,20 @@ def _ensure_channels(
 
 
 @cache
-def _conda_search(project: CondaProject, requirement: str, channels: tuple[str], use_cache: bool = False) -> list[dict]:
+def _conda_search(
+    project: CondaProject,
+    requirement: str,
+    channels: tuple[str],
+    use_cache: bool = False,
+    env_spec: CondaEnvSpec | None = None,
+) -> list[dict]:
     """Search conda candidates for a requirement.
 
     :param project: PDM project
     :param requirement: requirement
     :param channels: requirement channels
     :param use_cache: whether to use cache flag
+    :param env_spec: conda environment spec
     :return: list of conda candidates
     """
     config = project.conda_config
@@ -266,7 +294,7 @@ def _conda_search(project: CondaProject, requirement: str, channels: tuple[str],
         command.append("-C")
         command.append("--offline")
     try:
-        result = run_conda(command)
+        result = run_conda(command, env_spec=env_spec)
     except RequirementError as e:
         if "PackagesNotFoundError:" in str(e):
             result = {}
@@ -280,12 +308,14 @@ def _conda_search(project: CondaProject, requirement: str, channels: tuple[str],
     return packages
 
 
+# todo add platform
 @PluginConfig.check_active
 def conda_search(
     project: CondaProject,
     requirement: CondaRequirement | str,
     channel: str | None = None,
     use_cache: bool = False,
+    env_spec: CondaEnvSpec | None = None,
 ) -> list[CondaCandidate]:
     """Search conda candidates for a requirement.
 
@@ -293,6 +323,7 @@ def conda_search(
     :param requirement: requirement
     :param channel: requirement channel
     :param use_cache: whether to use cache flag
+    :param env_spec: conda environment spec
     :return: list of conda candidates
     """
     _requirement = requirement
@@ -308,7 +339,7 @@ def conda_search(
         [channel] if channel else [],
         f"No channel specified for searching [req]{requirement}[/] using defaults if exist.",
     )
-    packages = _conda_search(project, _requirement, tuple(channels), use_cache=use_cache)
+    packages = _conda_search(project, _requirement, tuple(channels), use_cache=use_cache, env_spec=env_spec)
     return _parse_candidates(project, packages, requirement)
 
 
@@ -321,6 +352,7 @@ def conda_create(
     name: str = "",
     dry_run: bool = False,
     fetch_candidates: bool = True,
+    env_spec: CondaEnvSpec | None = None,
 ) -> dict[str, list[CondaCandidate]]:
     """Creates environment using conda.
 
@@ -331,6 +363,8 @@ def conda_create(
     :param name: environment name
     :param dry_run: don't install if dry run
     :param fetch_candidates: if True ensure ensure candidates were fetched
+    :param env_spec: environment spec
+    :return: list of conda candidates for each requirement
     """
     config = project.conda_config
     if not config.is_initialized:
@@ -380,6 +414,7 @@ def conda_create(
                 f"Error resolving requirements with {config.runner}" if dry_run else "Error creating environment"
             ),
             env=env,
+            env_spec=env_spec,
         )
         if fetch_candidates:
             actions = result.get("actions", {})
@@ -546,17 +581,18 @@ def not_initialized_warning(project):
 
 
 @PluginConfig.check_active
-def conda_info(project: CondaProject) -> dict:
+def conda_info(project: CondaProject, env_spec: CondaEnvSpec | None = None) -> dict:
     """Get conda info containing virtual packages, default channels and packages.
 
     :param project: PDM project
+    :param env_spec: conda environment spec
     :return: dict with conda info
     """
     config = project.conda_config
     res: dict = {"virtual_packages": set(), "platform": "", "channels": []}
     if config.is_initialized:
         cmd = config.command("info") + ["--json"]
-        info = run_conda(cmd)
+        info = run_conda(cmd, env_spec=env_spec)
         if config.runner != CondaRunner.MICROMAMBA:
             virtual_packages = {"=".join(p) for p in info["virtual_pkgs"]}
         else:

@@ -75,7 +75,7 @@ class CondaRequirement(NamedRequirement):
         if "is_python_package" not in kwargs and kwargs.get("name", "").startswith("_"):
             kwargs["is_python_package"] = False
         if (platform_marker := extract_platform_marker(kwargs.get("channel", ""))) not in (
-            marker := kwargs.get("marker", "")
+            marker := (kwargs.get("marker", "") or "")
         ):
             kwargs["marker"] = f"{marker} and {platform_marker}" if marker else platform_marker
 
