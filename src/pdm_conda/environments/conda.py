@@ -37,18 +37,12 @@ class CondaEnvironment(PythonEnvironment):
     def spec(self) -> CondaEnvSpec:
         conda_env = conda_info(self.project)
         conda_spec = {}
-        for req in conda_env["virtual_packages"]:
-            if req.name == "glibc":
-                conda_spec["glibc"] = req.version
-            elif req.name == "cuda":
-                conda_spec["cuda"] = req.version
-            elif req.name == "unix":
-                conda_spec["unix"] = req.version
-            else:
-                for key in ("linux", "win", "osx"):
-                    if key == req.name:
-                        conda_spec["system"] = req.version
-                        break
+        for pkg in conda_env["virtual_packages"]:
+            name = pkg.name.lstrip("_")
+            if name in ("linux", "win", "osx"):
+                conda_spec["system"] = pkg
+            elif name in ("glibc", "cuda", "archspec"):
+                conda_spec[name] = pkg
 
         return CondaEnvSpec.from_env_spec(super().spec, **conda_spec)
 
