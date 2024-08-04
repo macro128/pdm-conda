@@ -19,6 +19,7 @@ from pdm.models.setup import Setup
 from pdm.termui import Verbosity
 
 from pdm_conda import logger
+from pdm_conda.environments import CondaEnvironment
 from pdm_conda.models.candidates import CondaCandidate, parse_channel
 from pdm_conda.models.conda import ChannelSorter
 from pdm_conda.models.config import CondaRunner, PluginConfig
@@ -220,28 +221,14 @@ def sort_candidates(
     return sorted(packages, key=get_preference, reverse=True)
 
 
-def _parse_candidates(project: CondaProject, packages: list[dict], requirement=None) -> list[CondaCandidate]:
+def _parse_candidates(packages: list[dict], requirement=None) -> list[CondaCandidate]:
     """Convert conda packages to candidates.
 
-    :param project: PDM project
     :param packages: conda packages
     :param requirement: requirement linked to packages
     :return: list of candidates
     """
-    candidates = []
-    for p in packages:
-        dependencies = p.get("depends", None) or []
-        valid_candidate = True
-        for d in dependencies:
-            if d.startswith("__"):
-                d = parse_requirement(f"conda:{d}")
-                if not any(d.is_compatible(v) for v in project.virtual_packages):
-                    valid_candidate = False
-                    break
-        if valid_candidate:
-            candidates.append(CondaCandidate.from_conda_package(p, requirement))
-
-    return candidates
+    return [CondaCandidate.from_conda_package(p, requirement) for p in packages]
 
 
 def _ensure_channels(
@@ -340,7 +327,7 @@ def conda_search(
         f"No channel specified for searching [req]{requirement}[/] using defaults if exist.",
     )
     packages = _conda_search(project, _requirement, tuple(channels), use_cache=use_cache, env_spec=env_spec)
-    return _parse_candidates(project, packages, requirement)
+    return _parse_candidates(packages, requirement)
 
 
 @PluginConfig.check_active
@@ -369,6 +356,9 @@ def conda_create(
     config = project.conda_config
     if not config.is_initialized:
         raise VirtualenvCreateError("Error creating environment, no pdm-conda configs were found on pyproject.toml.")
+
+    if env_spec is None and isinstance(project.environment, CondaEnvironment):
+        env_spec = project.environment.spec
     candidates = {}
     channels = channels or []
     for req in requirements:
@@ -438,11 +428,7 @@ def conda_create(
                         candidates[pkg[0].name] = pkg
                 else:
                     name = pkg["name"]
-                    candidates[name] = _parse_candidates(
-                        project,
-                        packages=[pkg],
-                        requirement=_requirements.get(name),
-                    )
+                    candidates[name] = _parse_candidates(packages=[pkg], requirement=_requirements.get(name))
         return candidates
     except CondaResolutionError as err:
         if not err.packages:
