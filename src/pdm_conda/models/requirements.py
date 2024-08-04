@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 from packaging.version import Version
 from pdm.cli import actions, utils
 from pdm.models import requirements
+from pdm.models.markers import Marker, get_marker
 from pdm.models.requirements import NamedRequirement, Requirement, strip_extras
 from pdm.models.requirements import parse_requirement as _parse_requirement
 
@@ -31,14 +32,14 @@ _conda_specifier_star_re = re.compile(r"([\w.]+)\*")
 _conda_version_letter_re = re.compile(r"(\d|\.)([a-z]+)(\d?)")
 
 
-def extract_platform_marker(conda_channel: str | None) -> str:
+def extract_platform_marker(conda_channel: str | None) -> Marker | None:
     """Extract platform marker from conda channel subdir.
 
     :param conda_channel: conda channel
     :return: platform marker
     """
     if conda_channel is None:
-        return ""
+        return None
     subdir = conda_channel.split("/")[-1].lower()
     marker = ""
     for platform, _marker in [("linux", "Linux"), ("osx", "Darwin"), ("win", "Windows")]:
@@ -52,8 +53,7 @@ def extract_platform_marker(conda_channel: str | None) -> str:
                 marker += " and "
             marker = f"platform_system=='{_marker}'"
             break
-
-    return marker
+    return get_marker(marker)
 
 
 @dataclasses.dataclass(eq=False)
@@ -67,6 +67,10 @@ class CondaRequirement(NamedRequirement):
     def conda_name(self) -> str | None:
         return self.name
 
+    @property
+    def is_virtual_package(self) -> bool:
+        return self.name.startswith("__")
+
     @classmethod
     def create(cls: type[T], **kwargs: Any) -> T:
         kwargs.pop("conda_managed", None)
@@ -74,10 +78,10 @@ class CondaRequirement(NamedRequirement):
             kwargs["build_string"] = build_string.strip()
         if "is_python_package" not in kwargs and kwargs.get("name", "").startswith("_"):
             kwargs["is_python_package"] = False
-        if (platform_marker := extract_platform_marker(kwargs.get("channel", ""))) not in (
-            marker := (kwargs.get("marker", "") or "")
-        ):
-            kwargs["marker"] = f"{marker} and {platform_marker}" if marker else platform_marker
+        if (
+            platform_marker := extract_platform_marker(kwargs.get("channel", ""))
+        ) is not None and platform_marker not in str(marker := kwargs.get("marker", None)):
+            kwargs["marker"] = platform_marker if marker is None else marker & platform_marker
 
         return super().create(**kwargs)
 

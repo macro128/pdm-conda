@@ -9,16 +9,11 @@ from urllib.parse import urlparse
 
 from pdm.environments import BaseEnvironment
 from pdm.models.candidates import Candidate, PreparedCandidate
+from pdm.models.markers import get_marker
 from pdm.models.setup import Setup
 from unearth import Link
 
-from pdm_conda.models.requirements import (
-    CondaRequirement,
-    as_conda_requirement,
-    extract_platform_marker,
-    parse_conda_version,
-    parse_requirement,
-)
+from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement, parse_conda_version, parse_requirement
 from pdm_conda.models.setup import CondaSetupDistribution
 
 if TYPE_CHECKING:
@@ -85,9 +80,20 @@ class CondaCandidate(Candidate):
             dependencies.append(
                 self.req.as_pinned_version(self.version).as_line(with_build_string=True, with_channel=True),
             )
-        self.dependencies: list[CondaRequirement] = [
-            cast(CondaRequirement, parse_requirement(f"conda:{r}")) for r in dependencies
-        ]
+        self.dependencies: list[CondaRequirement] = []
+        virtual_packages = []
+        for r in dependencies:
+            r = cast(CondaRequirement, parse_requirement(f"conda:{r}"))
+            if not r.is_virtual_package:
+                self.dependencies.append(r)
+            else:
+                virtual_packages.append(r)
+        if virtual_packages:
+            marker = get_marker(
+                f"extra='{{{','.join(r.as_line(conda_compatible=True, with_build_string=True) for r in virtual_packages)}}}'",
+            )
+            self.req.marker = marker if self.req.marker is None else self.req.marker & marker
+
         self.constrains: dict[str, CondaRequirement] = {}
         self.hashes: list[FileHash] = (
             [
@@ -100,12 +106,8 @@ class CondaCandidate(Candidate):
             if self.link is not None
             else []
         )
-        platform = extract_platform_marker(channel)
         for r in constrains or []:
-            r = f"conda:{r}"
-            if platform:
-                r = f"{r};{platform}" if ";" not in r else f"{r} and {platform}"
-            c = cast(CondaRequirement, parse_requirement(r))
+            c = cast(CondaRequirement, parse_requirement(f"conda:{r}"))
             self.constrains[str(c.conda_name)] = c
         self.build_string = build_string
         self.build_number = build_number
@@ -206,16 +208,12 @@ class CondaCandidate(Candidate):
         """
         dependencies: list = package["depends"] or []
         requires_python = None
-        to_delete = []
+        to_delete = set()
         for d in dependencies:
-            if d.startswith("__"):
-                to_delete.append(d)
-            elif match := re.match(r"python( .+|$)", d):
-                to_delete.append(d)
+            if match := re.match(r"python( .+|$)", d):
+                to_delete.add(d)
                 if requires_python is None:
                     requires_python = match.group(1).strip().split(" ")[0] or "*"
-        for d in to_delete:
-            dependencies.remove(d)
         hashes = {h: package[h] for h in ["md5"] if h in package}
         url = package["url"]
         for k, v in hashes.items():
@@ -249,7 +247,7 @@ class CondaCandidate(Candidate):
                 comes_from=channel,
             ),
             channel=channel,
-            dependencies=dependencies,
+            dependencies=[d for d in dependencies if d not in to_delete],
             constrains=package.get("constrains") or [],
             build_string=build_string,
             build_number=package.get("build_number", 0),
