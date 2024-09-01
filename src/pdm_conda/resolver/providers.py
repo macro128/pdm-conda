@@ -85,13 +85,12 @@ class CondaBaseProvider(BaseProvider):
 
     @cached_property
     def overrides(self) -> dict[str, Requirement]:
-        non_conda_overrides = {}
         conda_requirements = {}
+        project_overrides: dict[str, str] = dict(
+            self.repository.environment.project.pyproject.resolution.get("overrides", {}).items(),
+        )
         # remove from overrides conda requirements
         if self.is_conda_initialized:
-            project_overrides: dict[str, str] = dict(
-                self.repository.environment.project.pyproject.resolution.get("overrides", {}).items(),
-            )
             non_conda_overrides = dict(project_overrides)
             for name, value in project_overrides.items():
                 if not is_url(value):
@@ -101,7 +100,7 @@ class CondaBaseProvider(BaseProvider):
                             non_conda_overrides.pop(name)
                     except:
                         pass
-            self.repository.environment.project.pyproject.resolution["overrides"] = project_overrides
+            self.repository.environment.project.pyproject.resolution["overrides"] = non_conda_overrides
 
         try:
             # get non conda overrides and add conda requirements
@@ -111,7 +110,7 @@ class CondaBaseProvider(BaseProvider):
             return overrides
         finally:
             if self.is_conda_initialized:
-                self.repository.environment.project.pyproject.resolution["overrides"] = non_conda_overrides
+                self.repository.environment.project.pyproject.resolution["overrides"] = project_overrides
 
     def find_matches(
         self,
@@ -245,26 +244,41 @@ class CondaReusePinProvider(ReusePinProvider, CondaBaseProvider):
         excluded=None,
         include_all: bool = False,
     ) -> list[Requirement]:
-        _requirements = []
-        excluded = set(excluded or set())
+        """Merge requirements with conda resolution.
+
+        :param requirements: list of requirements
+        :param excluded: excluded identifiers for conda managed
+        :param include_all: if true include candidates from locked_candidates
+        :return: Get merged requirements
+        """
+        merged_requirements = []
+        excluded = set(excluded) or set()
+        merged_identifiers = set(excluded)
         requirements = requirements or []
         for req in requirements:
             ident = self.identify(req)
-            if (
-                self.repository.is_conda_managed(req, excluded)
-                and ident in self.locked_candidates
-                and as_conda_requirement(req).is_compatible(can := self.locked_candidates[ident])
-            ):
-                _requirements.append(can.req)
+            # if req is conda managed and compatible with conda resolution, keep compatible candidate requirement
+            if self.repository.is_conda_managed(req, excluded) and ident in self.locked_candidates:
+                conda_req = as_conda_requirement(req)
+                for can in self.locked_candidates[ident]:
+                    if conda_req.is_compatible(can):
+                        merged_requirements.append(can.req)
+                else:
+                    # if no compatible candidate found, add the requirement
+                    merged_requirements.append(req)
             else:
-                _requirements.append(req)
-            excluded.add(ident)
-        if include_all:
-            for can in self.locked_candidates.values():
-                if self.identify(can.req) not in excluded:
-                    _requirements.append(can.req)
+                # if no compatible candidate found, add the requirement
+                merged_requirements.append(req)
+            # add the identifier to exclude
+            merged_identifiers.add(ident)
 
-        return _requirements
+        if include_all:
+            for candidates in self.locked_candidates.values():
+                for can in candidates:
+                    if self.identify(can.req) not in merged_identifiers:
+                        merged_requirements.append(can.req)
+
+        return merged_requirements
 
     def update_conda_resolution(
         self,
