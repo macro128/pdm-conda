@@ -33,20 +33,20 @@ class Command(BaseCommand):
             "--glibc",
             help="The glibc version to lock for using conda. E.g. `2.28`. If not specified, will use system platform if available or some default",
         )
+        target_group.add_argument(
+            "--archspec",
+        )
 
     @PluginConfig.check_active
     def handle(self, project: Project, options: argparse.Namespace) -> None:
         project = cast(CondaProject, project)
-        if options.cuda or options.system or options.glibc or options.unix:
+        if options.cuda or options.system or options.glibc or options.archspec:
             project.conda_config.is_initialized = True
             spec_overrides = {}
 
-            if options.cuda:
-                spec_overrides["cuda"] = options.cuda
-            if options.system:
-                spec_overrides["system"] = options.system
-            if options.glibc:
-                spec_overrides["glibc"] = options.glibc
+            for name in ("archspec", "cuda", "system", "glibc"):
+                if (value := getattr(options, name, None)) is not None:
+                    spec_overrides[name] = value
 
             if isinstance(project.environment, CondaEnvironment):
                 # this will make sure lock is made with the right specs
