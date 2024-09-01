@@ -90,7 +90,7 @@ class CondaCandidate(Candidate):
                 virtual_packages.append(r)
         if virtual_packages:
             marker = get_marker(
-                f"extra='{{{','.join(r.as_line(conda_compatible=True, with_build_string=True) for r in virtual_packages)}}}'",
+                f"extra=='{','.join(r.as_line(conda_compatible=True, with_build_string=True) for r in virtual_packages)}'",
             )
             self.req.marker = marker if self.req.marker is None else self.req.marker & marker
 
@@ -171,7 +171,7 @@ class CondaCandidate(Candidate):
         :return: conda candidates
         """
         candidates = []
-        _files: dict[dict, list] = {}
+
         for file in package.get("files", []):
             build_info = {
                 "build_string": file.get("build_string"),
@@ -180,20 +180,15 @@ class CondaCandidate(Candidate):
                 "channel": file.get("channel"),
                 "track_feature": file.get("track_feature"),
             }
-            _files.setdefault(build_info, []).append(file)
-
-        for build_info, files in _files.items():
             requires_python = package.get("requires_python", "")
             dependencies = package.get("dependencies", [])
             if requires_python:
                 dependencies.append(f"python {requires_python}")
             corrections = build_info | {"depends": dependencies}
-            for file in files:
-                if file.get("hash"):
-                    hash_name, _hash = file["hash"].split(":")
-                    corrections[hash_name] = _hash
-                    corrections["url"] = file["url"]
-                    break
+            if file.get("hash"):
+                hash_name, _hash = file["hash"].split(":")
+                corrections[hash_name] = _hash
+                corrections["url"] = file["url"]
             candidates.append(CondaCandidate.from_conda_package(package | corrections))
 
         return candidates
@@ -226,7 +221,10 @@ class CondaCandidate(Candidate):
             requirement = as_conda_requirement(copy(requirement))
             requirement.version_mapping.update({parse_conda_version(version): version})
         else:
-            _line = f"conda:{name}"
+            _line = "conda:"
+            if channel:
+                _line += f"{channel}::"
+            _line += name
             if extras := package.get("extras", []):
                 _line += f"[{','.join(extras)}]"
             _line += f" {version} {build_string}"
