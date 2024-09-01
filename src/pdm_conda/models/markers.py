@@ -34,7 +34,9 @@ class CondaEnvSpec(EnvSpec):
     @classmethod
     def from_env_spec(cls, env_spec: EnvSpec, **kwargs: Any) -> Self:
         kwargs = {
-            k: parse_requirement(f"conda:{k}={v}") if isinstance(v := kwargs.get(k, None), str) else v
+            k: parse_requirement("conda:" + (f"__{k}={v}" if not v.startswith("__") else v))
+            if isinstance(v := kwargs.get(k, None), str)
+            else v
             for k in ("system", "glibc", "cuda", "archspec")
         }
         return cls(
@@ -43,11 +45,22 @@ class CondaEnvSpec(EnvSpec):
             implementation=env_spec.implementation,
         ).replace(**kwargs)
 
+    @classmethod
+    def from_spec(
+        cls,
+        requires_python: str,
+        platform: str | None = None,
+        implementation: str | None = None,
+        gil_disabled: bool = False,
+        **kwargs: Any,
+    ) -> Self:
+        return cls.from_env_spec(super().from_spec(requires_python, platform, implementation, gil_disabled), **kwargs)
+
     def as_dict(self) -> dict[str, str | bool]:
         res = super().as_dict()
         for k in ("system", "glibc", "cuda", "archspec"):
             if (v := getattr(self, k, None)) is not None:
-                res[k] = v.as_line(conda_compatible=True, with_build_string=False)
+                res[k] = v.as_line(conda_compatible=True, with_build_string=True)
 
         return res
 
@@ -129,10 +142,10 @@ DEFAULT_VIRTUAL_PACKAGES = {
     ("unix", "0"): ["linux-aarch64", "linux-ppc64le", "linux-64", "osx-64", "osx-arm64"],
     ("linux", "5.10"): ["linux-aarch64", "linux-ppc64le", "linux-64"],
     ("win", "0"): ["win-64"],
-    ("archspec", "1-x86_64"): ["win-64", "linux-64", "osx-64"],
-    ("archspec", "1-arm64"): ["osx-arm64"],
-    ("archspec", "1-aarch64"): ["linux-aarch64"],
-    ("archspec", "1-ppc64le"): ["linux-ppc64le"],
+    ("archspec", "1=x86_64"): ["win-64", "linux-64", "osx-64"],
+    ("archspec", "1=arm64"): ["osx-arm64"],
+    ("archspec", "1=aarch64"): ["linux-aarch64"],
+    ("archspec", "1=ppc64le"): ["linux-ppc64le"],
     ("glibc", "2.28"): ["linux-aarch64", "linux-ppc64le", "linux-64"],
     ("cuda", "11.4"): ["linux-aarch64", "linux-ppc64le", "linux-64", "win-64"],
     ("osx", "11.0"): ["osx-64", "osx-arm64"],

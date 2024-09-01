@@ -8,11 +8,12 @@ from copy import copy
 from typing import TYPE_CHECKING
 
 from packaging.version import Version
-from pdm.cli import actions, utils
+from pdm.cli import utils
 from pdm.models import requirements
 from pdm.models.markers import Marker, get_marker
 from pdm.models.requirements import NamedRequirement, Requirement, strip_extras
 from pdm.models.requirements import parse_requirement as _parse_requirement
+from pdm.resolver import providers
 
 from pdm_conda.mapping import conda_to_pypi, pypi_to_conda
 from pdm_conda.utils import normalize_name
@@ -51,7 +52,7 @@ def extract_platform_marker(conda_channel: str | None) -> Marker | None:
         if subdir.endswith(f"-{machine}"):
             if marker:
                 marker += " and "
-            marker = f"platform_system=='{_marker}'"
+            marker += f"platform_machine=='{_marker}'"
             break
     return get_marker(marker)
 
@@ -76,11 +77,10 @@ class CondaRequirement(NamedRequirement):
         kwargs.pop("conda_managed", None)
         if build_string := kwargs.get("build_string", ""):
             kwargs["build_string"] = build_string.strip()
-        if "is_python_package" not in kwargs and kwargs.get("name", "").startswith("_"):
-            kwargs["is_python_package"] = False
-        if (
-            platform_marker := extract_platform_marker(kwargs.get("channel", ""))
-        ) is not None and platform_marker not in str(marker := kwargs.get("marker", None)):
+        if "is_python_package" not in kwargs:
+            kwargs["is_python_package"] = not kwargs.get("name", "").startswith("_")
+        platform_marker = extract_platform_marker(kwargs.get("channel", None))
+        if platform_marker is not None and str(platform_marker) not in str(marker := kwargs.get("marker", None)):
             kwargs["marker"] = platform_marker if marker is None else marker & platform_marker
 
         return super().create(**kwargs)
@@ -103,11 +103,12 @@ class CondaRequirement(NamedRequirement):
                 operator = "="
                 if len(parts := version.split(".")) > 0:
                     if parts[-1] == "*":
-                        version = f"{'.'.join(parts[:-1])}.0"
-                    # special releases are omitted
-                    if len(parts) > 2 and re.search(r"(a|b|rc|dev|post|rev|alpha|beta|preview|pre)\d", parts[-1]):
-                        parts = parts[:-1]
-                    version = f"{'.'.join(parts[:-1])}.*,>={version}"
+                        version = f"{'.'.join(parts[:-1])}" + ("" if self.is_virtual_package else ".0")
+                    else:
+                        # special releases are omitted
+                        if len(parts) > 2 and re.search(r"(a|b|rc|dev|post|rev|alpha|beta|preview|pre)\d", parts[-1]):
+                            parts = parts[:-1]
+                        version = f"{'.'.join(parts[:-1])}.*,>={version}"
             specifiers.append(f"{operator}{version}")
         specifier = ",".join(sorted(specifiers))
         build_string = f" {self.build_string}" if with_build_string and self.build_string and specifier else ""
@@ -374,7 +375,7 @@ def key(self) -> str | None:
     return normalize_name(self.conda_name) if self.conda_name else None
 
 
-for m in [utils, actions, requirements]:
+for m in [providers, requirements]:
     m.parse_requirement = parse_requirement
 
 utils.filter_requirements_with_extras = wrap_filter_requirements_with_extras(utils.filter_requirements_with_extras)
