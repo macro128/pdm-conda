@@ -56,30 +56,6 @@ class CondaProject(Project):
         self._base_env: Path | None = None
 
     @property
-    def virtual_packages(self) -> set[CondaRequirement]:
-        from pdm_conda.environments import CondaEnvironment
-
-        if isinstance(self.environment, CondaEnvironment):
-            return self.environment.virtual_packages
-        return set()
-
-    @property
-    def platform(self) -> str:
-        from pdm_conda.environments import CondaEnvironment
-
-        if isinstance(self.environment, CondaEnvironment):
-            return self.environment.platform
-        return ""
-
-    @property
-    def default_channels(self) -> list[str]:
-        from pdm_conda.environments import CondaEnvironment
-
-        if isinstance(self.environment, CondaEnvironment):
-            return self.environment.default_channels
-        return []
-
-    @property
     def base_env(self) -> Path:
         if self._base_env is None:
             from pdm_conda.conda import conda_base_path
@@ -358,3 +334,10 @@ class CondaProject(Project):
                         yield i
                 else:
                     yield i
+
+    @property
+    def name(self) -> str:
+        name = super().name
+        if self.conda_config.is_initialized and self.conda_config.custom_behavior:
+            name = name or ""
+        return name
