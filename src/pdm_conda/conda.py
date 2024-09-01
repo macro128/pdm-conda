@@ -11,7 +11,6 @@ from shutil import which
 from tempfile import TemporaryDirectory, gettempdir
 from typing import TYPE_CHECKING
 
-from dep_logic import tags
 from pdm.cli.commands.venv.backends import VirtualenvCreateError
 from pdm.exceptions import InstallationError, PdmException, RequirementError, UninstallError
 from pdm.models.finder import ReverseVersion
@@ -19,7 +18,6 @@ from pdm.models.setup import Setup
 from pdm.termui import Verbosity
 
 from pdm_conda import logger
-from pdm_conda.environments import CondaEnvironment
 from pdm_conda.models.candidates import CondaCandidate, parse_channel
 from pdm_conda.models.conda import ChannelSorter
 from pdm_conda.models.config import CondaRunner, PluginConfig
@@ -99,20 +97,20 @@ def run_conda(
     if executable is None:
         raise CondaRunnerNotFoundError(f"Conda runner {cmd[0]} not found.")
     if env_spec is not None:
+
+        def get_env_var(req: CondaRequirement) -> str:
+            """Get requirement version and build string :param req: requirement :return: requirement version."""
+            return req.as_line(with_build_string=True, conda_compatible=True).split("==")[-1]
+
         env = env or {}
         if env_spec.cuda is not None:
-            env["CONDA_OVERRIDE_CUDA"] = env_spec.cuda
+            env["CONDA_OVERRIDE_CUDA"] = get_env_var(env_spec.cuda)
         if env_spec.glibc is not None:
-            env["CONDA_OVERRIDE_GLIBC"] = env_spec.glibc
+            env["CONDA_OVERRIDE_GLIBC"] = get_env_var(env_spec.glibc)
         if env_spec.system is not None:
-            _os = ""
-            if isinstance(env_spec.platform.os, tags.os.Macos):
-                _os = "osx"
-            elif isinstance(env_spec.platform.os, tags.os.Windows):
-                _os = "win"
-            elif isinstance(env_spec.platform.os, tags.os.Manylinux):
-                _os = "linux"
-            env[f"CONDA_OVERRIDE_{_os.upper()}"] = env_spec.system
+            env[f"CONDA_OVERRIDE_{env_spec.system.name.upper().lstrip('_')}"] = get_env_var(env_spec.system)
+        if env_spec.archspec is not None:
+            env["CONDA_OVERRIDE_ARCH"] = get_env_var(env_spec.archspec)
         if env_spec.conda_platform is not None:
             env["CONDA_SUBDIR"] = env_spec.conda_platform
 
@@ -205,9 +203,13 @@ def sort_candidates(
     :param packages: list of conda candidates
     :return: sorted conda candidates
     """
-    if len(packages) <= 1:
+    if len(packages) <= 1 or project.environment is None:
         return packages
-    channels_sorter = _get_channel_sorter(project.platform, tuple(project.conda_config.channels))
+
+    channels_sorter = _get_channel_sorter(
+        project.environment.spec.conda_platform or "",
+        tuple(project.conda_config.channels),
+    )
 
     def get_preference(candidate: CondaCandidate):
         return (
@@ -357,7 +359,7 @@ def conda_create(
     if not config.is_initialized:
         raise VirtualenvCreateError("Error creating environment, no pdm-conda configs were found on pyproject.toml.")
 
-    if env_spec is None and isinstance(project.environment, CondaEnvironment):
+    if env_spec is None and project.environment is not None:
         env_spec = project.environment.spec
     candidates = {}
     channels = channels or []
