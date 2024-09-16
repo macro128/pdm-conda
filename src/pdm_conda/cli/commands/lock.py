@@ -35,6 +35,7 @@ class Command(BaseCommand):
         )
         target_group.add_argument(
             "--archspec",
+            help="The archspec to lock for using conda. E.g. `x86_64`. If not specified, will use system platform if available or some default",
         )
 
     @PluginConfig.check_active

@@ -6,7 +6,6 @@ from functools import cached_property
 from typing import TYPE_CHECKING
 
 from pdm.models.in_process import get_sys_config_paths
-from pdm.models.specifiers import PySpecSet
 
 from pdm_conda.conda import conda_create, conda_info, conda_list
 from pdm_conda.environments.python import PythonEnvironment
@@ -27,7 +26,6 @@ class CondaEnvironment(PythonEnvironment):
     def __init__(self, project: Project) -> None:
         super().__init__(project)
         if self.project.conda_config.is_initialized:
-            self.python_requires &= PySpecSet(f"=={self.interpreter.version}")
             self.prefix = str(get_python_dir(fix_path(self.interpreter.path)))
         self._env_dependencies: dict[str, Requirement] | None = None
 
@@ -39,7 +37,7 @@ class CondaEnvironment(PythonEnvironment):
         conda_spec = {}
         for pkg in conda_env["virtual_packages"]:
             name = pkg.name.lstrip("_")
-            if name in ("linux", "win", "osx"):
+            if CondaEnvSpec.is_system(name):
                 conda_spec["system"] = pkg
             elif name in ("glibc", "cuda", "archspec"):
                 conda_spec[name] = pkg
@@ -48,6 +46,12 @@ class CondaEnvironment(PythonEnvironment):
 
     @property
     def allow_all_spec(self) -> CondaEnvSpec:
+        if any(v == "system" for v in self.allow_all_spec_overrides.values()):
+            spec = self.spec
+            for name in self.allow_all_spec_overrides:
+                if self.allow_all_spec_overrides[name] == "system":
+                    self.allow_all_spec_overrides[name] = getattr(spec, name)
+
         env_spec = CondaEnvSpec.from_env_spec(super().allow_all_spec, **self.allow_all_spec_overrides)
         # if allow_all_spec_overrides is set, override the allow_all_spec one time
         if self.allow_all_spec_overrides:
