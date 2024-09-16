@@ -9,7 +9,8 @@ from pdm.exceptions import PdmUsageError
 from pdm.models.markers import EnvSpec
 from typing_extensions import Self
 
-from pdm_conda.models.requirements import CondaRequirement, parse_requirement
+from pdm_conda.models.candidates import CondaCandidate
+from pdm_conda.models.requirements import CondaVirtualPackageRequirement, extract_platform_marker, parse_requirement
 
 
 class InvalidCondaEnvSpec(PdmUsageError, ValueError):
@@ -18,17 +19,61 @@ class InvalidCondaEnvSpec(PdmUsageError, ValueError):
 
 @dataclass(frozen=True)
 class CondaEnvSpec(EnvSpec):
-    system: CondaRequirement | None = None
-    glibc: CondaRequirement | None = None
-    cuda: CondaRequirement | None = None
-    archspec: CondaRequirement | None = None
+    """The env spec for conda environments."""
+
+    system: CondaVirtualPackageRequirement | None = None
+    glibc: CondaVirtualPackageRequirement | None = None
+    cuda: CondaVirtualPackageRequirement | None = None
+    archspec: CondaVirtualPackageRequirement | None = None
+
+    @staticmethod
+    def is_system(name: str) -> bool:
+        """Check if the name is system related.
+
+        :param name: name to check
+        :return: bool
+        """
+        return name.lstrip("_") in ("linux", "osx", "win")
+
+    def __str__(self) -> str:
+        """If the env spec is a conda env, add the system, glibc, cuda and archspec to the string.
+
+        :return: the string representation of the env spec
+        """
+        res = super().__str__()
+        if self.is_conda_env:
+            parts = []
+            for r in [self.system, self.glibc, self.cuda, self.archspec]:
+                if r is not None:
+                    parts.append(r.as_line())
+            if parts:
+                res = ", ".join([res[:-1]] + parts) + res[-1]
+        return res
 
     def replace(self, **kwargs: Any) -> Self:
-        res = super().replace(**kwargs)
-        if res.glibc is not None and (res.platform is None or not isinstance(res.platform.os, os.Manylinux)):
-            raise InvalidCondaEnvSpec("Glibc can only be specified on linux platform")
-        if res.system is not None and (res.platform is None or isinstance(res.platform.os, os.Windows)):
-            raise InvalidCondaEnvSpec("System cannot be specified on windows platform")
+        """Replace the env spec with the given kwargs, if the env spec is a conda env run some checks. If the env spec
+        is not a conda env and platform was replaced, add the default specs for the platform.
+
+        :param kwargs: the kwargs to replace
+        :return: the replaced env spec
+        """
+        res = cast(CondaEnvSpec, super().replace(**kwargs))
+        # check conda env spec correctness
+        if res.platform is not None:
+            if res.glibc is not None and not isinstance(res.platform.os, os.Manylinux):
+                raise InvalidCondaEnvSpec("Glibc can only be specified on linux platform")
+            if res.system is not None and isinstance(res.platform.os, os.Windows):
+                raise InvalidCondaEnvSpec("System cannot be specified on windows platform")
+        # if platform was replaced, add the default virtual packages for conda env spec
+        if "platform" in kwargs and not res.is_conda_env:
+            default_virtual_packages = get_default_virtual_packages(res.conda_platform, include_unix=False)
+            # add the default virtual package for the system
+            for k in list(default_virtual_packages):
+                if self.is_system(k):
+                    default_virtual_packages["system"] = default_virtual_packages.pop(k)
+                    break
+
+            res = res.replace(**default_virtual_packages)
         return res
 
     @classmethod
@@ -37,7 +82,7 @@ class CondaEnvSpec(EnvSpec):
             k: parse_requirement("conda:" + (f"__{k}={v}" if not v.startswith("__") else v))
             if isinstance(v := kwargs.get(k, None), str)
             else v
-            for k in ("system", "glibc", "cuda", "archspec")
+            for k in cls.conda_properties
         }
         return cls(
             requires_python=env_spec.requires_python,
@@ -71,9 +116,11 @@ class CondaEnvSpec(EnvSpec):
             and target.is_conda_env
             and (
                 target.system != self.system
-                or target.glibc != self.glibc
-                or target.cuda != self.cuda
                 or target.archspec != self.archspec
+                or (self.glibc is not None and not self.glibc.is_compatible(target.glibc))
+                or (self.glibc is None and target.glibc is not None)
+                or (self.cuda is not None and not self.cuda.is_compatible(target.cuda))
+                or (self.cuda is None and target.cuda is not None)
             )
         ):
             return EnvCompatibility.INCOMPATIBLE
@@ -102,7 +149,7 @@ class CondaEnvSpec(EnvSpec):
             _os = "linux"
 
         if platform.arch in (Arch.Aarch64, Arch.Powerpc64Le):
-            _arch = str(platform.arch)
+            _arch = str(platform.arch) if not isinstance(platform.os, os.Macos) else "64"
         elif platform.arch in (Arch.Armv7L, Arch.Armv6L):
             _arch = "arm64"
         elif platform.arch == Arch.X86_64:
@@ -112,30 +159,36 @@ class CondaEnvSpec(EnvSpec):
             raise ValueError(f"Unsupported conda platform: {platform}")
         return f"{_os}-{_arch}"
 
-    def markers(self) -> dict[str, str | list[str]]:
+    def markers(self) -> dict[str, str]:
+        """Get the markers for this env spec, if it is a conda env and the platform is set, force the platform marker.
+
+        :return: Env spec markers
+        """
         markers = super().markers()
-        if self.is_conda_env:
-            virtual_packages = get_default_virtual_packages(self.conda_platform) if self.conda_platform else {}
-
-            if self.system is not None:
-                virtual_packages[self.system.name] = self.system
-            if self.glibc is not None:
-                virtual_packages["glibc"] = self.glibc
-            if self.cuda is not None:
-                virtual_packages["cuda"] = self.cuda
-            if self.archspec is not None:
-                virtual_packages["archspec"] = self.archspec
-
-            extras = [v.as_line(conda_compatible=True, with_build_string=True) for v in virtual_packages.values()]
-            if extras:
-                if (_extra := markers.get("extra", None)) is None:
-                    if isinstance(_extra, str):
-                        extras.append(_extra)
-                    elif isinstance(_extra, (list, tuple)):
-                        extras.extend(_extra)
-                markers["extra"] = extras
-
+        if self.is_conda_env and self.conda_platform is not None:
+            # add platform marker
+            markers |= extract_platform_marker(self.conda_platform, as_dict=True)
         return markers
+
+    def candidate_is_compatible(self, candidate: CondaCandidate) -> bool:
+        """
+        Check if the candidate is compatible with this env spec:
+        - If the env spec is not a conda env, it is always compatible
+        - If the env spec is a conda env:
+            - Check if the candidate marker is compatible with the env spec
+            - Check if the candidate virtual packages are compatible with the env spec
+
+        :param candidate: Conda candidate
+        :return: True if the candidate is compatible
+        """
+        if not self.is_conda_env:
+            return True
+        if candidate.req.marker is not None and not candidate.req.marker.matches(self):
+            return False
+        return all(
+            v.is_compatible(getattr(self, (k if not self.is_system(k) else "system").lstrip("_")))
+            for k, v in candidate.virtual_packages.items()
+        )
 
 
 DEFAULT_VIRTUAL_PACKAGES = {
@@ -152,15 +205,27 @@ DEFAULT_VIRTUAL_PACKAGES = {
 }
 
 
-def get_default_virtual_packages(platform: str) -> dict[str, CondaRequirement]:
+def get_default_virtual_packages(
+    platform: str | None,
+    include_cuda: bool = False,
+    include_unix: bool = True,
+) -> dict[str, CondaVirtualPackageRequirement]:
     """
     Get the default virtual packages for each platform
     refer to https://github.com/conda/conda-lock/blob/main/conda_lock/virtual_package.py#L52
+
+    :param platform: conda platform string
+    :param include_cuda: include cuda virtual package
+    :param include_unix: include unix virtual package
     :return: dict of virtual packages and version specifiers
     """
+    if platform is None:
+        return {}
     res = {}
     for (pkg, version), subdirs in DEFAULT_VIRTUAL_PACKAGES.items():
+        if (not include_cuda and pkg == "cuda") or (not include_unix and pkg == "unix"):
+            continue
         for subdir in subdirs:
             if subdir == platform:
-                res[pkg] = cast(CondaRequirement, parse_requirement(f"conda:__{pkg}={version}"))
+                res[pkg] = cast(CondaVirtualPackageRequirement, parse_requirement(f"conda:__{pkg}={version}"))
     return res
