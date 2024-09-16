@@ -13,7 +13,14 @@ from pdm.models.markers import get_marker
 from pdm.models.setup import Setup
 from unearth import Link
 
-from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement, parse_conda_version, parse_requirement
+from pdm_conda.models.requirements import (
+    CondaRequirement,
+    CondaVirtualPackageRequirement,
+    as_conda_requirement,
+    extract_platform_marker,
+    parse_conda_version,
+    parse_requirement,
+)
 from pdm_conda.models.setup import CondaSetupDistribution
 
 if TYPE_CHECKING:
@@ -42,13 +49,6 @@ def parse_channel(channel_url: str) -> str:
 class CondaPreparedCandidate(PreparedCandidate):
     candidate: CondaCandidate
 
-    def get_dependencies_from_metadata(self) -> list[str]:
-        """Get the dependencies of a candidate from pre-fetched package.
-
-        :return: list of dependencies
-        """
-        return [d.as_line(as_conda=True, with_build_string=True) for d in self.candidate.dependencies]
-
     def prepare_metadata(self, force_build: bool = False) -> Distribution:
         # if conda candidate get setup from package
         return self.candidate.distribution
@@ -58,8 +58,8 @@ class CondaCandidate(Candidate):
     def __init__(
         self,
         req: Requirement,
-        name: str | None = None,
-        version: str | None = None,
+        name: str,
+        version: str,
         link: Link | None = None,
         dependencies: list[str] | None = None,
         constrains: list[str] | None = None,
@@ -81,20 +81,14 @@ class CondaCandidate(Candidate):
                 self.req.as_pinned_version(self.version).as_line(with_build_string=True, with_channel=True),
             )
         self.dependencies: list[CondaRequirement] = []
-        virtual_packages = []
+        self.virtual_packages: dict[str, CondaVirtualPackageRequirement] = {}
         for r in dependencies:
             r = cast(CondaRequirement, parse_requirement(f"conda:{r}"))
-            if not r.is_virtual_package:
+            if not isinstance(r, CondaVirtualPackageRequirement):
                 self.dependencies.append(r)
             else:
-                virtual_packages.append(r)
-        if virtual_packages:
-            marker = get_marker(
-                f"extra=='{','.join(r.as_line(conda_compatible=True, with_build_string=True) for r in virtual_packages)}'",
-            )
-            self.req.marker = marker if self.req.marker is None else self.req.marker & marker
+                self.virtual_packages[r.conda_name] = r
 
-        self.constrains: dict[str, CondaRequirement] = {}
         self.hashes: list[FileHash] = (
             [
                 {
@@ -106,6 +100,7 @@ class CondaCandidate(Candidate):
             if self.link is not None
             else []
         )
+        self.constrains: dict[str, CondaRequirement] = {}
         for r in constrains or []:
             c = cast(CondaRequirement, parse_requirement(f"conda:{r}"))
             self.constrains[str(c.conda_name)] = c
@@ -140,14 +135,12 @@ class CondaCandidate(Candidate):
                 name=self.name,
                 summary="",
                 version=self.version,
-                install_requires=self.dependencies_lines,
+                install_requires=[
+                    dep.as_line(as_conda=True, with_build_string=True, with_channel=True) for dep in self.dependencies
+                ],
                 python_requires=self.requires_python,
             ),
         )
-
-    @property
-    def dependencies_lines(self):
-        return [dep.as_line(as_conda=True, with_build_string=True, with_channel=True) for dep in self.dependencies]
 
     def as_lockfile_entry(self, project_root: Path) -> dict[str, Any]:
         result = super().as_lockfile_entry(project_root)
@@ -184,6 +177,11 @@ class CondaCandidate(Candidate):
             dependencies = package.get("dependencies", [])
             if requires_python:
                 dependencies.append(f"python {requires_python}")
+            # add virtual package to dependencies
+            for k, v in file.items():
+                if k.startswith("__"):
+                    dependencies.append(f"{k}{v}")
+
             corrections = build_info | {"depends": dependencies}
             if file.get("hash"):
                 hash_name, _hash = file["hash"].split(":")
@@ -217,6 +215,7 @@ class CondaCandidate(Candidate):
         build_string = package.get("build", package.get("build_string", ""))
         channel = parse_channel(package["channel"])
         marker = package.get("marker")
+        platform_marker = extract_platform_marker(channel)
         if requirement is not None:
             requirement = as_conda_requirement(copy(requirement))
             requirement.version_mapping.update({parse_conda_version(version): version})
@@ -230,8 +229,15 @@ class CondaCandidate(Candidate):
             _line += f" {version} {build_string}"
             requirement = parse_requirement(_line)
 
-        if marker and not requirement.marker:
-            requirement.marker = parse_requirement(f"{requirement.name} ; {marker}").marker
+        markers = []
+        if marker:
+            markers.append(get_marker(marker))
+        if platform_marker is not None:
+            markers.append(platform_marker)
+        if markers:
+            for marker in markers:
+                requirement.marker = requirement.marker & marker if requirement.marker is not None else marker
+
         assert requirement is not None
         requirement.is_python_package = requires_python is not None
         requirement.groups = package.get("groups", requirement.groups)
