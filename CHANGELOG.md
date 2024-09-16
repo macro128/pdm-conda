@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0]
+
+### Added
+
+* Now compatible with `pdm==v2.18.2`.
+* Allow creating cross-platform lock.
+* Add arguments `--cuda`, `--system`, `--glibc` and `--archspec` to `pdm lock` command.
+
 ## [0.18.2] - 01/07/2024
 
 ### Added
@@ -84,7 +92,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Fix `pdm lock --refresh` failing with packages with extras.
 
-
 ## [0.17.0] - 22/04/2024
 
 ### Added
@@ -114,7 +121,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-* Now fails faster if Conda can't find a candidate and shows the error with verbose, suggesting possible Pypi only packages.
+* Now fails faster if Conda can't find a candidate and shows the error with verbose, suggesting possible Pypi only
+  packages.
 
 ## [0.16.3] - 28/02/2024
 
