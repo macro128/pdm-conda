@@ -114,7 +114,12 @@ def run_conda(
         if env_spec.system is not None:
             env_spec_vars[f"CONDA_OVERRIDE_{env_spec.system.name.upper().lstrip('_')}"] = get_env_var(env_spec.system)
         if env_spec.archspec is not None:
-            env_spec_vars["CONDA_OVERRIDE_ARCH"] = get_env_var(env_spec.archspec)
+            print(env_spec)
+            if cmd[0] == "micromamba":
+                raise CondaExecutionError(
+                    "micromamba does not support overriding archspec, please refer to https://github.com/mamba-org/mamba/issues/3446",
+                )
+            env_spec_vars["CONDA_OVERRIDE_ARCHSPEC"] = get_env_var(env_spec.archspec).split(" ")[-1]
         if env_spec.conda_platform is not None:
             env_spec_vars["CONDA_SUBDIR"] = env_spec.conda_platform
         logger.debug(f"env_spec_vars: {env_spec_vars}")
@@ -592,7 +597,7 @@ def conda_info(project: CondaProject, env_spec: CondaEnvSpec | None = None) -> d
         else:
             virtual_packages = set(info["virtual packages"])
 
-        res["virtual_packages"] = {parse_requirement(f"conda:{p.replace('=', '==', 1)}") for p in virtual_packages}
+        res["virtual_packages"] = {parse_requirement(f"conda:{p}") for p in virtual_packages}
         res["platform"] = info["platform"]
         res["channels"] = [parse_channel(channel) for channel in (info["channels"] or [])]
     else:

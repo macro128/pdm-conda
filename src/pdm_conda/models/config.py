@@ -404,8 +404,6 @@ class PluginConfig:
         :return: args list
         """
         runner = self.runner
-        if cmd == "remove" and runner == CondaRunner.MAMBA:
-            runner = CondaRunner.CONDA
         if isinstance(runner, CondaRunner):
             runner = runner.value
 

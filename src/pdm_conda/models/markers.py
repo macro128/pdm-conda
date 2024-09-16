@@ -57,13 +57,26 @@ class CondaEnvSpec(EnvSpec):
         :param kwargs: the kwargs to replace
         :return: the replaced env spec
         """
+        kwargs |= {
+            k: parse_requirement("conda:" + (f"__{k}={v}" if not v.startswith("__") else v))
+            if isinstance(v := kwargs.get(k, None), str)
+            else v
+            for k in kwargs
+            if k in ("system", "glibc", "cuda", "archspec")
+        }
         res = cast(CondaEnvSpec, super().replace(**kwargs))
         # check conda env spec correctness
         if res.platform is not None:
             if res.glibc is not None and not isinstance(res.platform.os, os.Manylinux):
                 raise InvalidCondaEnvSpec("Glibc can only be specified on linux platform")
-            if res.system is not None and isinstance(res.platform.os, os.Windows):
+            if (
+                res.system is not None
+                and str(res.system.specifier) != "==0"
+                and isinstance(res.platform.os, os.Windows)
+            ):
                 raise InvalidCondaEnvSpec("System cannot be specified on windows platform")
+        elif res.system is not None:
+            raise InvalidCondaEnvSpec("System version can only be specified after platform")
         # if platform was replaced, add the default virtual packages for conda env spec
         if "platform" in kwargs and not res.is_conda_env:
             default_virtual_packages = get_default_virtual_packages(res.conda_platform, include_unix=False)
@@ -74,16 +87,13 @@ class CondaEnvSpec(EnvSpec):
                     break
 
             res = res.replace(**default_virtual_packages)
+
+        if res.conda_platform is not None and res.system is not None:
+            res.system.name = f"__{res.conda_platform.split('-')[0]}"
         return res
 
     @classmethod
     def from_env_spec(cls, env_spec: EnvSpec, **kwargs: Any) -> Self:
-        kwargs = {
-            k: parse_requirement("conda:" + (f"__{k}={v}" if not v.startswith("__") else v))
-            if isinstance(v := kwargs.get(k, None), str)
-            else v
-            for k in cls.conda_properties
-        }
         return cls(
             requires_python=env_spec.requires_python,
             platform=env_spec.platform,
@@ -105,7 +115,7 @@ class CondaEnvSpec(EnvSpec):
         res = super().as_dict()
         for k in ("system", "glibc", "cuda", "archspec"):
             if (v := getattr(self, k, None)) is not None:
-                res[k] = v.as_line(conda_compatible=True, with_build_string=True)
+                res[k] = v.as_line()
 
         return res
 
@@ -195,7 +205,8 @@ DEFAULT_VIRTUAL_PACKAGES = {
     ("unix", "0"): ["linux-aarch64", "linux-ppc64le", "linux-64", "osx-64", "osx-arm64"],
     ("linux", "5.10"): ["linux-aarch64", "linux-ppc64le", "linux-64"],
     ("win", "0"): ["win-64"],
-    ("archspec", "1=x86_64"): ["win-64", "linux-64", "osx-64"],
+    # ("archspec", "1=x86_64"): ["win-64", "linux-64", "osx-64"],
+    ("archspec", "1=x86_64"): ["linux-64", "osx-64"],
     ("archspec", "1=arm64"): ["osx-arm64"],
     ("archspec", "1=aarch64"): ["linux-aarch64"],
     ("archspec", "1=ppc64le"): ["linux-ppc64le"],

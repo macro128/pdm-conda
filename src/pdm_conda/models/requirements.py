@@ -196,7 +196,13 @@ class CondaVirtualPackageRequirement(CondaRequirement):
         kwargs.pop("channel", None)
         if not (name := kwargs.get("name", "")).startswith("__"):
             kwargs["name"] = f"__{name}"
-        return super().create(is_python_package=False, **kwargs)
+        if kwargs.get("build_string", None) == "0":
+            kwargs.pop("build_string", None)
+        obj = super().create(is_python_package=False, **kwargs)
+        if obj.conda_name == "__archspec" and not obj.build_string:
+            raise RequirementError(f"Missing build string for {obj.conda_name}")
+
+        return obj
 
     def as_named_requirement(self) -> NamedRequirement:
         raise NotImplementedError
@@ -316,6 +322,10 @@ def parse_requirement(line: str, editable: bool = False) -> Requirement:
             prefix = virtual_package.group(1)
             name = virtual_package.group(2)
             is_virtual_package = len(prefix) == 2
+        if is_virtual_package and name == "archspec":
+            if build_string is None and version:
+                build_string = version.split("=")[-1]
+            version = "1"
 
         # we need to handle the "or" and "and" operator in the conda version
         # e.g. "1.2.3|1.2.4" and "1.2.3,1.2.4"
