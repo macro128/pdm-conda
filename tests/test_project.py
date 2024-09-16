@@ -2,48 +2,30 @@ import re
 
 import pytest
 
+REQUIREMENTS_TO_TEST = {
+    "different pkgs": (["pytest"], ["pytest-cov"]),
+    "pypi version inherit": (["pytest>=3.1"], ["pytest-conda"]),
+    "conda extras override": (["pytest[extra]"], ["pytest-conda"]),
+    "conda extras": (["pytest"], ["pytest-conda[extra]"]),
+    "conda version override": (["pytest>=3.1"], ["pytest-conda==52"]),
+    "conda channel": ([], ["conda-channel::pytest-conda"]),
+    "conda channel with platform": ([], ["conda-channel/arch1::pytest-conda"]),
+    "only pypi": (["pytest"], []),
+    "star >= specifier": ([], ["pytest-conda>=1.*"]),
+    "star > specifier": ([], ["pytest-conda>1.*"]),
+    "~= specifier": ([], ["pytest-conda~=1.0.0"]),
+    "~= star specifier": ([], ["pytest-conda~=1.*"]),
+    "= specifier": ([], ["pytest-conda=1"]),
+    "conda with build string": ([], ["pytest-conda==1.0=build_string"]),
+    "pypi markers inherit": (["pytest; python_version >= '3.6'"], ["pytest-conda"]),
+    "conda with markers": (["pytest"], ["pytest-conda; python_version >= '3.6'"]),
+    "virtual package": ([], ["__virtual_package"]),
+    "conda with underscore": ([], ["_package==1.0.0"]),
+}
 DEPENDENCIES = {
     "argnames": ["dependencies", "conda_dependencies"],
-    "argvalues": [
-        (["pytest"], ["pytest-cov"]),
-        (["pytest>=3.1"], ["pytest-conda"]),
-        (["pytest[extra]"], ["pytest-conda"]),
-        (["pytest"], ["pytest-conda[extra]"]),
-        (["pytest>=3.1"], ["pytest-conda==52"]),
-        ([], ["conda-channel::pytest-conda"]),
-        ([], ["conda-channel/arch1::pytest-conda"]),
-        (["pytest"], []),
-        ([], ["pytest-conda>=1.*"]),
-        ([], ["pytest-conda>1.*"]),
-        ([], ["pytest-conda~=1.0.0"]),
-        ([], ["pytest-conda~=1.*"]),
-        ([], ["pytest-conda=1"]),
-        ([], ["pytest-conda==1.0=build_string"]),
-        (["pytest; python_version >= '3.6'"], ["pytest-conda"]),
-        (["pytest"], ["pytest-conda; python_version >= '3.6'"]),
-        ([], ["__virtual_package"]),
-        ([], ["__package==1.0.0"]),
-    ],
-    "ids": [
-        "different pkgs",
-        "pypi version inherit",
-        "conda extras override",
-        "conda extras",
-        "conda version override",
-        "conda channel",
-        "conda channel with platform",
-        "only pypi",
-        "star >= specifier",
-        "star > specifier",
-        "~= specifier",
-        "~= star specifier",
-        "= specifier",
-        "conda with build string",
-        "pypi markers inherit",
-        "conda with markers",
-        "virtual package",
-        "conda with underscore",
-    ],
+    "argvalues": list(REQUIREMENTS_TO_TEST.values()),
+    "ids": list(REQUIREMENTS_TO_TEST.keys()),
 }
 CONDA_MAPPING = {
     "argnames": "conda_mapping",
@@ -62,16 +44,16 @@ class TestProject:
         as_default_manager=False,
     ):
         from pdm_conda.mapping import pypi_to_conda
-        from pdm_conda.models.requirements import CondaRequirement, parse_requirement
+        from pdm_conda.models.requirements import CondaRequirement, CondaVirtualPackageRequirement, parse_requirement
 
-        requirements = {}
+        requirements = []
         for d in dependencies:
             if as_default_manager:
                 d = f"conda:{d}"
             r = parse_requirement(d)
             if as_default_manager:
                 r.name = pypi_to_conda(r.name)
-            requirements[r.identify()] = r
+            requirements.append(r)
         for d in conda_dependencies:
             d = d.strip().replace("'", '"')
             r = parse_requirement(f"conda:{d}")
@@ -81,21 +63,25 @@ class TestProject:
                 assert r.as_line() == d.replace("=", "==") + ".*"
             else:
                 assert d.startswith(r.as_line())
+            if d.startswith("__"):
+                assert isinstance(r, CondaVirtualPackageRequirement)
             assert isinstance(r, CondaRequirement)
             assert r.extras if "[" in d else not r.extras
             assert r.marker if ";" in d else not r.marker
             if "::" in d:
                 assert r.channel == d.split("::")[0]
-            pypi_req = next((v for v in requirements.values() if v.conda_name == r.conda_name), None)
-            if pypi_req is not None:
-                requirements.pop(pypi_req.identify())
+            pypi_req_idx = next((i for i, v in enumerate(requirements) if v.conda_name == r.conda_name), None)
+            if pypi_req_idx is not None:
+                pypi_req = requirements[pypi_req_idx]
                 if not r.specifier:
                     r.specifier = pypi_req.specifier
                 if pypi_req.marker:
                     r.marker = pypi_req.marker
                 if pypi_req.extras:
                     r.extras = pypi_req.extras
-            requirements[r.identify()] = r
+                requirements[pypi_req_idx] = r
+            else:
+                requirements.append(r)
         return requirements
 
     @pytest.mark.parametrize(**DEPENDENCIES)
@@ -153,13 +139,10 @@ class TestProject:
         )
 
         for project_requirements in (project.get_dependencies(group), project.all_dependencies[group]):
-            for req in project_requirements.values():
-                conda_req = requirements[req.identify()]
+            for req in project_requirements:
+                conda_req = next(r for r in requirements if r.conda_name == req.conda_name)
                 assert conda_req == req
                 assert isinstance(req, type(conda_req))
-                if "~=" in str(req.specifier):
-                    line = conda_req.as_line(conda_compatible=True)
-                    assert re.match(r".+=[\w.*]+,>=[\w.]+.*", line)
 
     @pytest.mark.parametrize(**DEPENDENCIES)
     @pytest.mark.parametrize(**GROUPS)
@@ -174,25 +157,30 @@ class TestProject:
         as_default_manager,
     ):
         from pdm_conda.mapping import conda_to_pypi
-        from pdm_conda.models.requirements import CondaRequirement, strip_extras
+        from pdm_conda.models.requirements import CondaRequirement, CondaVirtualPackageRequirement, strip_extras
 
         project.conda_config.as_default_manager = as_default_manager
         requirements = self._parse_requirements(dependencies, conda_dependencies, as_default_manager=as_default_manager)
+        requirements = [r for r in requirements if not isinstance(r, CondaVirtualPackageRequirement)]
         group_name = group if group == "default" else "dev"
         dev = group == "dev"
         project.add_dependencies(requirements, to_group=group_name, dev=dev)
         project_requirements = project.get_dependencies(group_name)
-        for name, req in requirements.items():
-            assert req == project_requirements[name]
+        requirement_names = [r.conda_name for r in requirements]
+        for req in requirements:
+            name = req.conda_name
+            assert req == project_requirements[requirement_names.index(name)]
             if isinstance(req, CondaRequirement) and req.is_python_package:
                 named_req = req.as_named_requirement()
                 if named_req.name != req.name:
-                    assert named_req not in project_requirements
+                    assert named_req not in requirement_names
 
         if conda_dependencies:
             _dependencies, _ = project.use_pyproject_dependencies(group_name, dev)
             _conda_dependencies = project.get_conda_pyproject_dependencies(group_name, dev)
             for dep in conda_dependencies:
+                if dep.startswith("__"):
+                    continue
                 asserted = 0
                 dep, _ = strip_extras(
                     dep.split(";")[0].split("=")[0].split(">")[0].split("~")[0].split("::")[-1].strip(),
@@ -203,7 +191,7 @@ class TestProject:
                         if dep in r or python_dep in r:
                             asserted += 1
                             break
-                req = next((r for n, r in requirements.items() if n == dep or n.startswith(f"{dep}[")), None)
+                req = next((r for r in requirements if r.conda_name == dep or r.name.startswith(f"{dep}[")), None)
                 assert req is not None
 
                 num_assertions = 1

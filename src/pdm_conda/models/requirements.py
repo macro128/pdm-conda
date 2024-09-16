@@ -32,7 +32,7 @@ _prev_spec = ",|<>!~="
 _specifier_re = re.compile(rf"(?<![{_prev_spec}])(=|==|~=|!=|<|>|<=|>=)([^{_prev_spec}\s]+)")
 _conda_specifier_star_re = re.compile(r"([\w.]+)\*")
 _conda_version_letter_re = re.compile(r"(\d|\.)([a-z]+)(\d?)")
-_conda_virtual_package_re = re.compile(r"^_+(.*)")
+_conda_virtual_package_re = re.compile(r"^(_+)(.*)")
 
 
 def extract_platform_marker(conda_channel: str | None, as_dict: bool = False) -> Marker | dict[str, str] | None:
@@ -76,6 +76,8 @@ class CondaRequirement(NamedRequirement):
         kwargs.pop("conda_managed", None)
         if build_string := kwargs.get("build_string", ""):
             kwargs["build_string"] = build_string.strip()
+        if "is_python_package" not in kwargs:
+            kwargs["is_python_package"] = not kwargs.get("name", "").startswith("_")
         platform_marker = extract_platform_marker(kwargs.get("channel", None))
         if platform_marker is not None and str(platform_marker) not in str(marker := kwargs.get("marker", None)):
             kwargs["marker"] = platform_marker if marker is None else marker & platform_marker
@@ -94,19 +96,7 @@ class CondaRequirement(NamedRequirement):
             channel = f"conda:{channel}"
         specifiers = []
         for s in frozenset(self.specifier):
-            operator = s.operator
-            version = self.version_mapping.get(s.version, s.version)
-            if conda_compatible and operator == "~=":
-                operator = "="
-                if len(parts := version.split(".")) > 0:
-                    if parts[-1] == "*":
-                        version = f"{'.'.join(parts[:-1])}.0"
-                    else:
-                        # special releases are omitted
-                        if len(parts) > 2 and re.search(r"(a|b|rc|dev|post|rev|alpha|beta|preview|pre)\d", parts[-1]):
-                            parts = parts[:-1]
-                        version = f"{'.'.join(parts[:-1])}.*,>={version}"
-            specifiers.append(f"{operator}{version}")
+            specifiers.append(f"{s.operator}{self.version_mapping.get(s.version, s.version)}")
         specifier = ",".join(sorted(specifiers))
         build_string = f" {self.build_string}" if with_build_string and self.build_string and specifier else ""
         extras = ""
@@ -320,8 +310,12 @@ def parse_requirement(line: str, editable: bool = False) -> Requirement:
             name, version = line.split(" ", maxsplit=1)
 
         # check if it's a virtual package
+        prefix = ""
+        is_virtual_package = False
         if virtual_package := _conda_virtual_package_re.match(name):
-            name = virtual_package.group(1)
+            prefix = virtual_package.group(1)
+            name = virtual_package.group(2)
+            is_virtual_package = len(prefix) == 2
 
         # we need to handle the "or" and "and" operator in the conda version
         # e.g. "1.2.3|1.2.4" and "1.2.3,1.2.4"
@@ -342,7 +336,7 @@ def parse_requirement(line: str, editable: bool = False) -> Requirement:
                                 conda_version_or = conda_version_or[spec.end(1) :]
                             is_star_version = _conda_specifier_star_re.match(conda_version_or)
                             # if is equality specifier and not a virtual package, we need to add `.*` to the version
-                            if is_eq_spec and not is_star_version and not virtual_package:
+                            if is_eq_spec and not is_star_version and not is_virtual_package:
                                 conda_version_or += ".*"
                             conda_version_or = f"{'~' if is_star_version else '='}={conda_version_or}"
                         # we need to convert the conda version to a comparable version
@@ -369,7 +363,12 @@ def parse_requirement(line: str, editable: bool = False) -> Requirement:
         if marker:
             name += f"; {marker}"
         _req = _parse_requirement(line=name)
-        req = (CondaVirtualPackageRequirement if virtual_package else CondaRequirement).create(
+        cls = CondaVirtualPackageRequirement
+        if not is_virtual_package:
+            _req.name = f"{prefix}{_req.name}"
+            cls = CondaRequirement
+
+        req = cls.create(
             name=_req.name,
             version=version,
             channel=channel,
