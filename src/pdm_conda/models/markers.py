@@ -149,7 +149,7 @@ class CondaEnvSpec(EnvSpec):
             _os = "linux"
 
         if platform.arch in (Arch.Aarch64, Arch.Powerpc64Le):
-            _arch = str(platform.arch) if not isinstance(platform.os, os.Macos) else "64"
+            _arch = str(platform.arch) if not isinstance(platform.os, os.Macos) else "arm64"
         elif platform.arch in (Arch.Armv7L, Arch.Armv6L):
             _arch = "arm64"
         elif platform.arch == Arch.X86_64:

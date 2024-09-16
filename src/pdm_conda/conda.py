@@ -99,20 +99,26 @@ def run_conda(
     if env_spec is not None:
 
         def get_env_var(req: CondaRequirement) -> str:
-            """Get requirement version and build string :param req: requirement :return: requirement version."""
-            return req.as_line(with_build_string=True, conda_compatible=True).split("==")[-1]
+            """Get requirement version and build string.
 
-        env = env or {}
+            :param req: requirement
+            :return: requirement version
+            """
+            return req.as_line().split("==")[-1]
+
+        env_spec_vars = {}
         if env_spec.cuda is not None:
-            env["CONDA_OVERRIDE_CUDA"] = get_env_var(env_spec.cuda)
+            env_spec_vars["CONDA_OVERRIDE_CUDA"] = get_env_var(env_spec.cuda)
         if env_spec.glibc is not None:
-            env["CONDA_OVERRIDE_GLIBC"] = get_env_var(env_spec.glibc)
+            env_spec_vars["CONDA_OVERRIDE_GLIBC"] = get_env_var(env_spec.glibc)
         if env_spec.system is not None:
-            env[f"CONDA_OVERRIDE_{env_spec.system.name.upper().lstrip('_')}"] = get_env_var(env_spec.system)
+            env_spec_vars[f"CONDA_OVERRIDE_{env_spec.system.name.upper().lstrip('_')}"] = get_env_var(env_spec.system)
         if env_spec.archspec is not None:
-            env["CONDA_OVERRIDE_ARCH"] = get_env_var(env_spec.archspec)
+            env_spec_vars["CONDA_OVERRIDE_ARCH"] = get_env_var(env_spec.archspec)
         if env_spec.conda_platform is not None:
-            env["CONDA_SUBDIR"] = env_spec.conda_platform
+            env_spec_vars["CONDA_SUBDIR"] = env_spec.conda_platform
+        logger.debug(f"env_spec_vars: {env_spec_vars}")
+        env = {**(env or {}), **env_spec_vars}
 
     lockfile = environment.get("lockfile", [])
     with _optional_temporary_file(lockfile or environment) as f:

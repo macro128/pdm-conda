@@ -76,7 +76,7 @@ if __name__ == "__main__":
     if "--prod" in cmd_args:
         extra_args += ["--no-editable", "--frozen-lockfile", "--check"]
     elif "--dev" in cmd_args:
-        extra_args.append("-vv")
+        extra_args.append("-v")
     if args.app:
         extra_args.append("--no-self")
 

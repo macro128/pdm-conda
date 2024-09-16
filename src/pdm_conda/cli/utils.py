@@ -77,6 +77,7 @@ def wrap_save_version_specifiers(func):
                 r = as_conda_requirement(r)
                 r.version_mapping.update(can.req.version_mapping)
                 r.is_python_package = can.req.is_python_package
+                r.marker = can.req.marker
                 requirements[i] = r
 
     return wrapper

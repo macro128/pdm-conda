@@ -18,7 +18,7 @@ from pdm_conda.conda import CondaResolutionError, CondaSearchError, conda_create
 from pdm_conda.environments import CondaEnvironment
 from pdm_conda.models.candidates import CondaCandidate
 from pdm_conda.models.markers import CondaEnvSpec
-from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement
+from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement, extract_platform_marker
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
@@ -97,6 +97,10 @@ class CondaRepository(BaseRepository):
                 if not req.is_compatible(can):
                     logger.info(f"Requirement {req} is not compatible with {can}")
                     return False
+
+                if self.env_spec is not None and not self.env_spec.candidate_is_compatible(can):
+                    logger.info(f"Candidate {can} is not compatible with env spec")
+                    return False
         return True
 
     def update_conda_resolution(
@@ -137,7 +141,7 @@ class CondaRepository(BaseRepository):
     def get_hashes(self, candidate: Candidate) -> list[FileHash]:
         if isinstance(candidate, CondaCandidate) and not candidate.hashes:
             logger.info(f"Fetching hashes for {candidate}")
-            _candidates = conda_search(self.environment.project, candidate.req)
+            _candidates = conda_search(self.environment.project, candidate.req, env_spec=self.env_spec)
             if not _candidates:
                 raise CondaSearchError(f"Cannot find hashes for {candidate}")
 
@@ -197,6 +201,7 @@ class PyPICondaRepository(PyPIRepository, CondaRepository):
                     _requirements,
                     prefix=f"/tmp/{uuid.uuid4()}",
                     dry_run=True,
+                    env_spec=self.env_spec,
                 )
                 conda_requirements = {r.conda_name: r for r in _requirements}
                 for name, candidates in new_resolution.items():
@@ -338,9 +343,10 @@ class LockedCondaRepository(LockedRepository, CondaRepository):
             if isinstance(can, CondaCandidate):
                 key = (str(can.name), str(can.conda_version))
                 # merge all packages with the same name and version
-                if first_candidate := (key in conda_packages):
+                if first_candidate := (key not in conda_packages):
+                    package = conda_packages.setdefault(key, package)
+                else:
                     packages_to_remove.append(i)
-                package = conda_packages.setdefault(key, package)
                 if first_candidate:
                     package["files"] = []
                 # only static-url allowed for conda packages
@@ -356,24 +362,30 @@ class LockedCondaRepository(LockedRepository, CondaRepository):
                             "channel": can.channel,
                             "track_feature": can.track_feature,
                         }
+                        | {k: v.as_line()[len(v.conda_name) :] for k, v in can.virtual_packages.items()}
                         for item in can.hashes
                     ],
                 )
 
+                platform_marker = extract_platform_marker(can.channel)
                 # fix conda dependencies to include build string
                 if first_candidate:
-                    package["dependencies"] = []
-                dependencies = set(package.get("dependencies", []))
+                    package["dependencies"] = {}
+                dependencies = package.get("dependencies", {})
                 for dep in can.dependencies:
                     kwargs = {}
-                    if dep.identify() in self.conda_entries:
+                    if (k := dep.identify()) in self.conda_entries:
                         kwargs["with_build_string"] = True
-                    dependencies.add(dep.as_line(**kwargs))
-                package["dependencies"] = sorted(dependencies)
+                    if platform_marker:
+                        dep.marker = dep.marker & platform_marker if dep.marker else platform_marker
+                    dependencies[k] = dep.as_line(**kwargs)
+
                 if can.constrains:
-                    constrains = package.setdefault("constrains", [])
+                    constrains = package.setdefault("constrains", {})
                     for c in can.constrains.values():
-                        constrains.append(c.as_line(with_build_string=True))
+                        if platform_marker:
+                            c.marker = c.marker & platform_marker if c.marker else platform_marker
+                        constrains[c.identify()] = c.as_line(with_build_string=True)
 
         # remove duplicated packages
         for i in reversed(packages_to_remove):
@@ -383,7 +395,7 @@ class LockedCondaRepository(LockedRepository, CondaRepository):
         for package in conda_packages.values():
             for k in ["dependencies", "constrains"]:
                 if k in package:
-                    package[k] = make_array(package[k], multiline=True)
+                    package[k] = make_array(sorted(package[k].values()), multiline=True)
 
         # sort packages
         res["package"] = sorted(res["package"], key=lambda x: x["name"])
