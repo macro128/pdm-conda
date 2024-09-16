@@ -3,15 +3,22 @@ from __future__ import annotations
 import uuid
 from typing import TYPE_CHECKING, cast
 
+from pdm._types import NotSet, NotSetType
+from pdm.cli import actions
 from pdm.exceptions import CandidateNotFound
+from pdm.formats.base import array_of_inline_tables, make_array
+from pdm.models.markers import EnvSpec
 from pdm.models.repositories import BaseRepository, LockedRepository, PyPIRepository
+from pdm.models.repositories.lock import PackageEntry
 from pdm.models.specifiers import PySpecSet
+from tomlkit import TOMLDocument
 
 from pdm_conda import logger
 from pdm_conda.conda import CondaResolutionError, CondaSearchError, conda_create, conda_search, sort_candidates
 from pdm_conda.environments import CondaEnvironment
 from pdm_conda.models.candidates import CondaCandidate
-from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement
+from pdm_conda.models.markers import CondaEnvSpec
+from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement, extract_platform_marker
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
@@ -41,9 +48,10 @@ class CondaRepository(BaseRepository):
         self,
         sources: list[RepositoryConfig],
         environment: BaseEnvironment,
-        ignore_compatibility: bool = True,
+        ignore_compatibility: bool | NotSetType = NotSet,
+        env_spec: EnvSpec | None = None,
     ) -> None:
-        super().__init__(sources, environment, ignore_compatibility)
+        super().__init__(sources, environment, ignore_compatibility, env_spec)
         self.environment = cast(CondaEnvironment, environment)
         self._conda_resolution: dict[str, list[CondaCandidate]] = {}
         self._excluded_identifiers: set[str] = set()
@@ -89,6 +97,10 @@ class CondaRepository(BaseRepository):
                 if not req.is_compatible(can):
                     logger.info(f"Requirement {req} is not compatible with {can}")
                     return False
+
+                if self.env_spec is not None and not self.env_spec.candidate_is_compatible(can):
+                    logger.info(f"Candidate {can} is not compatible with env spec")
+                    return False
         return True
 
     def update_conda_resolution(
@@ -129,19 +141,19 @@ class CondaRepository(BaseRepository):
     def get_hashes(self, candidate: Candidate) -> list[FileHash]:
         if isinstance(candidate, CondaCandidate) and not candidate.hashes:
             logger.info(f"Fetching hashes for {candidate}")
-            _candidates = conda_search(self.environment.project, candidate.req)
+            _candidates = conda_search(self.environment.project, candidate.req, env_spec=self.env_spec)
             if not _candidates:
                 raise CondaSearchError(f"Cannot find hashes for {candidate}")
 
             candidate.hashes = _candidates[0].hashes
         return super().get_hashes(candidate)
 
-    def update_hashes(self, mapping: dict[str, Candidate]):
+    def update_hashes(self, candidates: list[Candidate]):
         """Update hashes for candidates in mapping using conda create.
 
-        :param mapping: mapping of candidates
+        :param candidates: list of candidates
         """
-        conda_requirements = [can.req for can in mapping.values() if isinstance(can, CondaCandidate) and not can.hashes]
+        conda_requirements = [can.req for can in candidates if isinstance(can, CondaCandidate) and not can.hashes]
         if conda_requirements:
             resolution = conda_create(
                 self.environment.project,
@@ -149,7 +161,7 @@ class CondaRepository(BaseRepository):
                 prefix=f"/tmp/{uuid.uuid4()}",
                 dry_run=True,
             )
-            for candidate in mapping.values():
+            for candidate in candidates:
                 logger.info(f"Fetching hashes for {candidate}")
                 if (cans := resolution.get(candidate.name, [])) and cans[0].req.is_compatible(candidate.req):
                     candidate.hashes = cans[0].hashes
@@ -189,6 +201,7 @@ class PyPICondaRepository(PyPIRepository, CondaRepository):
                     _requirements,
                     prefix=f"/tmp/{uuid.uuid4()}",
                     dry_run=True,
+                    env_spec=self.env_spec,
                 )
                 conda_requirements = {r.conda_name: r for r in _requirements}
                 for name, candidates in new_resolution.items():
@@ -232,14 +245,28 @@ class PyPICondaRepository(PyPIRepository, CondaRepository):
 
 
 class LockedCondaRepository(LockedRepository, CondaRepository):
-    def _matching_keys(self, requirement: Requirement) -> Iterable[CandidateKey]:
-        yield from super()._matching_keys(requirement)
+    def __init__(
+        self,
+        lockfile: Mapping[str, Any],
+        sources: list[RepositoryConfig],
+        environment: BaseEnvironment,
+        env_spec: EnvSpec | None = None,
+    ) -> None:
+        self.conda_entries: dict[str, tuple] = {}
+        super().__init__(lockfile, sources, environment, env_spec)  # type: ignore[call-arg,arg-type]
+
+    def __setattr__(self, __name, __value):
+        # ignore empty targets
+        if __name == "targets" and not __value and getattr(self, "targets", None) is not None:
+            return
+        super().__setattr__(__name, __value)
+
+    def _matching_entries(self, requirement: Requirement) -> Iterable[CandidateKey]:
         if self.is_conda_managed(requirement):
             req_id = as_conda_requirement(requirement).identify()
-
-            for key, can in self.packages.items():
-                if isinstance(can, CondaCandidate) and req_id == key[0]:
-                    yield key
+            if (key := self.conda_entries.get(req_id, None)) is not None:
+                yield key
+        yield from super()._matching_entries(requirement)
 
     def _read_lockfile(self, lockfile: Mapping[str, Any]) -> None:
         packages = lockfile.get("package", [])
@@ -250,7 +277,12 @@ class LockedCondaRepository(LockedRepository, CondaRepository):
                 conda_packages.append(package)
             else:
                 pypi_packages.append(package)
-        super()._read_lockfile({"package": pypi_packages, **{k: v for k, v in lockfile.items() if k != "package"}})
+        self.targets = [CondaEnvSpec.from_spec(**t) for t in lockfile.get("metadata", {}).get("targets", [])]
+        _lockfile = {k: v for k, v in lockfile.items() if k not in ("package", "metadata")}
+        if "metadata" in lockfile:
+            _lockfile["metadata"] = {k: v for k, v in lockfile["metadata"].items() if k != "targets"}
+        _lockfile["package"] = pypi_packages
+        super()._read_lockfile(_lockfile)
 
         if conda_packages and (
             isinstance(self.environment, CondaEnvironment) and not self.environment.project.conda_config.is_initialized
@@ -261,16 +293,113 @@ class LockedCondaRepository(LockedRepository, CondaRepository):
             )
 
         for package in conda_packages:
-            can = CondaCandidate.from_lock_package(package)
-            can_id = self._identify_candidate(can)
-            self.packages[can_id] = can
-            self.candidate_info[can_id] = (
-                can.dependencies_lines,
-                package.get("requires_python", ""),
-                package.get("summary", ""),
-            )
+            for can in CondaCandidate.from_lock_package(package):
+                can_id = self._identify_candidate(can)
+                self.conda_entries[can_id[0]] = can_id
+                self.packages[can_id] = PackageEntry(can, package.get("dependencies", []), package.get("summary", []))
 
     def _identify_candidate(self, candidate: Candidate) -> tuple:
         if isinstance(candidate, CondaCandidate):
-            return candidate.identify(), candidate.version, None, False
+            return (
+                candidate.identify() + (f":{candidate.req.marker}" if candidate.req.marker else ""),
+                candidate.version,
+                None,
+                False,
+            )
         return super()._identify_candidate(candidate)
+
+    def merge_result(
+        self,
+        env_spec: EnvSpec,
+        result: Iterable[Candidate],
+        fetched_dependencies: dict[tuple[str, str | None], list[Requirement]],
+    ) -> None:
+        super().merge_result(env_spec, result, fetched_dependencies)
+        for pkg in self.packages.values():
+            if isinstance(pkg.candidate, CondaCandidate):
+                pkg.dependencies.clear()
+                pkg.dependencies.extend([dep.as_line(with_build_string=True) for dep in pkg.candidate.dependencies])
+                if (can_id := self._identify_candidate(pkg.candidate)) not in self.conda_entries:
+                    self.conda_entries[can_id[0]] = can_id
+
+    def format_lockfile(self, groups: Iterable[str] | None, strategy: set[str]) -> TOMLDocument:
+        res = super().format_lockfile(groups, strategy)
+        # ensure no duplicated groups in metadata
+        if groups := res.get("metadata", {}).get("groups"):
+            res["metadata"]["groups"] = list({group: None for group in groups}.keys())
+
+        conda_packages: dict[tuple[str, str], dict] = {}
+        packages_to_remove = []
+
+        # fix conda packages
+        for i, (package, entry) in enumerate(
+            zip(
+                res["package"],
+                sorted(self.packages.values(), key=lambda x: x.candidate.identify()),
+                strict=False,
+            ),
+        ):
+            can = entry.candidate
+            if isinstance(can, CondaCandidate):
+                key = (str(can.name), str(can.conda_version))
+                # merge all packages with the same name and version
+                if first_candidate := (key not in conda_packages):
+                    package = conda_packages.setdefault(key, package)
+                else:
+                    packages_to_remove.append(i)
+                if first_candidate:
+                    package["files"] = []
+                # only static-url allowed for conda packages
+                package["files"] = array_of_inline_tables(
+                    [file for file in package.get("files", []) if "file" not in file]
+                    + [
+                        {
+                            "url": item["url"],
+                            "hash": item["hash"],
+                            "build_string": can.build_string,
+                            "build_number": can.build_number,
+                            "timestamp": can.timestamp,
+                            "channel": can.channel,
+                            "track_feature": can.track_feature,
+                        }
+                        | {k: v.as_line()[len(v.conda_name) :] for k, v in can.virtual_packages.items()}
+                        for item in can.hashes
+                    ],
+                )
+
+                platform_marker = extract_platform_marker(can.channel)
+                # fix conda dependencies to include build string
+                if first_candidate:
+                    package["dependencies"] = {}
+                dependencies = package.get("dependencies", {})
+                for dep in can.dependencies:
+                    kwargs = {}
+                    if (k := dep.identify()) in self.conda_entries:
+                        kwargs["with_build_string"] = True
+                    if platform_marker:
+                        dep.marker = dep.marker & platform_marker if dep.marker else platform_marker
+                    dependencies[k] = dep.as_line(**kwargs)
+
+                if can.constrains:
+                    constrains = package.setdefault("constrains", {})
+                    for c in can.constrains.values():
+                        if platform_marker:
+                            c.marker = c.marker & platform_marker if c.marker else platform_marker
+                        constrains[c.identify()] = c.as_line(with_build_string=True)
+
+        # remove duplicated packages
+        for i in reversed(packages_to_remove):
+            res["package"].pop(i)
+
+        # format
+        for package in conda_packages.values():
+            for k in ["dependencies", "constrains"]:
+                if k in package:
+                    package[k] = make_array(sorted(package[k].values()), multiline=True)
+
+        # sort packages
+        res["package"] = sorted(res["package"], key=lambda x: x["name"])
+        return res
+
+
+actions.LockedRepository = LockedCondaRepository

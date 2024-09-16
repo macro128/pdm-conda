@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from collections import ChainMap
-from pathlib import Path
+from functools import cached_property
 from typing import TYPE_CHECKING
 
 from pdm.models.in_process import get_sys_config_paths
@@ -10,13 +10,14 @@ from pdm.models.specifiers import PySpecSet
 
 from pdm_conda.conda import conda_create, conda_info, conda_list
 from pdm_conda.environments.python import PythonEnvironment
+from pdm_conda.models.markers import CondaEnvSpec
 from pdm_conda.project import CondaProject
 from pdm_conda.utils import fix_path, get_python_dir
 
 if TYPE_CHECKING:
     from pdm.models.working_set import WorkingSet
 
-    from pdm_conda.models.requirements import CondaRequirement, Requirement
+    from pdm_conda.models.requirements import Requirement
     from pdm_conda.project import Project
 
 
@@ -28,36 +29,30 @@ class CondaEnvironment(PythonEnvironment):
         if self.project.conda_config.is_initialized:
             self.python_requires &= PySpecSet(f"=={self.interpreter.version}")
             self.prefix = str(get_python_dir(fix_path(self.interpreter.path)))
-        self._virtual_packages: set[CondaRequirement] | None = None
-        self._platform: str | None = None
-        self._default_channels: list[str] | None = None
-        self._base_env: Path | None = None
         self._env_dependencies: dict[str, Requirement] | None = None
 
-    @property
-    def virtual_packages(self) -> set[CondaRequirement]:
-        self._check_update_info(self._virtual_packages)
-        return self._virtual_packages  # type: ignore
+        self.allow_all_spec_overrides: dict[str, str] = {}
+
+    @cached_property
+    def spec(self) -> CondaEnvSpec:
+        conda_env = conda_info(self.project)
+        conda_spec = {}
+        for pkg in conda_env["virtual_packages"]:
+            name = pkg.name.lstrip("_")
+            if name in ("linux", "win", "osx"):
+                conda_spec["system"] = pkg
+            elif name in ("glibc", "cuda", "archspec"):
+                conda_spec[name] = pkg
+
+        return CondaEnvSpec.from_env_spec(super().spec, **conda_spec)
 
     @property
-    def platform(self) -> str:
-        self._check_update_info(self._platform)
-        return self._platform  # type: ignore
-
-    @property
-    def default_channels(self) -> list[str]:
-        self._check_update_info(self._default_channels)
-        return self._default_channels  # type: ignore
-
-    def _check_update_info(self, prop):
-        if prop is None:
-            self._get_conda_info()
-
-    def _get_conda_info(self):
-        info = conda_info(self.project)
-        self._virtual_packages = info["virtual_packages"]
-        self._platform = info["platform"]
-        self._default_channels = info["channels"]
+    def allow_all_spec(self) -> CondaEnvSpec:
+        env_spec = CondaEnvSpec.from_env_spec(super().allow_all_spec, **self.allow_all_spec_overrides)
+        # if allow_all_spec_overrides is set, override the allow_all_spec one time
+        if self.allow_all_spec_overrides:
+            self.allow_all_spec_overrides = {}
+        return env_spec
 
     def get_paths(self, dist_name: str | None = None) -> dict[str, str]:
         if self.project.conda_config.is_initialized:

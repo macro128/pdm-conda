@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from functools import cached_property
 from typing import TYPE_CHECKING, cast
 
+from pdm._types import NotSet, NotSetType
+from pdm.compat import CompatibleSequence
 from pdm.exceptions import PdmUsageError, ProjectError
+from pdm.models.markers import EnvSpec
 from pdm.models.python import PythonInfo
 from pdm.project import Project
 from pdm.project.lockfile import Lockfile
@@ -22,7 +26,7 @@ if TYPE_CHECKING:
     from pdm.core import Core
     from pdm.environments import BaseEnvironment
     from pdm.models.repositories import LockedRepository
-    from pdm.models.requirements import Requirement
+    from pdm.models.requirements import Requirement, parse_line
     from pdm.resolver.providers import BaseProvider
 
 
@@ -52,30 +56,6 @@ class CondaProject(Project):
         self._base_env: Path | None = None
 
     @property
-    def virtual_packages(self) -> set[CondaRequirement]:
-        from pdm_conda.environments import CondaEnvironment
-
-        if isinstance(self.environment, CondaEnvironment):
-            return self.environment.virtual_packages
-        return set()
-
-    @property
-    def platform(self) -> str:
-        from pdm_conda.environments import CondaEnvironment
-
-        if isinstance(self.environment, CondaEnvironment):
-            return self.environment.platform
-        return ""
-
-    @property
-    def default_channels(self) -> list[str]:
-        from pdm_conda.environments import CondaEnvironment
-
-        if isinstance(self.environment, CondaEnvironment):
-            return self.environment.default_channels
-        return []
-
-    @property
     def base_env(self) -> Path:
         if self._base_env is None:
             from pdm_conda.conda import conda_base_path
@@ -83,14 +63,18 @@ class CondaProject(Project):
             self._base_env = conda_base_path(self)
         return self._base_env
 
-    @property
-    def locked_repository(self) -> LockedRepository:
+    def get_locked_repository(self, env_spec: EnvSpec | None = None) -> LockedRepository:
         try:
             lockfile = self.lockfile._data.unwrap()
         except ProjectError:
             lockfile = {}
 
-        return self.locked_repository_class(lockfile=lockfile, sources=self.sources, environment=self.environment)  # type: ignore
+        return self.locked_repository_class(
+            lockfile=lockfile,
+            sources=self.sources,
+            environment=self.environment,
+            env_spec=env_spec,
+        )  # type: ignore
 
     @Project.python.setter
     @PluginConfig.check_active
@@ -154,7 +138,7 @@ class CondaProject(Project):
                 groups.remove(group)
         return groups
 
-    def get_dependencies(self, group: str | None = None) -> dict[str, Requirement]:
+    def get_dependencies(self, group: str | None = None) -> Sequence[Requirement]:
         config = self.conda_config
         if not config.is_initialized:
             return super().get_dependencies(group)
@@ -162,14 +146,14 @@ class CondaProject(Project):
         group = group or "default"
         dev = group not in config.optional_dependencies
         try:
-            result = super().get_dependencies(group)
+            result = super().get_dependencies(group)._data
         except PdmUsageError:
-            result = {}
+            result = []
 
         if group in config.optional_dependencies and group in config.dev_dependencies:
             self.core.ui.echo(
-                f"The {group} group exists in both [optional-dependencies] "
-                "and [dev-dependencies], the former is taken.",
+                f"The {group} group exists in both \\[optional-dependencies] "
+                "and \\[dev-dependencies], the former is taken.",
                 err=True,
                 style="warning",
             )
@@ -179,9 +163,9 @@ class CondaProject(Project):
             req = parse_requirement(f"conda:{line}")
             req.groups = [group]
             # search for package with extras to remove it
-            pypi_req = next((v for v in result.values() if v.conda_name == req.conda_name), None)
-            if pypi_req is not None:
-                result.pop(pypi_req.identify())
+            pypi_req_idx = next((i for i, v in enumerate(result) if v.conda_name == req.conda_name), None)
+            if pypi_req_idx is not None:
+                pypi_req = result[pypi_req_idx]
                 if not req.specifier:
                     req.specifier = pypi_req.specifier
                 if pypi_req.marker:
@@ -189,53 +173,85 @@ class CondaProject(Project):
                 if pypi_req.extras:
                     req.extras = pypi_req.extras
                 req.groups = pypi_req.groups
-            result[req.identify()] = req
+                result[pypi_req_idx] = req
+            else:
+                result.append(req)
 
         if self.conda_config.as_default_manager:
-            for k in list(result):
-                if is_conda_managed(req := result[k], config):
-                    result[k] = as_conda_requirement(req)
+            for i, req in enumerate(result):
+                if is_conda_managed(req, config):
+                    result[i] = as_conda_requirement(req)
 
-        return result
+        return CompatibleSequence(result)
 
     def add_dependencies(
         self,
-        requirements: dict[str, Requirement],
+        requirements: Iterable[str | Requirement],
         to_group: str = "default",
         dev: bool = False,
         show_message: bool = True,
         write: bool = True,
-    ) -> None:
-        conda_requirements = {n: r for n, r in requirements.items() if isinstance(r, CondaRequirement)}
-        requirements = {n: r for n, r in requirements.items() if n not in conda_requirements} | {
-            n: r.as_named_requirement() for n, r in conda_requirements.items() if r.is_python_package
-        }
+    ) -> list[Requirement]:
+        conda_requirements = []
+        python_requirements = []
+
+        for r in requirements:
+            if isinstance(r, str):
+                r = parse_line(r)
+            if isinstance(r, CondaRequirement):
+                conda_requirements.append(r)
+                if r.is_python_package:
+                    python_requirements.append(r.as_named_requirement())
+            else:
+                python_requirements.append(r)
+
+        conda_parsed_deps: list[CondaRequirement] = []
+
         if self.conda_config.is_initialized:
             if self.conda_config.as_default_manager:
-                conda_requirements = {
-                    n: r
-                    for n, r in conda_requirements.items()
-                    if not r.is_python_package or r.channel or r.build_string
-                }
+                conda_requirements = [
+                    r for r in conda_requirements if not r.is_python_package or r.channel or r.build_string
+                ]
             if conda_requirements:
+                updated_indices: set[int] = set()
+
                 deps = self.get_conda_pyproject_dependencies(to_group, dev, set_defaults=True)
+                conda_parsed_deps = [parse_requirement(f"conda:{dep}") for dep in deps]
                 python_deps, _ = self.use_pyproject_dependencies(to_group, dev)
+                python_names = {r.conda_name for r in python_requirements}
                 cast(Array, deps).multiline(True)
-                for name, dep in conda_requirements.items():
-                    matched_index = next((i for i, r in enumerate(deps) if dep.matches(f"conda:{r}")), None)
-                    req = dep.as_line(with_channel=True)
+                for req in conda_requirements:
+                    matched_index = next(
+                        (i for i, r in enumerate(deps) if req.matches(f"conda:{r}") and i not in updated_indices),
+                        None,
+                    )
+                    dep = req.as_line(with_channel=True)
                     if matched_index is None:
-                        deps.append(req)
+                        updated_indices.add(len(deps))
+                        deps.append(dep)
+                        conda_parsed_deps.append(req)
                     else:
-                        deps[matched_index] = req
-                    if name not in requirements:
-                        matched_index = next((i for i, r in enumerate(python_deps) if dep.matches(r)), None)
+                        deps[matched_index] = dep
+                        updated_indices.add(matched_index)
+                        conda_parsed_deps[matched_index] = req
+
+                    # remove from python deps in there
+                    if req.conda_name not in python_names:
+                        matched_index = next((i for i, r in enumerate(python_deps) if req.matches(r)), None)
                         if matched_index is not None:
                             python_deps.pop(matched_index)
         else:
             assert not conda_requirements, "Conda is not initialized but conda requirements are present."
 
-        super().add_dependencies(requirements, to_group, dev, show_message, write=write)
+        group_deps = super().add_dependencies(python_requirements, to_group, dev, show_message, write=write)
+        for dep in conda_parsed_deps:
+            dep.groups = [to_group]
+            matched_index = next((i for i, r in enumerate(group_deps) if dep.conda_name == r.conda_name), None)
+            if matched_index is not None:
+                group_deps[matched_index] = dep
+            else:
+                group_deps.append(dep)
+        return group_deps
 
     @PluginConfig.check_active
     def get_environment(self) -> BaseEnvironment:
@@ -256,16 +272,34 @@ class CondaProject(Project):
         strategy: str = "all",
         tracked_names: Iterable[str] | None = None,
         for_install: bool = False,
-        ignore_compatibility: bool = True,
+        ignore_compatibility: bool | NotSetType = NotSet,
         direct_minimal_versions: bool = False,
+        env_spec: EnvSpec | None = None,
+        locked_repository: LockedRepository | None = None,
     ) -> BaseProvider:
         if not self.conda_config.is_initialized:
-            return super().get_provider(strategy, tracked_names, for_install, ignore_compatibility)
+            return super().get_provider(
+                strategy,
+                tracked_names,
+                for_install,
+                ignore_compatibility,
+                direct_minimal_versions,
+                env_spec,
+                locked_repository,
+            )
 
         from pdm_conda.resolver.providers import BaseProvider, CondaBaseProvider
 
         kwargs = {"direct_minimal_versions": direct_minimal_versions}
-        provider = super().get_provider(strategy, tracked_names, for_install, ignore_compatibility, **kwargs)
+        provider = super().get_provider(
+            strategy,
+            tracked_names,
+            for_install,
+            ignore_compatibility,
+            env_spec=env_spec,
+            locked_repository=locked_repository,
+            **kwargs,
+        )
         if isinstance(provider, BaseProvider) and not isinstance(provider, CondaBaseProvider):
             kwargs["locked_candidates"] = provider.locked_candidates
             return CondaBaseProvider(provider.repository, **kwargs)  # type: ignore[arg-type]
@@ -300,3 +334,10 @@ class CondaProject(Project):
                         yield i
                 else:
                     yield i
+
+    @property
+    def name(self) -> str:
+        name = super().name
+        if self.conda_config.is_initialized and self.conda_config.custom_behavior:
+            name = name or ""
+        return name

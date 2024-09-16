@@ -2,22 +2,18 @@ from __future__ import annotations
 
 import contextlib
 import functools
+from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
 from pdm.cli import actions, utils
-from pdm.formats.base import array_of_inline_tables, make_array
 from pdm.models.specifiers import get_specifier
 
 from pdm_conda import logger
 from pdm_conda.models.candidates import CondaCandidate
 from pdm_conda.models.repositories import CondaRepository
-from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement, comparable_version
+from pdm_conda.models.requirements import as_conda_requirement, comparable_version
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
-
-    from pdm.project import Project
-
     from pdm_conda.models.candidates import Candidate
     from pdm_conda.models.requirements import Requirement
 
@@ -40,13 +36,18 @@ def remove_quotes(req: str) -> str:
 
 def wrap_fetch_hashes(func):
     @functools.wraps(func)
-    def wrapper(repository, mapping: Mapping[str, Candidate]) -> None:
-        conda_candidates = {}
+    def wrapper(repository, candidates: Iterable[Candidate]) -> None:
+        conda_candidates = []
+        python_candidates = []
+        for can in candidates:
+            if isinstance(can, CondaCandidate):
+                conda_candidates.append(can)
+            else:
+                python_candidates.append(can)
         if isinstance(repository, CondaRepository):
-            conda_candidates = {name: can for name, can in mapping.items() if isinstance(can, CondaCandidate)}
             repository.update_hashes(conda_candidates)
 
-        return func(repository, {name: can for name, can in mapping.items() if name not in conda_candidates})
+        return func(repository, python_candidates)
 
     return wrapper
 
@@ -54,76 +55,36 @@ def wrap_fetch_hashes(func):
 def wrap_save_version_specifiers(func):
     @functools.wraps(func)
     def wrapper(
-        requirements: dict[str, dict[str, Requirement]],
-        resolved: dict[str, Candidate],
+        requirements: list[Requirement],
+        resolved: dict[str, list[Candidate]],
         save_strategy: str,
     ) -> None:
         func(requirements, resolved, save_strategy)
-        for reqs in requirements.values():
-            for name, r in reqs.items():
-                can = resolved[name]
-                if save_strategy == "compatible" and r.is_named and (version := comparable_version(can.version)).epoch:
-                    if version.is_prerelease or version.is_devrelease:
-                        r.specifier = get_specifier(
-                            f">={version.epoch}!{version},<{version.epoch}!{version.major + 1}",
-                        )
-                    else:
-                        r.specifier = get_specifier(f"~={version.epoch}!{version.major}.{version.minor}")
-                if isinstance(can, CondaCandidate):
-                    r = as_conda_requirement(r)
-                    r.version_mapping.update(can.req.version_mapping)
-                    r.is_python_package = can.req.is_python_package
-                    reqs[name] = r
-
-    return wrapper
-
-
-def wrap_format_lockfile(func):
-    @functools.wraps(func)
-    def wrapper(
-        project: Project,
-        mapping: dict[str, Candidate],
-        fetched_dependencies: dict[tuple[str, str | None], list[Requirement]],
-        *args,
-        **kwargs,
-    ) -> dict:
-        res = func(project, mapping, fetched_dependencies, *args, **kwargs)
-        # ensure no duplicated groups in metadata
-        if groups := res.get("metadata", {}).get("groups"):
-            res["metadata"]["groups"] = list({group: None for group in groups}.keys())
-
-        assert len(res["package"]) == len(mapping)
-        # fix conda packages
-        for package, (_, can) in zip(res["package"], sorted(mapping.items()), strict=False):
-            # only static-url allowed for conda packages
+        for i, r in enumerate(requirements):
+            name = r.identify()
+            candidates = resolved[name]
+            if len(candidates) > 1:
+                continue
+            can = candidates[0]
+            if save_strategy == "compatible" and r.is_named and (version := comparable_version(can.version)).epoch:
+                if version.is_prerelease or version.is_devrelease:
+                    r.specifier = get_specifier(
+                        f">={version.epoch}!{version},<{version.epoch}!{version.major + 1}",
+                    )
+                else:
+                    r.specifier = get_specifier(f"~={version.epoch}!{version.major}.{version.minor}")
             if isinstance(can, CondaCandidate):
-                package["files"] = array_of_inline_tables(
-                    [{"url": item["url"], "hash": item["hash"]} for item in can.hashes],
-                    multiline=True,
-                )
-
-            # fix conda dependencies to include build string
-            dependencies = []
-            include_dependencies = False
-            for dep in fetched_dependencies.get(can.dep_key, []):
-                kwargs = {}
-                if isinstance(dep, CondaRequirement):
-                    kwargs["with_build_string"] = True
-                    include_dependencies = True
-                dependencies.append(dep.as_line(**kwargs))
-            if include_dependencies:
-                package["dependencies"] = make_array(sorted(set(dependencies)), True)
-
-        res["package"] = sorted(res["package"], key=lambda x: x["name"])
-        return res
+                r = as_conda_requirement(r)
+                r.version_mapping.update(can.req.version_mapping)
+                r.is_python_package = can.req.is_python_package
+                r.marker = can.req.marker
+                requirements[i] = r
 
     return wrapper
 
 
 save_version_specifiers = wrap_save_version_specifiers(utils.save_version_specifiers)
-format_lockfile = wrap_format_lockfile(utils.format_lockfile)
 wrap_fetch_hashes = wrap_fetch_hashes(actions.fetch_hashes)
 for m in [utils, actions]:
     m.save_version_specifiers = save_version_specifiers
-    m.format_lockfile = format_lockfile
     m.fetch_hashes = wrap_fetch_hashes

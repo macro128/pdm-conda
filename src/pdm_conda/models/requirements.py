@@ -8,10 +8,13 @@ from copy import copy
 from typing import TYPE_CHECKING
 
 from packaging.version import Version
-from pdm.cli import actions, utils
+from pdm.cli import utils
+from pdm.exceptions import RequirementError
 from pdm.models import requirements
+from pdm.models.markers import Marker, get_marker
 from pdm.models.requirements import NamedRequirement, Requirement, strip_extras
 from pdm.models.requirements import parse_requirement as _parse_requirement
+from pdm.resolver import providers
 
 from pdm_conda.mapping import conda_to_pypi, pypi_to_conda
 from pdm_conda.utils import normalize_name
@@ -29,6 +32,30 @@ _prev_spec = ",|<>!~="
 _specifier_re = re.compile(rf"(?<![{_prev_spec}])(=|==|~=|!=|<|>|<=|>=)([^{_prev_spec}\s]+)")
 _conda_specifier_star_re = re.compile(r"([\w.]+)\*")
 _conda_version_letter_re = re.compile(r"(\d|\.)([a-z]+)(\d?)")
+_conda_virtual_package_re = re.compile(r"^(_+)(.*)")
+
+
+def extract_platform_marker(conda_channel: str | None, as_dict: bool = False) -> Marker | dict[str, str] | None:
+    """Extract platform marker from conda channel subdir.
+
+    :param conda_channel: conda channel
+    :param as_dict: return as dict
+    :return: platform marker
+    """
+    if conda_channel is None:
+        return None
+    subdir = conda_channel.split("/")[-1].lower()
+    marker = {}
+    for platform, _marker in [("linux", "Linux"), ("osx", "Darwin"), ("win", "Windows")]:
+        if subdir.startswith(platform):
+            marker["platform_system"] = _marker
+            break
+
+    for machine, _marker in [("64", "x86_64"), ("32", "x86"), ("arm64", "arm64"), ("aarch64", "aarch64")]:
+        if subdir.endswith(f"-{machine}"):
+            marker["platform_machine"] = _marker
+            break
+    return marker if as_dict else get_marker(" and ".join(f"{k}=='{v}'" for k, v in marker.items()))
 
 
 @dataclasses.dataclass(eq=False)
@@ -39,7 +66,9 @@ class CondaRequirement(NamedRequirement):
     build_string: str | None = None
 
     @property
-    def conda_name(self) -> str | None:
+    def conda_name(self) -> str:
+        if self.name is None:
+            raise RequirementError("CondaRequirement must have a name")
         return self.name
 
     @classmethod
@@ -47,35 +76,27 @@ class CondaRequirement(NamedRequirement):
         kwargs.pop("conda_managed", None)
         if build_string := kwargs.get("build_string", ""):
             kwargs["build_string"] = build_string.strip()
-        if "is_python_package" not in kwargs and kwargs.get("name", "").startswith("_"):
-            kwargs["is_python_package"] = False
+        if "is_python_package" not in kwargs:
+            kwargs["is_python_package"] = not kwargs.get("name", "").startswith("_")
+        platform_marker = extract_platform_marker(kwargs.get("channel", None))
+        if platform_marker is not None and str(platform_marker) not in str(marker := kwargs.get("marker", None)):
+            kwargs["marker"] = platform_marker if marker is None else marker & platform_marker
 
         return super().create(**kwargs)
 
     def as_line(
         self,
         as_conda: bool = False,
-        with_channel=False,
-        with_build_string=False,
-        conda_compatible=False,
+        with_channel: bool = False,
+        with_build_string: bool = False,
+        conda_compatible: bool = False,
     ) -> str:
         channel = f"{self.channel}::" if with_channel and self.channel else ""
         if as_conda:
             channel = f"conda:{channel}"
         specifiers = []
         for s in frozenset(self.specifier):
-            operator = s.operator
-            version = self.version_mapping.get(s.version, s.version)
-            if conda_compatible and operator == "~=":
-                operator = "="
-                if len(parts := version.split(".")) > 0:
-                    if parts[-1] == "*":
-                        version = f"{'.'.join(parts[:-1])}.0"
-                    # special releases are omitted
-                    if len(parts) > 2 and re.search(r"(a|b|rc|dev|post|rev|alpha|beta|preview|pre)\d", parts[-1]):
-                        parts = parts[:-1]
-                    version = f"{'.'.join(parts[:-1])}.*,>={version}"
-            specifiers.append(f"{operator}{version}")
+            specifiers.append(f"{s.operator}{self.version_mapping.get(s.version, s.version)}")
         specifier = ",".join(sorted(specifiers))
         build_string = f" {self.build_string}" if with_build_string and self.build_string and specifier else ""
         extras = ""
@@ -102,6 +123,9 @@ class CondaRequirement(NamedRequirement):
         )
 
     def is_compatible(self, requirement_or_candidate: Requirement | Candidate):
+        if requirement_or_candidate is None:
+            return False
+
         _compatible = True
         # test build string compatible
         if (build_string := getattr(requirement_or_candidate, "build_string", "")) and self.build_string:
@@ -164,6 +188,23 @@ class CondaRequirement(NamedRequirement):
         return _req
 
 
+class CondaVirtualPackageRequirement(CondaRequirement):
+    """A virtual package requirement."""
+
+    @classmethod
+    def create(cls: type[T], **kwargs: Any) -> T:
+        kwargs.pop("channel", None)
+        if not (name := kwargs.get("name", "")).startswith("__"):
+            kwargs["name"] = f"__{name}"
+        return super().create(is_python_package=False, **kwargs)
+
+    def as_named_requirement(self) -> NamedRequirement:
+        raise NotImplementedError
+
+    def as_line(self) -> str:  # type: ignore[override]
+        return super().as_line(with_build_string=True, conda_compatible=True)
+
+
 def as_conda_requirement(requirement: NamedRequirement | CondaRequirement) -> CondaRequirement:
     if isinstance(requirement, NamedRequirement) and not isinstance(requirement, CondaRequirement):
         req = copy(requirement)
@@ -210,17 +251,20 @@ def correct_specifier_star(match):
     return res
 
 
-def parse_conda_version(version, inverse=False):
-    def correct_conda_version(match):
+def parse_conda_version(version: str) -> str:
+    """Transform conda version specifier to PEP 440 version specifier.
+
+    :param version: conda version
+    :return: PEP 440 version
+    """
+
+    def correct_conda_version(match) -> str:
         digit, letter_specifier, follow_digit = match.groups()
         allowed_specifiers = ("a", "b", "rc", "dev", "post", "rev", "alpha", "beta", "preview", "pre")
         if letter_specifier in allowed_specifiers and follow_digit:
             letter_specifier += follow_digit
         else:
-            _letter_specifier = (ord(letter) for letter in letter_specifier)
-            if inverse:
-                _letter_specifier = (ord("z") + 1 - letter for letter in _letter_specifier)
-            letter_specifier = "".join(str(letter) for letter in _letter_specifier)
+            letter_specifier = "".join(str(letter) for letter in (ord(letter) for letter in letter_specifier))
             if digit != ".":
                 letter_specifier = f".{letter_specifier}"
         return f"{digit}{letter_specifier}"
@@ -245,9 +289,10 @@ def parse_requirement(line: str, editable: bool = False) -> Requirement:
         channel, line = match.groups()
         if channel:
             channel = channel[:-2]
-        marker = None
+        marker = ""
         if ";" in line:
             line, marker = line.split(";", maxsplit=1)
+        marker = marker.strip()
 
         build_string = None
         if len(_line := re.split(r"\s+", line)) == 3 or (len(_line) == 2 and _specifier_re.search(_line[0])):
@@ -263,41 +308,67 @@ def parse_requirement(line: str, editable: bool = False) -> Requirement:
             name, version = line[: match.start(1)], line[match.start(1) :]
         elif " " in line:
             name, version = line.split(" ", maxsplit=1)
+
+        # check if it's a virtual package
+        prefix = ""
+        is_virtual_package = False
+        if virtual_package := _conda_virtual_package_re.match(name):
+            prefix = virtual_package.group(1)
+            name = virtual_package.group(2)
+            is_virtual_package = len(prefix) == 2
+
+        # we need to handle the "or" and "and" operator in the conda version
+        # e.g. "1.2.3|1.2.4" and "1.2.3,1.2.4"
         version_and = version.split(",")
         for i, conda_version in enumerate(version_and):
             version_or = conda_version.split("|")
             for j, conda_version_or in enumerate(version_or):
+                conda_version_or = conda_version_or.strip()
                 if conda_version_or:
+                    # if the version is just a star, we treat it as an empty string
                     if conda_version_or == "*":
-                        _version = ""
+                        pep_compatible_version = ""
                     else:
+                        # if the version is a specifier, we need to parse it
                         if not (spec := _specifier_re.match(conda_version_or)) or spec.group(1) == "=":
-                            spec_eq = spec and spec.group(1) == "="
+                            is_eq_spec = spec and spec.group(1) == "="
                             if spec:
                                 conda_version_or = conda_version_or[spec.end(1) :]
-                            star_version = _conda_specifier_star_re.match(conda_version_or)
-                            if spec_eq and not star_version:
+                            is_star_version = _conda_specifier_star_re.match(conda_version_or)
+                            # if is equality specifier and not a virtual package, we need to add `.*` to the version
+                            if is_eq_spec and not is_star_version and not is_virtual_package:
                                 conda_version_or += ".*"
-                            conda_version_or = f"{'~' if star_version else '='}={conda_version_or}"
-                        _version = conda_version_or
-                        if not _version.startswith("=="):
-                            _version = _conda_specifier_star_re.sub(correct_specifier_star, _version)
-                            if _version.startswith("~") and "." not in _version:
-                                _version += ".0"
-                        _version = parse_conda_version(_version)
-                        version_mapping[remove_operator(_version)] = remove_operator(conda_version_or)
-                    version_or[j] = _version
+                            conda_version_or = f"{'~' if is_star_version else '='}={conda_version_or}"
+                        # we need to convert the conda version to a comparable version
+                        # so that we can use it to sort the versions
+                        pep_compatible_version = conda_version_or
+                        if not pep_compatible_version.startswith("=="):
+                            # we need to replace the `*` with `.*` so that the version
+                            # can be parsed correctly
+                            pep_compatible_version = _conda_specifier_star_re.sub(
+                                correct_specifier_star,
+                                pep_compatible_version,
+                            )
+                            if pep_compatible_version.startswith("~") and "." not in pep_compatible_version:
+                                pep_compatible_version += ".0"
+                        # we transform the conda version to a pep 440 compatible version
+                        pep_compatible_version = parse_conda_version(pep_compatible_version)
+                        # we need to save the version mapping so that we can
+                        # use it to get the python compatible version
+                        version_mapping[remove_operator(pep_compatible_version)] = remove_operator(conda_version_or)
+                    version_or[j] = pep_compatible_version
             version_and[i] = max((v for v in version_or if v), key=comparable_version, default="")
+        # we need to join the versions with comma so that it can be used as a specifier
         version = ",".join(version_and)
         if marker:
-            name += f";{marker}"
-        prefix = ""
-        if underscore_prefix := re.match(r"^(_+)(.*)", name):
-            prefix = underscore_prefix.group(1)
-            name = underscore_prefix.group(2)
+            name += f"; {marker}"
         _req = _parse_requirement(line=name)
-        _req.name = f"{prefix}{_req.name}"
-        req = CondaRequirement.create(
+        cls = CondaVirtualPackageRequirement
+        if not is_virtual_package:
+            _req.name = f"{prefix}{_req.name}"
+            cls = CondaRequirement
+
+        req = cls.create(
             name=_req.name,
             version=version,
             channel=channel,
@@ -341,7 +412,7 @@ def key(self) -> str | None:
     return normalize_name(self.conda_name) if self.conda_name else None
 
 
-for m in [utils, actions, requirements]:
+for m in [providers, requirements]:
     m.parse_requirement = parse_requirement
 
 utils.filter_requirements_with_extras = wrap_filter_requirements_with_extras(utils.filter_requirements_with_extras)

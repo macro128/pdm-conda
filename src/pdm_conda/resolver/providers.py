@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from copy import copy
-from typing import TYPE_CHECKING, cast
+from functools import cached_property
+from typing import TYPE_CHECKING
 
 from pdm.models.repositories import BaseRepository
 from pdm.models.requirements import strip_extras
@@ -22,7 +23,7 @@ from pdm_conda.models.repositories import CondaRepository
 from pdm_conda.models.requirements import CondaRequirement, as_conda_requirement, parse_requirement
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+    from collections.abc import Callable, Iterator, Mapping, Sequence
 
     from pdm.models.candidates import Candidate
     from pdm.models.requirements import Requirement
@@ -38,49 +39,27 @@ class CondaBaseProvider(BaseProvider):
         allow_prereleases: bool | None = None,
         overrides: dict[str, str] | None = None,
         direct_minimal_versions: bool = False,
-        locked_candidates: dict[str, Candidate] | None = None,
+        *,
+        locked_candidates: dict[str, list[Candidate]],
     ) -> None:
-        super().__init__(repository, allow_prereleases, overrides, direct_minimal_versions, locked_candidates)
+        super().__init__(
+            repository,
+            allow_prereleases,
+            overrides,
+            direct_minimal_versions,
+            locked_candidates=locked_candidates,
+        )
         self._overrides_requirements: dict | None = None
         environment = repository.environment
         self.is_conda_initialized = (
             isinstance(environment, CondaEnvironment) and environment.project.conda_config.is_initialized
         )
-        if self.is_conda_initialized:
-            self.excludes = {
-                parse_requirement(name).identify()
-                for name in environment.project.pyproject.resolution.get("excludes", [])
-            }
         python_version = str(environment.interpreter.version)
         self.python_candidate = CondaCandidate(
             parse_requirement(f"conda:python=={python_version}"),
             "python",
             python_version,
         )
-
-    @property
-    def overrides_requirements(self) -> dict[str, Requirement]:
-        """Identifier and requirement mapping for overrides.
-
-        :return: mapping
-        """
-        if self._overrides_requirements is None:
-            self._overrides_requirements = {}
-            if self.overrides:
-                for identifier, requested in self.overrides.items():
-                    if is_url(requested):
-                        requirement = parse_requirement(f"{identifier} @ {requested}")
-                    else:
-                        # first parse as conda to ensure no version error
-                        requirement = cast(CondaRequirement, parse_requirement(f"conda:{identifier} {requested}"))
-                        if not isinstance(self.repository, CondaRepository) or not self.repository.is_conda_managed(
-                            requirement,
-                        ):
-                            requirement.name = identifier
-                            requirement = parse_requirement(requirement.as_line())
-                    self._overrides_requirements[self.identify(requirement)] = requirement
-
-        return self._overrides_requirements
 
     def get_preference(
         self,
@@ -94,13 +73,44 @@ class CondaBaseProvider(BaseProvider):
         if self.is_conda_initialized:
             return (
                 preference[:3],
+                # prefer resolving conda requirements first
                 (
-                    isinstance(self.repository, CondaRepository)
+                    self.is_conda_initialized
+                    and isinstance(self.repository, CondaRepository)
                     and self.repository.is_conda_managed(next(information[identifier]).requirement)
                 ),
                 *preference[3:],
             )
         return preference
+
+    @cached_property
+    def overrides(self) -> dict[str, Requirement]:
+        conda_requirements = {}
+        project_overrides: dict[str, str] = dict(
+            self.repository.environment.project.pyproject.resolution.get("overrides", {}).items(),
+        )
+        # remove from overrides conda requirements
+        if self.is_conda_initialized:
+            non_conda_overrides = dict(project_overrides)
+            for name, value in project_overrides.items():
+                if not is_url(value):
+                    try:
+                        if self.repository.is_conda_managed(req := parse_requirement(f"conda:{name} {value}")):
+                            conda_requirements[req.identify()] = req
+                            non_conda_overrides.pop(name)
+                    except:
+                        pass
+            self.repository.environment.project.pyproject.resolution["overrides"] = non_conda_overrides
+
+        try:
+            # get non conda overrides and add conda requirements
+            overrides = super().overrides
+            if self.is_conda_initialized:
+                overrides.update(conda_requirements)
+            return overrides
+        finally:
+            if self.is_conda_initialized:
+                self.repository.environment.project.pyproject.resolution["overrides"] = project_overrides
 
     def find_matches(
         self,
@@ -152,17 +162,12 @@ class CondaBaseProvider(BaseProvider):
         return matches_gen
 
     def get_requirement_from_overrides(self, requirement: Requirement) -> Requirement:
-        _req = copy(self.overrides_requirements.get(self.identify(requirement), requirement))
+        _req = copy(self.overrides.get(self.identify(requirement), requirement))
         if not requirement.groups:
             _req.groups = requirement.groups
         if isinstance(requirement, CondaRequirement):
             _req = as_conda_requirement(_req)
         return _req
-
-    def get_override_candidates(self, identifier: str) -> Iterable[Candidate]:
-        if self.is_conda_initialized:
-            return self._find_candidates(self.overrides_requirements[identifier])
-        return super().get_override_candidates(identifier)
 
     def compatible_with_resolution(
         self,
@@ -219,12 +224,12 @@ class CondaReusePinProvider(ReusePinProvider, CondaBaseProvider):
         requirements: Mapping[str, Iterator[Requirement]],
         incompatibilities: Mapping[str, Iterator[Candidate]],
     ) -> Callable[[], Iterator[Candidate]]:
+        # copy ReusePinProvider.find_matches yo ensure correct super.find_matches is selected
         super_find = super(CondaBaseProvider, self).find_matches(identifier, requirements, incompatibilities)
 
         def matches_gen() -> Iterator[Candidate]:
             requested_req = next(filter(lambda r: r.is_named, requirements[identifier]), None)
-            pin = self.get_reuse_candidate(identifier, requested_req)
-            if pin is not None:
+            for pin in self.iter_reuse_candidates(identifier, requested_req):
                 incompat = list(incompatibilities[identifier])
                 pin._preferred = True  # type: ignore[attr-defined]
                 if pin not in incompat and all(self.is_satisfied_by(r, pin) for r in requirements[identifier]):
@@ -239,26 +244,41 @@ class CondaReusePinProvider(ReusePinProvider, CondaBaseProvider):
         excluded=None,
         include_all: bool = False,
     ) -> list[Requirement]:
-        _requirements = []
-        excluded = set(excluded or set())
+        """Merge requirements with conda resolution.
+
+        :param requirements: list of requirements
+        :param excluded: excluded identifiers for conda managed
+        :param include_all: if true include candidates from locked_candidates
+        :return: Get merged requirements
+        """
+        merged_requirements = []
+        excluded = set(excluded) or set()
+        merged_identifiers = set(excluded)
         requirements = requirements or []
         for req in requirements:
             ident = self.identify(req)
-            if (
-                self.repository.is_conda_managed(req, excluded)
-                and ident in self.locked_candidates
-                and as_conda_requirement(req).is_compatible(can := self.locked_candidates[ident])
-            ):
-                _requirements.append(can.req)
+            # if req is conda managed and compatible with conda resolution, keep compatible candidate requirement
+            if self.repository.is_conda_managed(req, excluded) and ident in self.locked_candidates:
+                conda_req = as_conda_requirement(req)
+                for can in self.locked_candidates[ident]:
+                    if conda_req.is_compatible(can):
+                        merged_requirements.append(can.req)
+                else:
+                    # if no compatible candidate found, add the requirement
+                    merged_requirements.append(req)
             else:
-                _requirements.append(req)
-            excluded.add(ident)
-        if include_all:
-            for can in self.locked_candidates.values():
-                if self.identify(can.req) not in excluded:
-                    _requirements.append(can.req)
+                # if no compatible candidate found, add the requirement
+                merged_requirements.append(req)
+            # add the identifier to exclude
+            merged_identifiers.add(ident)
 
-        return _requirements
+        if include_all:
+            for candidates in self.locked_candidates.values():
+                for can in candidates:
+                    if self.identify(can.req) not in merged_identifiers:
+                        merged_requirements.append(can.req)
+
+        return merged_requirements
 
     def update_conda_resolution(
         self,

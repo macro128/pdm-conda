@@ -40,11 +40,11 @@ class CondaResolution(Resolution):
         self._is_conda_initialized = is_conda_initialized
         self._base_constrains = base_constrains or {}
         if not conda_resolution and is_conda_initialized:
-            conda_resolution = {
-                can.req.conda_name: [can]
-                for can in provider.locked_candidates.values()
-                if isinstance(can, CondaCandidate)
-            }
+            conda_resolution = {}
+            for name, candidates in provider.locked_candidates.items():
+                conda_candidates = [can for can in candidates if isinstance(can, CondaCandidate)]
+                if conda_candidates:
+                    conda_resolution[name] = conda_candidates
             conda_resolution["python"] = [provider.python_candidate]
         self._conda_resolution = conda_resolution or {}
         self._conda_excluded_identifiers = conda_excluded_identifiers or set()

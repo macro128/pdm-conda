@@ -35,8 +35,8 @@ class Command(BaseCommand):
             requirements = {}
             for i, group in enumerate(groups | dev_groups):
                 group_requirements = {}
-                for identifier, req in project.get_dependencies(group).items():
-                    can = candidates.get(identifier, None)
+                for req in project.get_dependencies(group).items():
+                    can = candidates.get((identifier := req.identify()), None)
                     if can is None:
                         continue
                     updated_req = can.req
